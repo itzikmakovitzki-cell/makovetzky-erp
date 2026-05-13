@@ -1,0 +1,565 @@
+// Makovetzky Project Management — Bureaucracy & Permitting ERP
+//
+// Hierarchy: Client → MasterDeal → Permit → Building
+// Currency: ILS only (no multi-currency).
+// Tasks/Checklists/Milestones live at the Permit level.
+// Documents may be tagged to Permit, Building, and/or Task.
+// AuditLog is immutable by convention — enforce at application layer.
+
+generator client {
+  provider      = "prisma-client-js"
+  // "native" for local dev, "rhel-openssl-3.0.x" for Vercel/AWS Lambda.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =============================================================
+// ENUMS
+// =============================================================
+
+enum UserRole {
+  ADMIN
+  EMPLOYEE
+  CONTRACTOR
+}
+
+enum MasterDealStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum PermitStatus {
+  DRAFT
+  IN_PROGRESS
+  AWAITING_AUTHORITY
+  COMPLETED
+  CANCELLED
+}
+
+// AWAITING_AUTHORITY on a Task pairs with Task.frozen = true to
+// freeze due dates and suppress overdue notifications.
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  AWAITING_AUTHORITY
+  COMPLETED
+  BLOCKED
+}
+
+enum TaskPriority {
+  NORMAL
+  URGENT
+}
+
+enum MilestoneStatus {
+  PENDING
+  DUE
+  PAID
+}
+
+enum SupplierAssignmentStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum CommissionReportStatus {
+  DRAFT
+  SENT
+  PAID
+}
+
+enum PendingDocumentStatus {
+  PENDING
+  ASSIGNED
+  REJECTED
+}
+
+enum DocumentSourceChannel {
+  WHATSAPP
+  EMAIL
+  PORTAL
+  MANUAL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  ASSIGN
+  DEPENDENCY_OVERRIDE
+  APPROVE
+  REJECT
+}
+
+// =============================================================
+// USERS & PORTAL ACCESS
+// =============================================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         UserRole @default(EMPLOYEE)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedTasks          Task[]
+  uploadedDocuments      Document[]           @relation("DocumentUploader")
+  approvedDocuments      Document[]           @relation("DocumentApprover")
+  notes                  Note[]
+  overriddenDependencies TaskDependency[]
+  weeklySummariesEdited  WeeklySummaryDraft[]
+  auditLogs              AuditLog[]
+  portalAccesses         PortalAccess[]
+
+  @@index([role])
+}
+
+// Multiple users can have portal access to a single client (contractor + staff).
+model PortalAccess {
+  id        String   @id @default(cuid())
+  clientId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, userId])
+  @@index([userId])
+}
+
+// Single-use field-worker access. Token is the lookup key; expiresAt drives validity.
+model MagicLink {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  taskId    String?
+  permitId  String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  permit Permit? @relation(fields: [permitId], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
+  @@index([taskId])
+  @@index([permitId])
+}
+
+// =============================================================
+// CORE HIERARCHY: Client → MasterDeal → Permit → Building
+// =============================================================
+
+model Client {
+  id                 String   @id @default(cuid())
+  name               String
+  companyName        String?
+  primaryContactName String?
+  phone              String?
+  email              String?
+  address            String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  masterDeals    MasterDeal[]
+  portalAccesses PortalAccess[]
+
+  @@index([name])
+}
+
+model MasterDeal {
+  id           String           @id @default(cuid())
+  clientId     String
+  name         String
+  contractDate DateTime?
+  totalValue   Decimal?         @db.Decimal(14, 2)
+  status       MasterDealStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  client  Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  permits Permit[]
+
+  @@index([clientId])
+  @@index([status])
+}
+
+model Permit {
+  id                String       @id @default(cuid())
+  masterDealId      String
+  authorityId       String
+  permitNumber      String?
+  name              String
+  type              String?
+  status            PermitStatus @default(DRAFT)
+  progressPercent   Int          @default(0)
+  startDate         DateTime?
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  masterDeal       MasterDeal           @relation(fields: [masterDealId], references: [id], onDelete: Restrict)
+  authority        Authority            @relation(fields: [authorityId], references: [id], onDelete: Restrict)
+  buildings        Building[]
+  tasks            Task[]
+  documents        Document[]
+  notes            Note[]
+  milestones       BillingMilestone[]
+  magicLinks       MagicLink[]
+  weeklySummaries  WeeklySummaryDraft[]
+  pendingDocuments PendingDocument[]
+
+  @@index([masterDealId])
+  @@index([authorityId])
+  @@index([status])
+  @@index([expectedCloseDate])
+}
+
+model Building {
+  id        String   @id @default(cuid())
+  permitId  String
+  label     String
+  type      String?
+  address   String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  permit    Permit     @relation(fields: [permitId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([permitId])
+}
+
+// =============================================================
+// TASKS, TEMPLATES, AUTHORITIES, DEPENDENCIES (strict AND)
+// =============================================================
+
+model Authority {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  region      String?
+  contactInfo String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  wikiEntries   AuthorityWikiEntry[]
+  taskTemplates TaskTemplate[]
+  permits       Permit[]
+}
+
+model AuthorityWikiEntry {
+  id          String   @id @default(cuid())
+  authorityId String
+  title       String
+  contentMd   String
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authority Authority @relation(fields: [authorityId], references: [id], onDelete: Cascade)
+
+  @@index([authorityId])
+}
+
+model BuildingType {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  taskTemplates TaskTemplate[]
+}
+
+model TaskTemplate {
+  id                  String   @id @default(cuid())
+  authorityId         String
+  buildingTypeId      String
+  name                String
+  description         String?
+  defaultDurationDays Int?
+  orderIndex          Int      @default(0)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  authority    Authority    @relation(fields: [authorityId], references: [id], onDelete: Restrict)
+  buildingType BuildingType @relation(fields: [buildingTypeId], references: [id], onDelete: Restrict)
+  tasks        Task[]
+
+  dependsOn    TaskTemplateDependency[] @relation("TemplateDependent")
+  dependedOnBy TaskTemplateDependency[] @relation("TemplateDependedOn")
+
+  @@unique([authorityId, buildingTypeId, name])
+  @@index([authorityId, buildingTypeId])
+}
+
+model TaskTemplateDependency {
+  templateId          String
+  dependsOnTemplateId String
+
+  template          TaskTemplate @relation("TemplateDependent", fields: [templateId], references: [id], onDelete: Cascade)
+  dependsOnTemplate TaskTemplate @relation("TemplateDependedOn", fields: [dependsOnTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([templateId, dependsOnTemplateId])
+  @@index([dependsOnTemplateId])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  permitId    String
+  templateId  String?
+  assigneeId  String?
+  name        String
+  description String?
+  status      TaskStatus   @default(OPEN)
+  priority    TaskPriority @default(NORMAL)
+  // Managerial Spotlight — pushes the task to the top of the assignee's queue.
+  isSpotlight Boolean      @default(false)
+  // True while status = AWAITING_AUTHORITY. Freezes due date and suppresses overdue alerts.
+  frozen      Boolean      @default(false)
+  dueDate     DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  permit              Permit                   @relation(fields: [permitId], references: [id], onDelete: Cascade)
+  template            TaskTemplate?            @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  assignee            User?                    @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  dependsOn           TaskDependency[]         @relation("TaskDependent")
+  dependedOnBy        TaskDependency[]         @relation("TaskDependedOn")
+  documents           Document[]
+  supplierAssignments SupplierTaskAssignment[]
+  // 1:1 — a task may anchor at most one billing milestone.
+  milestone           BillingMilestone?
+  magicLinks          MagicLink[]
+  pendingDocs         PendingDocument[]
+
+  @@index([permitId, status])
+  @@index([assigneeId, status])
+  @@index([dueDate])
+  @@index([assigneeId, isSpotlight])
+}
+
+// Strict AND semantics: a task becomes unblocked only when every dependsOn row is satisfied.
+model TaskDependency {
+  taskId            String
+  dependsOnTaskId   String
+  overriddenByAdmin Boolean   @default(false)
+  overriddenAt      DateTime?
+  overriddenById    String?
+
+  task         Task  @relation("TaskDependent", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn    Task  @relation("TaskDependedOn", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+  overriddenBy User? @relation(fields: [overriddenById], references: [id], onDelete: SetNull)
+
+  @@id([taskId, dependsOnTaskId])
+  @@index([dependsOnTaskId])
+}
+
+// =============================================================
+// FINANCE: Billing Milestones, Suppliers, Commission Reports
+// =============================================================
+
+// 1:1 with Task — completion of triggerTask flips status to DUE and sends the alert.
+model BillingMilestone {
+  id            String          @id @default(cuid())
+  permitId      String
+  triggerTaskId String          @unique
+  name          String
+  amount        Decimal         @db.Decimal(14, 2)
+  status        MilestoneStatus @default(PENDING)
+  dueDate       DateTime?
+  triggeredAt   DateTime?
+  paidAt        DateTime?
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  permit      Permit @relation(fields: [permitId], references: [id], onDelete: Restrict)
+  triggerTask Task   @relation(fields: [triggerTaskId], references: [id], onDelete: Restrict)
+
+  @@index([permitId, status])
+  @@index([status, dueDate])
+}
+
+model Supplier {
+  id                String   @id @default(cuid())
+  name              String
+  type              String?
+  contactName       String?
+  phone             String?
+  email             String?
+  defaultCommission Decimal? @db.Decimal(10, 2)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  taskAssignments   SupplierTaskAssignment[]
+  commissionReports SupplierCommissionReport[]
+
+  @@index([name])
+}
+
+// Powers the cross-project "Bulk View" of open work per supplier.
+model SupplierTaskAssignment {
+  id          String                   @id @default(cuid())
+  supplierId  String
+  taskId      String
+  amount      Decimal?                 @db.Decimal(14, 2)
+  status      SupplierAssignmentStatus @default(OPEN)
+  dueDate     DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, status])
+  @@index([taskId])
+}
+
+model SupplierCommissionReport {
+  id          String                 @id @default(cuid())
+  supplierId  String
+  periodYear  Int
+  periodMonth Int
+  totalDue    Decimal                @db.Decimal(14, 2)
+  status      CommissionReportStatus @default(DRAFT)
+  generatedAt DateTime               @default(now())
+  sentAt      DateTime?
+  paidAt      DateTime?
+  notes       String?
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@unique([supplierId, periodYear, periodMonth])
+  @@index([periodYear, periodMonth])
+}
+
+// =============================================================
+// CONTENT: Documents (versioned), Notes (pinnable), Audit Log
+// =============================================================
+
+// Old versions are archived (never deleted). Exactly one row per logical
+// document should have isLatestApproved = true; enforce at application layer.
+model Document {
+  id               String    @id @default(cuid())
+  permitId         String
+  buildingId       String?
+  taskId           String?
+  fileName         String
+  fileUrl          String
+  mimeType         String?
+  sizeBytes        Int?
+  version          Int       @default(1)
+  isLatestApproved Boolean   @default(false)
+  uploadedById     String?
+  approvedById     String?
+  approvedAt       DateTime?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  permit     Permit    @relation(fields: [permitId], references: [id], onDelete: Restrict)
+  building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  task       Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  uploadedBy User?     @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  approvedBy User?     @relation("DocumentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([permitId, isLatestApproved])
+  @@index([buildingId])
+  @@index([taskId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  permitId  String
+  content   String
+  isPinned  Boolean  @default(false)
+  authorId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  permit Permit @relation(fields: [permitId], references: [id], onDelete: Cascade)
+  author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([permitId, isPinned, createdAt])
+}
+
+// Immutable: do not expose UPDATE or DELETE operations at the application layer.
+// entityType is a free String to avoid migrations when new tracked models are added.
+model AuditLog {
+  id         String      @id @default(cuid())
+  entityType String
+  entityId   String
+  action     AuditAction
+  oldValue   Json?
+  newValue   Json?
+  userId     String?
+  timestamp  DateTime    @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@index([userId])
+}
+
+// =============================================================
+// EXTERNAL INTAKE: WhatsApp Document Catcher, Weekly Summaries
+// =============================================================
+
+model PendingDocument {
+  id               String                @id @default(cuid())
+  sourceChannel    DocumentSourceChannel @default(WHATSAPP)
+  senderInfo       String?
+  fileUrl          String
+  fileName         String?
+  mimeType         String?
+  rawMessage       String?
+  status           PendingDocumentStatus @default(PENDING)
+  assignedTaskId   String?
+  assignedPermitId String?
+  rejectionReason  String?
+  processedAt      DateTime?
+  createdAt        DateTime              @default(now())
+
+  assignedTask   Task?   @relation(fields: [assignedTaskId], references: [id], onDelete: SetNull)
+  assignedPermit Permit? @relation(fields: [assignedPermitId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
+model WeeklySummaryDraft {
+  id           String    @id @default(cuid())
+  permitId     String
+  draftContent String
+  generatedAt  DateTime  @default(now())
+  sentAt       DateTime?
+  editedById   String?
+  updatedAt    DateTime  @updatedAt
+
+  permit   Permit @relation(fields: [permitId], references: [id], onDelete: Cascade)
+  editedBy User?  @relation(fields: [editedById], references: [id], onDelete: SetNull)
+
+  @@index([permitId, generatedAt])
+}

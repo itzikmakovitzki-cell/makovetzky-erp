@@ -1,0 +1,95 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+// Service-role client — for server-side use only. Bypasses RLS.
+// Never import this from a Client Component.
+let _admin: SupabaseClient | null = null;
+
+function adminClient(): SupabaseClient {
+  if (_admin) return _admin;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error(
+      "Supabase storage not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env."
+    );
+  }
+  _admin = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  return _admin;
+}
+
+export const STORAGE_BUCKET = "permit-documents";
+const SIGNED_URL_TTL_SECONDS = 3600; // 1 hour — re-fetched on each page render
+
+export function buildPermitStoragePath(permitId: string, fileName: string): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const safe = fileName.replace(/[^A-Za-z0-9._-]/g, "_");
+  return `permits/${permitId}/${ts}-${rand}-${safe}`;
+}
+
+export function buildPendingStoragePath(fileName: string): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const safe = fileName.replace(/[^A-Za-z0-9._-]/g, "_");
+  return `pending/${ts}-${rand}-${safe}`;
+}
+
+export async function uploadToStorage(
+  buffer: ArrayBuffer | Uint8Array,
+  path: string,
+  contentType: string | null | undefined
+): Promise<void> {
+  const supabase = adminClient();
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, buffer, {
+    contentType: contentType || "application/octet-stream",
+    upsert: false
+  });
+  if (error) throw new Error(`העלאת קובץ לאחסון נכשלה: ${error.message}`);
+}
+
+export async function createSignedUrl(
+  path: string,
+  expiresInSeconds = SIGNED_URL_TTL_SECONDS
+): Promise<string> {
+  const supabase = adminClient();
+  const { data, error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(path, expiresInSeconds);
+  if (error) throw new Error(`יצירת signed URL נכשלה: ${error.message}`);
+  return data.signedUrl;
+}
+
+// Best-effort batch; errors are swallowed since URL generation is non-critical
+// and individual failures shouldn't break list rendering.
+export async function createSignedUrlsSafe(
+  paths: string[],
+  expiresInSeconds = SIGNED_URL_TTL_SECONDS
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (paths.length === 0) return map;
+  const supabase = adminClient();
+  const { data, error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrls(paths, expiresInSeconds);
+  if (error || !data) return map;
+  for (const item of data) {
+    if (item.path && item.signedUrl) {
+      map.set(item.path, item.signedUrl);
+    }
+  }
+  return map;
+}
+
+export async function deleteFromStorage(path: string): Promise<void> {
+  const supabase = adminClient();
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+  if (error) throw new Error(`מחיקת קובץ מאחסון נכשלה: ${error.message}`);
+}
+
+// Heuristic: in Mock mode, fileUrl is a full URL. In real Storage mode, it's a path
+// like "permits/<id>/<ts>-<filename>". This lets us keep legacy seed data working.
+export function isStoragePath(fileUrl: string): boolean {
+  return !fileUrl.startsWith("http://") && !fileUrl.startsWith("https://");
+}

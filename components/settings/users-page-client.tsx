@@ -1,0 +1,174 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Pencil, Plus, Power, Loader2 } from "lucide-react";
+import type { UserRole } from "@prisma/client";
+import { Badge } from "@/components/ui/badge";
+import { cn, formatDateTime } from "@/lib/utils";
+import { toggleUserActive } from "@/app/actions/users";
+import { UserFormDialog } from "./user-form-dialog";
+
+export type UserRow = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+};
+
+const ROLE_LABEL: Record<UserRole, string> = {
+  ADMIN: "מנהל",
+  EMPLOYEE: "עובד",
+  CONTRACTOR: "קבלן"
+};
+
+const ROLE_VARIANT: Record<UserRole, "warning" | "info" | "muted"> = {
+  ADMIN: "warning",
+  EMPLOYEE: "info",
+  CONTRACTOR: "muted"
+};
+
+export function UsersPageClient({
+  users,
+  currentUserId
+}: {
+  users: UserRow[];
+  currentUserId: string;
+}) {
+  const [mode, setMode] = useState<
+    | { kind: "create" }
+    | { kind: "update"; userId: string; initial: { name: string; email: string; role: UserRole } }
+    | null
+  >(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const handleToggleActive = (u: UserRow) => {
+    const verb = u.isActive ? "להשבית" : "להפעיל מחדש";
+    if (!window.confirm(`האם ${verb} את "${u.name}"?`)) return;
+    setTogglingId(u.id);
+    startTransition(async () => {
+      try {
+        await toggleUserActive(u.id);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "שגיאה");
+      } finally {
+        setTogglingId(null);
+      }
+    });
+  };
+
+  return (
+    <div className="rounded-md border bg-card">
+      <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          משתמשים ({users.length})
+        </h2>
+        <button
+          type="button"
+          onClick={() => setMode({ kind: "create" })}
+          className="inline-flex items-center gap-1 rounded border border-foreground bg-foreground px-2.5 py-1 text-[11px] font-medium text-background hover:opacity-90"
+        >
+          <Plus className="size-3" />
+          משתמש חדש
+        </button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>שם</th>
+            <th>אימייל</th>
+            <th className="w-24">תפקיד</th>
+            <th className="w-24">סטטוס</th>
+            <th className="w-32">נוסף</th>
+            <th className="w-32">פעולות</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((u) => {
+            const isSelf = u.id === currentUserId;
+            const isToggling = togglingId === u.id && pending;
+            return (
+              <tr
+                key={u.id}
+                className={cn("hover:bg-muted/30", !u.isActive && "text-muted-foreground")}
+              >
+                <td>
+                  <span className={cn("font-medium", !u.isActive && "line-through")}>
+                    {u.name}
+                  </span>
+                  {isSelf && (
+                    <span className="ms-1 text-[10px] text-muted-foreground">(אתה)</span>
+                  )}
+                </td>
+                <td className="text-xs">{u.email}</td>
+                <td>
+                  <Badge variant={ROLE_VARIANT[u.role]}>{ROLE_LABEL[u.role]}</Badge>
+                </td>
+                <td>
+                  {u.isActive ? (
+                    <Badge variant="success">פעיל</Badge>
+                  ) : (
+                    <Badge variant="muted">מושבת</Badge>
+                  )}
+                </td>
+                <td className="text-[11px] tabular-nums text-muted-foreground">
+                  {formatDateTime(u.createdAt)}
+                </td>
+                <td>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMode({
+                          kind: "update",
+                          userId: u.id,
+                          initial: { name: u.name, email: u.email, role: u.role }
+                        })
+                      }
+                      className="inline-flex items-center gap-1 rounded border border-input px-1.5 py-0.5 text-[10px] hover:bg-accent"
+                    >
+                      <Pencil className="size-2.5" />
+                      ערוך
+                    </button>
+                    {!isSelf && (
+                      <button
+                        type="button"
+                        disabled={isToggling}
+                        onClick={() => handleToggleActive(u)}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                          u.isActive
+                            ? "border-red-500/50 bg-red-500/10 text-red-800 hover:bg-red-500/20 dark:text-red-300"
+                            : "border-emerald-500/50 bg-emerald-500/10 text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-300",
+                          isToggling && "opacity-50"
+                        )}
+                      >
+                        {isToggling ? (
+                          <Loader2 className="size-2.5 animate-spin" />
+                        ) : (
+                          <Power className="size-2.5" />
+                        )}
+                        {u.isActive ? "השבת" : "הפעל"}
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {mode && (
+        <UserFormDialog
+          key={mode.kind === "update" ? `edit-${mode.userId}` : "create"}
+          mode={mode}
+          onClose={() => setMode(null)}
+        />
+      )}
+    </div>
+  );
+}
