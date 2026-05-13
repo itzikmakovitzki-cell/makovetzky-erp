@@ -136,7 +136,7 @@ export async function deleteTaskTemplate(id: string): Promise<void> {
     select: {
       id: true,
       name: true,
-      _count: { select: { tasks: true } }
+      _count: { select: { tasks: { where: { deletedAt: null } } } }
     }
   });
   if (!t) throw new Error("התבנית לא נמצאה");

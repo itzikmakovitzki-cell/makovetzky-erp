@@ -23,14 +23,16 @@ export default async function InboxPage({
     }),
     prisma.masterDeal.findMany({
       select: { id: true, name: true },
-      where: { status: { in: ["ACTIVE", "ON_HOLD"] } },
+      where: { status: { in: ["ACTIVE", "ON_HOLD"] }, deletedAt: null },
       orderBy: { name: "asc" }
     }),
     prisma.permit.findMany({
+      where: { deletedAt: null },
       select: { id: true, masterDealId: true, name: true, permitNumber: true },
       orderBy: { name: "asc" }
     }),
     prisma.task.findMany({
+      where: { deletedAt: null },
       select: { id: true, permitId: true, name: true },
       orderBy: { createdAt: "asc" }
     }),

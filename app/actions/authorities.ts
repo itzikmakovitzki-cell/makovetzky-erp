@@ -97,12 +97,20 @@ export async function deleteAuthority(id: string): Promise<void> {
     select: {
       id: true,
       name: true,
-      _count: { select: { permits: true, taskTemplates: true, wikiEntries: true } }
+      _count: {
+        select: {
+          permits: { where: { deletedAt: null } },
+          taskTemplates: true,
+          wikiEntries: true
+        }
+      }
     }
   });
   if (!a) throw new Error("הרשות לא נמצאה");
   if (a._count.permits > 0) {
-    throw new Error(`לא ניתן למחוק — ${a._count.permits} היתרים שייכים לרשות זו`);
+    throw new Error(
+      `לא ניתן למחוק — ${a._count.permits} היתרים פעילים שייכים לרשות זו`
+    );
   }
   if (a._count.taskTemplates > 0) {
     throw new Error(

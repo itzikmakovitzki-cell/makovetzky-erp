@@ -1,5 +1,8 @@
 import type { Permit, Authority, Client, MasterDeal } from "@prisma/client";
+import { auth } from "@/auth";
+import { deletePermit } from "@/app/actions/permits";
 import { Badge } from "@/components/ui/badge";
+import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { PERMIT_STATUS_LABEL, PERMIT_STATUS_VARIANT } from "@/lib/status-maps";
 import { formatDate } from "@/lib/utils";
 
@@ -8,7 +11,7 @@ type PermitWithRefs = Permit & {
   masterDeal: MasterDeal & { client: Client };
 };
 
-export function PermitHeader({
+export async function PermitHeader({
   permit,
   progressPercent,
   taskTotal,
@@ -19,6 +22,8 @@ export function PermitHeader({
   taskTotal: number;
   taskCompleted: number;
 }) {
+  const session = await auth();
+  const isAdmin = session?.user?.role === "ADMIN";
   return (
     <header className="rounded-md border bg-card">
       <div className="grid grid-cols-[1fr_auto] gap-4 px-3 py-2.5">
@@ -57,6 +62,16 @@ export function PermitHeader({
             <span>התחלה: {formatDate(permit.startDate)}</span>
             <span>צפוי לסיום: {formatDate(permit.expectedCloseDate)}</span>
           </div>
+          {isAdmin && (
+            <div className="mt-1.5 self-end">
+              <SoftDeleteButton
+                action={deletePermit}
+                id={permit.id}
+                label={permit.name}
+                buttonLabel="מחק היתר"
+              />
+            </div>
+          )}
         </div>
       </div>
     </header>

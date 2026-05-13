@@ -54,7 +54,10 @@ async function SuppliersOverview() {
   const suppliers = await prisma.supplier.findMany({
     include: {
       taskAssignments: {
-        where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+        where: {
+          status: { in: ["OPEN", "IN_PROGRESS"] },
+          task: { deletedAt: null, permit: { deletedAt: null } }
+        },
         select: { id: true, amount: true }
       }
     },
@@ -157,6 +160,9 @@ async function SupplierDetail({
 
   const assignmentWhere: Prisma.SupplierTaskAssignmentWhereInput = {
     supplierId,
+    // Hide assignments whose task is trashed — they're irrelevant for active
+    // work. Restoring the task brings them back.
+    task: { deletedAt: null, permit: { deletedAt: null } },
     ...(showAll ? {} : { status: { in: ["OPEN", "IN_PROGRESS"] } })
   };
 

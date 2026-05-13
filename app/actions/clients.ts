@@ -63,7 +63,9 @@ export async function submitClient(
     if (kind === "update") {
       const id = String(formData.get("id") || "");
       if (!id) return { error: "חסר מזהה", ok: false };
-      const existing = await prisma.client.findUnique({ where: { id } });
+      const existing = await prisma.client.findFirst({
+        where: { id, deletedAt: null }
+      });
       if (!existing) return { error: "הלקוח לא נמצא", ok: false };
 
       await prisma.$transaction(async (tx) => {
@@ -99,34 +101,38 @@ export async function submitClient(
   }
 }
 
+// Soft-delete: blocked if the client still has any non-deleted MasterDeals.
+// Restoration + permanent purge happen from /settings/recycle-bin.
 export async function deleteClient(id: string): Promise<void> {
   const me = await requireRole(["ADMIN"]);
-  const c = await prisma.client.findUnique({
-    where: { id },
+  const c = await prisma.client.findFirst({
+    where: { id, deletedAt: null },
     select: {
       id: true,
       companyName: true,
-      _count: { select: { masterDeals: true, portalAccesses: true } }
+      _count: { select: { masterDeals: { where: { deletedAt: null } } } }
     }
   });
   if (!c) throw new Error("הלקוח לא נמצא");
   if (c._count.masterDeals > 0) {
     throw new Error(
-      `לא ניתן למחוק — ${c._count.masterDeals} עסקאות שייכות ללקוח זה`
+      `לא ניתן למחוק — ${c._count.masterDeals} עסקאות פעילות שייכות ללקוח זה`
     );
   }
 
+  const now = new Date();
   await prisma.$transaction(async (tx) => {
-    // PortalAccess rows cascade automatically (per schema FK).
-    await tx.client.delete({ where: { id } });
+    await tx.client.update({ where: { id }, data: { deletedAt: now } });
     await logAudit(tx, {
       entityType: AuditEntity.CLIENT,
       entityId: id,
       action: AuditAction.DELETE,
       oldValue: { companyName: c.companyName },
+      newValue: { softDeletedAt: now.toISOString() },
       userId: me.id
     });
   });
 
   revalidatePath("/clients");
+  revalidatePath("/settings/recycle-bin");
 }

@@ -42,7 +42,7 @@ export default async function SettingsTemplatesPage({
             dependsOnTemplate: { select: { id: true, name: true } }
           }
         },
-        _count: { select: { tasks: true } }
+        _count: { select: { tasks: { where: { deletedAt: null } } } }
       },
       orderBy: [{ orderIndex: "asc" }, { name: "asc" }]
     });

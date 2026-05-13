@@ -43,16 +43,16 @@ export async function assignPendingDocument(
       return { error: "המסמך כבר טופל בעבר", ok: false };
     }
 
-    const permit = await prisma.permit.findUnique({
-      where: { id: permitId },
+    const permit = await prisma.permit.findFirst({
+      where: { id: permitId, deletedAt: null },
       select: { id: true }
     });
     if (!permit) return { error: "ההיתר לא נמצא", ok: false };
 
     let taskName: string | null = null;
     if (taskId) {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
+      const task = await prisma.task.findFirst({
+        where: { id: taskId, deletedAt: null },
         select: { id: true, name: true, permitId: true }
       });
       if (!task || task.permitId !== permitId) {

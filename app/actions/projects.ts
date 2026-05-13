@@ -58,8 +58,8 @@ export async function createProject(
     if (clientMode === "existing") {
       existingClientId = String(formData.get("existingClientId") || "");
       if (!existingClientId) return { error: "יש לבחור לקוח קיים" };
-      const exists = await prisma.client.findUnique({
-        where: { id: existingClientId },
+      const exists = await prisma.client.findFirst({
+        where: { id: existingClientId, deletedAt: null },
         select: { id: true }
       });
       if (!exists) return { error: "הלקוח לא נמצא" };
@@ -144,8 +144,8 @@ export async function createProject(
           userId: me.id
         });
       } else {
-        const c = await tx.client.findUnique({
-          where: { id: existingClientId! },
+        const c = await tx.client.findFirst({
+          where: { id: existingClientId!, deletedAt: null },
           select: { id: true, companyName: true }
         });
         if (!c) throw new Error("הלקוח לא נמצא (race condition)");

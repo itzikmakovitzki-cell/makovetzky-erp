@@ -7,8 +7,8 @@ import {
 } from "@/components/permit/milestones-table-interactive";
 
 export async function FinancesTab({ permitId }: { permitId: string }) {
-  const permit = await prisma.permit.findUnique({
-    where: { id: permitId },
+  const permit = await prisma.permit.findFirst({
+    where: { id: permitId, deletedAt: null },
     select: {
       id: true,
       masterDeal: { select: { totalValue: true } }
@@ -23,7 +23,7 @@ export async function FinancesTab({ permitId }: { permitId: string }) {
       orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "asc" }]
     }),
     prisma.task.findMany({
-      where: { permitId },
+      where: { permitId, deletedAt: null },
       select: { id: true, name: true },
       orderBy: { createdAt: "asc" }
     })

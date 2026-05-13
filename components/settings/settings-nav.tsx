@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Building2, Box, ListTodo } from "lucide-react";
+import { Users, Building2, Box, ListTodo, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/settings/users", label: "משתמשים", icon: Users },
   { href: "/settings/authorities", label: "רשויות", icon: Building2 },
   { href: "/settings/building-types", label: "סוגי בניינים", icon: Box },
-  { href: "/settings/templates", label: "תבניות משימות", icon: ListTodo }
+  { href: "/settings/templates", label: "תבניות משימות", icon: ListTodo },
+  { href: "/settings/recycle-bin", label: "סל המחזור", icon: Trash2 }
 ];
 
 export function SettingsNav() {

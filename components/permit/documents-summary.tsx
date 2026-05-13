@@ -5,7 +5,7 @@ import { FileText, CheckCircle2 } from "lucide-react";
 
 export async function DocumentsSummary({ permitId }: { permitId: string }) {
   const documents = await prisma.document.findMany({
-    where: { permitId },
+    where: { permitId, deletedAt: null },
     orderBy: { createdAt: "desc" },
     take: 10,
     include: {

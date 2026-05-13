@@ -27,17 +27,24 @@ export default async function ClientProfilePage({
 
   const { id } = await params;
 
-  const client = await prisma.client.findUnique({
-    where: { id },
+  const client = await prisma.client.findFirst({
+    where: { id, deletedAt: null },
     include: {
       masterDeals: {
+        where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
         include: {
           permits: {
+            where: { deletedAt: null },
             orderBy: { createdAt: "desc" },
             include: {
               authority: { select: { name: true } },
-              _count: { select: { tasks: true, buildings: true } }
+              _count: {
+                select: {
+                  tasks: { where: { deletedAt: null } },
+                  buildings: true
+                }
+              }
             }
           }
         }

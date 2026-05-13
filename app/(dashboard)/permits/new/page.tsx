@@ -15,6 +15,7 @@ export default async function NewProjectPage() {
 
   const [clients, authorities, buildingTypes, templateCounts] = await Promise.all([
     prisma.client.findMany({
+      where: { deletedAt: null },
       select: { id: true, companyName: true, contactName: true },
       orderBy: { companyName: "asc" }
     }),

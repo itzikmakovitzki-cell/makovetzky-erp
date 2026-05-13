@@ -13,11 +13,17 @@ export default async function PermitsListPage() {
   const isAdmin = session?.user?.role === "ADMIN";
 
   const permits = await prisma.permit.findMany({
+    where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     include: {
       authority: { select: { name: true } },
       masterDeal: { include: { client: { select: { companyName: true } } } },
-      _count: { select: { tasks: true, buildings: true } }
+      _count: {
+        select: {
+          tasks: { where: { deletedAt: null } },
+          buildings: true
+        }
+      }
     }
   });
 
@@ -30,7 +36,7 @@ export default async function PermitsListPage() {
         return;
       }
       const completed = await prisma.task.count({
-        where: { permitId: p.id, status: "COMPLETED" }
+        where: { permitId: p.id, status: "COMPLETED", deletedAt: null }
       });
       completionByPermit.set(p.id, Math.round((completed / p._count.tasks) * 100));
     })

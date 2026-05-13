@@ -14,6 +14,9 @@ import { formatDate, formatDateTime, formatILS } from "@/lib/utils";
 const NOTE_PREVIEW_LENGTH = 50;
 
 export async function AuditLogTab({ permitId }: { permitId: string }) {
+  // Name-resolution maps for the audit log. Intentionally NOT filtering on
+  // deletedAt — we want "Task X was deleted" entries to still render the name
+  // of soft-deleted (or permanently purged-then-still-logged) entities.
   const [tasks, notes, milestones, documents, pendingDocs] = await Promise.all([
     prisma.task.findMany({ where: { permitId }, select: { id: true, name: true } }),
     prisma.note.findMany({ where: { permitId }, select: { id: true, content: true } }),

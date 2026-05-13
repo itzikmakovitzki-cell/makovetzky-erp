@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { AuditAction, MilestoneStatus, Prisma, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 
 const VALID_TASK_STATUSES = new Set<TaskStatus>([
@@ -20,8 +20,8 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
   }
 
   const user = await getCurrentUser();
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, deletedAt: null },
     select: {
       id: true,
       permitId: true,
@@ -115,8 +115,8 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
 
 export async function toggleTaskSpotlight(taskId: string) {
   const user = await getCurrentUser();
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, deletedAt: null },
     select: { id: true, permitId: true, isSpotlight: true }
   });
   if (!task) throw new Error("Task not found");
@@ -140,6 +140,58 @@ export async function toggleTaskSpotlight(taskId: string) {
 
   revalidatePath(`/permits/${task.permitId}`, "layout");
   revalidatePath("/tasks");
+}
+
+// Soft-delete: blocked if the task is the trigger of an unpaid milestone or
+// still has active supplier assignments. Dependents that reference this task
+// keep their TaskDependency rows — UI shows them as broken links until admin
+// either restores or purges.
+export async function deleteTask(taskId: string): Promise<void> {
+  const me = await requireRole(["ADMIN"]);
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, deletedAt: null },
+    select: {
+      id: true,
+      name: true,
+      permitId: true,
+      milestone: { select: { id: true, name: true, status: true } },
+      _count: {
+        select: {
+          supplierAssignments: {
+            where: { status: { in: ["OPEN", "IN_PROGRESS"] } }
+          }
+        }
+      }
+    }
+  });
+  if (!task) throw new Error("המשימה לא נמצאה");
+  if (task.milestone && task.milestone.status !== "PAID") {
+    throw new Error(
+      `לא ניתן למחוק — המשימה מפעילה את אבן הדרך "${task.milestone.name}"`
+    );
+  }
+  if (task._count.supplierAssignments > 0) {
+    throw new Error(
+      `לא ניתן למחוק — ${task._count.supplierAssignments} שיוכי ספק פתוחים על המשימה`
+    );
+  }
+
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.task.update({ where: { id: taskId }, data: { deletedAt: now } });
+    await logAudit(tx, {
+      entityType: AuditEntity.TASK,
+      entityId: taskId,
+      action: AuditAction.DELETE,
+      oldValue: { name: task.name },
+      newValue: { softDeletedAt: now.toISOString() },
+      userId: me.id
+    });
+  });
+
+  revalidatePath(`/permits/${task.permitId}`, "layout");
+  revalidatePath("/tasks");
+  revalidatePath("/settings/recycle-bin");
 }
 
 export async function overrideTaskDependency(taskId: string, dependsOnTaskId: string) {

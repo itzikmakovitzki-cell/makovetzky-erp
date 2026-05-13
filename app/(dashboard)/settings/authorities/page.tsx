@@ -10,7 +10,11 @@ export default async function SettingsAuthoritiesPage() {
   const authorities = await prisma.authority.findMany({
     include: {
       _count: {
-        select: { permits: true, taskTemplates: true, wikiEntries: true }
+        select: {
+          permits: { where: { deletedAt: null } },
+          taskTemplates: true,
+          wikiEntries: true
+        }
       }
     },
     orderBy: { name: "asc" }

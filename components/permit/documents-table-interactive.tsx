@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { CheckCircle2, FileText, Plus, Star } from "lucide-react";
+import { deleteDocument } from "@/app/actions/documents";
 import { Badge } from "@/components/ui/badge";
+import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { cn, formatDateTime, formatFileSize } from "@/lib/utils";
 import { ApproveDocumentButton } from "./approve-document-button";
 import { UploadDocumentDialog } from "./upload-document-dialog";
@@ -32,12 +34,14 @@ export function DocumentsTableInteractive({
   permitId,
   documents,
   tasks,
-  buildings
+  buildings,
+  isAdmin
 }: {
   permitId: string;
   documents: DocumentRow[];
   tasks: { id: string; name: string }[];
   buildings: { id: string; label: string }[];
+  isAdmin: boolean;
 }) {
   const [uploadOpen, setUploadOpen] = useState(false);
 
@@ -85,7 +89,7 @@ export function DocumentsTableInteractive({
             </tr>
           )}
           {documents.map((d) => (
-            <DocumentRowComponent key={d.id} document={d} />
+            <DocumentRowComponent key={d.id} document={d} isAdmin={isAdmin} />
           ))}
         </tbody>
       </table>
@@ -102,7 +106,13 @@ export function DocumentsTableInteractive({
   );
 }
 
-function DocumentRowComponent({ document: d }: { document: DocumentRow }) {
+function DocumentRowComponent({
+  document: d,
+  isAdmin
+}: {
+  document: DocumentRow;
+  isAdmin: boolean;
+}) {
   const isPending = d.approvedById === null;
   const isLatest = d.isLatestApproved;
   const isSuperseded = !isPending && !isLatest;
@@ -179,7 +189,19 @@ function DocumentRowComponent({ document: d }: { document: DocumentRow }) {
           <Badge variant="muted">מאושר · גרסה ישנה</Badge>
         )}
       </td>
-      <td>{isPending && <ApproveDocumentButton documentId={d.id} />}</td>
+      <td>
+        <div className="flex items-center gap-1">
+          {isPending && <ApproveDocumentButton documentId={d.id} />}
+          {isAdmin && (
+            <SoftDeleteButton
+              action={deleteDocument}
+              id={d.id}
+              label={`${d.fileName} (v${d.version})`}
+              variant="icon"
+            />
+          )}
+        </div>
+      </td>
     </tr>
   );
 }

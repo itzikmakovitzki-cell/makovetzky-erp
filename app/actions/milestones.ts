@@ -48,8 +48,8 @@ export async function submitMilestone(
       if (amount === null) return { error: "סכום לא חוקי", ok: false };
       if (!triggerTaskId) return { error: "יש לבחור משימה מפעילה", ok: false };
 
-      const task = await prisma.task.findUnique({
-        where: { id: triggerTaskId },
+      const task = await prisma.task.findFirst({
+        where: { id: triggerTaskId, deletedAt: null },
         select: {
           id: true,
           permitId: true,
@@ -132,8 +132,8 @@ export async function submitMilestone(
       if (!existing) return { error: "אבן הדרך לא נמצאה", ok: false };
 
       if (triggerTaskId !== existing.triggerTaskId) {
-        const task = await prisma.task.findUnique({
-          where: { id: triggerTaskId },
+        const task = await prisma.task.findFirst({
+          where: { id: triggerTaskId, deletedAt: null },
           select: {
             id: true,
             permitId: true,

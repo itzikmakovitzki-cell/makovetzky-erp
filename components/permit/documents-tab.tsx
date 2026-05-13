@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
   DocumentsTableInteractive,
@@ -6,9 +7,11 @@ import {
 import { createSignedUrlsSafe, isStoragePath } from "@/lib/supabase-storage";
 
 export async function DocumentsTab({ permitId }: { permitId: string }) {
+  const session = await auth();
+  const isAdmin = session?.user?.role === "ADMIN";
   const [documents, tasks, buildings] = await Promise.all([
     prisma.document.findMany({
-      where: { permitId },
+      where: { permitId, deletedAt: null },
       include: {
         task: { select: { id: true, name: true } },
         building: { select: { id: true, label: true } },
@@ -18,7 +21,7 @@ export async function DocumentsTab({ permitId }: { permitId: string }) {
       orderBy: [{ isLatestApproved: "desc" }, { createdAt: "desc" }]
     }),
     prisma.task.findMany({
-      where: { permitId },
+      where: { permitId, deletedAt: null },
       select: { id: true, name: true },
       orderBy: { createdAt: "asc" }
     }),
@@ -62,6 +65,7 @@ export async function DocumentsTab({ permitId }: { permitId: string }) {
       documents={serializedDocuments}
       tasks={tasks}
       buildings={buildings}
+      isAdmin={isAdmin}
     />
   );
 }

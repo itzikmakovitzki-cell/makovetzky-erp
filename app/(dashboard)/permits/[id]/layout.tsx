@@ -17,8 +17,8 @@ export default async function PermitLayout({
 }) {
   const { id } = await params;
 
-  const permit = await prisma.permit.findUnique({
-    where: { id },
+  const permit = await prisma.permit.findFirst({
+    where: { id, deletedAt: null },
     include: {
       authority: true,
       masterDeal: { include: { client: true } }
@@ -28,10 +28,10 @@ export default async function PermitLayout({
   if (!permit) notFound();
 
   const [taskTotal, taskCompleted, financeCount, docsCount, notesCount] = await Promise.all([
-    prisma.task.count({ where: { permitId: id } }),
-    prisma.task.count({ where: { permitId: id, status: "COMPLETED" } }),
+    prisma.task.count({ where: { permitId: id, deletedAt: null } }),
+    prisma.task.count({ where: { permitId: id, status: "COMPLETED", deletedAt: null } }),
     prisma.billingMilestone.count({ where: { permitId: id } }),
-    prisma.document.count({ where: { permitId: id } }),
+    prisma.document.count({ where: { permitId: id, deletedAt: null } }),
     prisma.note.count({ where: { permitId: id } })
   ]);
 

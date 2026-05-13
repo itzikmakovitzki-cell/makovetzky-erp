@@ -37,7 +37,12 @@ export default async function TasksGlobalPage({
 
   const statuses = parseStatuses(statusParam);
 
-  const where: Prisma.TaskWhereInput = {};
+  const where: Prisma.TaskWhereInput = {
+    deletedAt: null,
+    // Hide tasks whose parent permit is soft-deleted too — keeps the global
+    // view consistent with /permits filtering.
+    permit: { deletedAt: null }
+  };
   if (assigneeParam === "unassigned") {
     where.assigneeId = null;
   } else if (assigneeParam) {

@@ -1,14 +1,20 @@
 import { Star, Lock, Hourglass } from "lucide-react";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { deleteTask } from "@/app/actions/tasks";
 import { Badge } from "@/components/ui/badge";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { SpotlightToggle } from "@/components/permit/spotlight-toggle";
 import { DependencyOverride } from "@/components/permit/dependency-override";
+import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { cn, formatDate } from "@/lib/utils";
 
 export async function TasksTable({ permitId }: { permitId: string }) {
+  const session = await auth();
+  const isAdmin = session?.user?.role === "ADMIN";
+
   const tasks = await prisma.task.findMany({
-    where: { permitId },
+    where: { permitId, deletedAt: null },
     include: {
       assignee: { select: { id: true, name: true } },
       template: { select: { name: true } },
@@ -50,12 +56,13 @@ export async function TasksTable({ permitId }: { permitId: string }) {
             <th className="w-32">אחראי</th>
             <th className="w-28">תאריך יעד</th>
             <th>חסימה / הערות</th>
+            {isAdmin && <th className="w-6"></th>}
           </tr>
         </thead>
         <tbody>
           {tasks.length === 0 && (
             <tr>
-              <td colSpan={8} className="py-6 text-center text-xs text-muted-foreground">
+              <td colSpan={isAdmin ? 9 : 8} className="py-6 text-center text-xs text-muted-foreground">
                 אין משימות בהיתר זה
               </td>
             </tr>
@@ -151,6 +158,16 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                     <span>ממתין לתשובת רשות — תאריך יעד מוקפא</span>
                   ) : null}
                 </td>
+                {isAdmin && (
+                  <td className="p-0 text-center">
+                    <SoftDeleteButton
+                      action={deleteTask}
+                      id={t.id}
+                      label={t.name}
+                      variant="icon"
+                    />
+                  </td>
+                )}
               </tr>
             );
           })}

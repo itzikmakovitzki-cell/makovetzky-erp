@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { AuditAction } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 import { buildPermitStoragePath, uploadToStorage } from "@/lib/supabase-storage";
 
@@ -37,16 +37,16 @@ export async function uploadDocument(
       };
     }
 
-    const permit = await prisma.permit.findUnique({
-      where: { id: permitId },
+    const permit = await prisma.permit.findFirst({
+      where: { id: permitId, deletedAt: null },
       select: { id: true }
     });
     if (!permit) return { error: "היתר לא נמצא", ok: false };
 
     let taskName: string | null = null;
     if (taskId) {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
+      const task = await prisma.task.findFirst({
+        where: { id: taskId, deletedAt: null },
         select: { id: true, name: true, permitId: true }
       });
       if (!task || task.permitId !== permitId) {
@@ -131,8 +131,8 @@ export async function uploadDocument(
 
 export async function approveDocument(documentId: string): Promise<void> {
   const user = await getCurrentUser();
-  const doc = await prisma.document.findUnique({
-    where: { id: documentId },
+  const doc = await prisma.document.findFirst({
+    where: { id: documentId, deletedAt: null },
     select: {
       id: true,
       permitId: true,
@@ -189,4 +189,35 @@ export async function approveDocument(documentId: string): Promise<void> {
   });
 
   revalidatePath(`/permits/${doc.permitId}`, "layout");
+}
+
+// Soft-delete: leaf operation — always allowed. If this was the
+// `isLatestApproved` row, the flag stays on the soft-deleted record so a
+// later restore brings the approval back unchanged.
+export async function deleteDocument(documentId: string): Promise<void> {
+  const me = await requireRole(["ADMIN"]);
+  const doc = await prisma.document.findFirst({
+    where: { id: documentId, deletedAt: null },
+    select: { id: true, permitId: true, fileName: true, version: true }
+  });
+  if (!doc) throw new Error("מסמך לא נמצא");
+
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.document.update({
+      where: { id: documentId },
+      data: { deletedAt: now }
+    });
+    await logAudit(tx, {
+      entityType: AuditEntity.DOCUMENT,
+      entityId: documentId,
+      action: AuditAction.DELETE,
+      oldValue: { fileName: doc.fileName, version: doc.version },
+      newValue: { softDeletedAt: now.toISOString() },
+      userId: me.id
+    });
+  });
+
+  revalidatePath(`/permits/${doc.permitId}`, "layout");
+  revalidatePath("/settings/recycle-bin");
 }

@@ -23,8 +23,12 @@ export async function createNote(permitId: string, content: string) {
     throw new Error(`תוכן ההערה ארוך מ-${MAX_CONTENT_LENGTH} תווים`);
   }
 
-  // Confirm the permit exists — avoids dangling notes if the permitId was tampered with.
-  const permit = await prisma.permit.findUnique({ where: { id: permitId }, select: { id: true } });
+  // Confirm the permit exists and isn't soft-deleted — avoids dangling notes
+  // on trashed permits.
+  const permit = await prisma.permit.findFirst({
+    where: { id: permitId, deletedAt: null },
+    select: { id: true }
+  });
   if (!permit) throw new Error("היתר לא נמצא");
 
   await prisma.$transaction(async (tx) => {

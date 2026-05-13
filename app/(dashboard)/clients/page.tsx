@@ -16,12 +16,17 @@ export default async function ClientsListPage() {
   }
 
   const clients = await prisma.client.findMany({
+    where: { deletedAt: null },
     orderBy: { companyName: "asc" },
     include: {
       masterDeals: {
+        where: { deletedAt: null },
         select: {
           id: true,
-          permits: { select: { id: true, status: true } }
+          permits: {
+            where: { deletedAt: null },
+            select: { id: true, status: true }
+          }
         }
       }
     }
