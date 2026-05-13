@@ -192,9 +192,9 @@ async function main() {
   console.log("→ Seeding clients…");
   const cohen = await prisma.client.create({
     data: {
-      name: "אחים כהן בנייה",
       companyName: "אחים כהן בנייה ופיתוח בע\"מ",
-      primaryContactName: "ישראל כהן",
+      hp: "514203187",
+      contactName: "ישראל כהן",
       phone: "050-7777111",
       email: "office@cohenbrothers.local",
       address: "רחוב הרצל 45, רחובות"
@@ -202,9 +202,9 @@ async function main() {
   });
   const levi = await prisma.client.create({
     data: {
-      name: 'לוי נדל"ן',
       companyName: 'ש. לוי החזקות בע"מ',
-      primaryContactName: "שמואל לוי",
+      hp: "511894332",
+      contactName: "שמואל לוי",
       phone: "054-2233445",
       email: "info@levi-realestate.local",
       address: "דרך מנחם בגין 121, תל אביב"

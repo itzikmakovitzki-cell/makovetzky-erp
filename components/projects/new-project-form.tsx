@@ -12,7 +12,7 @@ export function NewProjectForm({
   buildingTypes,
   templateCountByCombo
 }: {
-  clients: { id: string; name: string; companyName: string | null }[];
+  clients: { id: string; companyName: string; contactName: string }[];
   authorities: { id: string; name: string }[];
   buildingTypes: { id: string; name: string }[];
   templateCountByCombo: Record<string, number>;
@@ -69,43 +69,47 @@ export function NewProjectForm({
               <option value="">— בחר לקוח —</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.companyName ? ` · ${c.companyName}` : ""}
+                  {c.companyName}
+                  {c.contactName ? ` · ${c.contactName}` : ""}
                 </option>
               ))}
             </select>
           </Field>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            <Field label="שם הלקוח" required>
+            <Field label="שם החברה" required>
               <input
                 type="text"
-                name="clientName"
+                name="clientCompany"
+                required
+                maxLength={120}
+                placeholder='למשל: אחים כהן בנייה ופיתוח בע"מ'
+                className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </Field>
+            <Field label="ח.פ.">
+              <input
+                type="text"
+                name="clientHp"
+                maxLength={32}
+                placeholder="514203187"
+                className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </Field>
+            <Field label="שם איש קשר" required>
+              <input
+                type="text"
+                name="clientContact"
                 required
                 maxLength={120}
                 className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </Field>
-            <Field label="שם חברה">
-              <input
-                type="text"
-                name="clientCompany"
-                maxLength={120}
-                className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </Field>
-            <Field label="איש קשר ראשי">
-              <input
-                type="text"
-                name="clientContact"
-                maxLength={120}
-                className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </Field>
-            <Field label="טלפון">
+            <Field label="טלפון איש קשר" required>
               <input
                 type="tel"
                 name="clientPhone"
+                required
                 maxLength={32}
                 className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
               />

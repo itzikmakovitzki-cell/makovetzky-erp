@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Building2,
   FileCheck2,
   Inbox,
   ListChecks,
@@ -23,6 +24,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/permits", label: "היתרים", icon: FileCheck2, allowed: ["ADMIN", "EMPLOYEE"] },
+  { href: "/clients", label: "לקוחות", icon: Building2, allowed: ["ADMIN"] },
   { href: "/tasks", label: "משימות", icon: ListChecks, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/inbox", label: "תיבת WhatsApp", icon: Inbox, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/finances", label: "כספים", icon: Wallet, allowed: ["ADMIN"] },

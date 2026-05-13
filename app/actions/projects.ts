@@ -47,10 +47,10 @@ export async function createProject(
     const clientMode = String(formData.get("clientMode") || "existing");
     let existingClientId: string | null = null;
     let newClientData: {
-      name: string;
-      companyName: string | null;
-      primaryContactName: string | null;
-      phone: string | null;
+      companyName: string;
+      hp: string | null;
+      contactName: string;
+      phone: string;
       email: string | null;
       address: string | null;
     } | null = null;
@@ -64,14 +64,17 @@ export async function createProject(
       });
       if (!exists) return { error: "הלקוח לא נמצא" };
     } else if (clientMode === "new") {
-      const name = String(formData.get("clientName") || "").trim();
-      if (!name) return { error: "שם הלקוח חובה" };
+      const companyName = String(formData.get("clientCompany") || "").trim();
+      const contactName = String(formData.get("clientContact") || "").trim();
+      const phone = String(formData.get("clientPhone") || "").trim();
+      if (!companyName) return { error: "שם החברה חובה" };
+      if (!contactName) return { error: "שם איש קשר חובה" };
+      if (!phone) return { error: "טלפון איש קשר חובה" };
       newClientData = {
-        name,
-        companyName: String(formData.get("clientCompany") || "").trim() || null,
-        primaryContactName:
-          String(formData.get("clientContact") || "").trim() || null,
-        phone: String(formData.get("clientPhone") || "").trim() || null,
+        companyName,
+        hp: String(formData.get("clientHp") || "").trim() || null,
+        contactName,
+        phone,
         email: String(formData.get("clientEmail") || "").trim() || null,
         address: String(formData.get("clientAddress") || "").trim() || null
       };
@@ -127,14 +130,15 @@ export async function createProject(
       if (newClientData) {
         const created = await tx.client.create({ data: newClientData });
         resolvedClientId = created.id;
-        resolvedClientName = created.name;
+        resolvedClientName = created.companyName;
         await logAudit(tx, {
           entityType: AuditEntity.CLIENT,
           entityId: created.id,
           action: AuditAction.CREATE,
           newValue: {
-            name: created.name,
             companyName: created.companyName,
+            hp: created.hp,
+            contactName: created.contactName,
             phone: created.phone
           },
           userId: me.id
@@ -142,11 +146,11 @@ export async function createProject(
       } else {
         const c = await tx.client.findUnique({
           where: { id: existingClientId! },
-          select: { id: true, name: true }
+          select: { id: true, companyName: true }
         });
         if (!c) throw new Error("הלקוח לא נמצא (race condition)");
         resolvedClientId = c.id;
-        resolvedClientName = c.name;
+        resolvedClientName = c.companyName;
       }
 
       // 2. MasterDeal

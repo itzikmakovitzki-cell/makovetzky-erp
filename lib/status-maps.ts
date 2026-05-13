@@ -3,7 +3,8 @@ import type {
   PermitStatus,
   MilestoneStatus,
   AuditAction,
-  SupplierAssignmentStatus
+  SupplierAssignmentStatus,
+  MasterDealStatus
 } from "@prisma/client";
 
 type BadgeVariant = "default" | "success" | "warning" | "destructive" | "info" | "muted" | "outline";
@@ -86,4 +87,18 @@ export const SUPPLIER_ASSIGNMENT_STATUS_VARIANT: Record<SupplierAssignmentStatus
   IN_PROGRESS: "info",
   COMPLETED: "success",
   CANCELLED: "muted"
+};
+
+export const MASTER_DEAL_STATUS_LABEL: Record<MasterDealStatus, string> = {
+  ACTIVE: "פעילה",
+  ON_HOLD: "מושהית",
+  COMPLETED: "הושלמה",
+  CANCELLED: "בוטלה"
+};
+
+export const MASTER_DEAL_STATUS_VARIANT: Record<MasterDealStatus, BadgeVariant> = {
+  ACTIVE: "info",
+  ON_HOLD: "warning",
+  COMPLETED: "success",
+  CANCELLED: "destructive"
 };

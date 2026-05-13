@@ -34,7 +34,7 @@ export function PermitHeader({
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
             <span>רשות: <span className="text-foreground">{permit.authority.name}</span></span>
             <span aria-hidden>·</span>
-            <span>לקוח: <span className="text-foreground">{permit.masterDeal.client.name}</span></span>
+            <span>לקוח: <span className="text-foreground">{permit.masterDeal.client.companyName}</span></span>
             <span aria-hidden>·</span>
             <span>עסקה: <span className="text-foreground">{permit.masterDeal.name}</span></span>
           </div>

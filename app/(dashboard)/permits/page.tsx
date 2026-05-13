@@ -16,7 +16,7 @@ export default async function PermitsListPage() {
     orderBy: { createdAt: "desc" },
     include: {
       authority: { select: { name: true } },
-      masterDeal: { include: { client: { select: { name: true } } } },
+      masterDeal: { include: { client: { select: { companyName: true } } } },
       _count: { select: { tasks: true, buildings: true } }
     }
   });
@@ -89,7 +89,14 @@ export default async function PermitsListPage() {
                   <td className="font-mono text-[11px] text-muted-foreground">
                     {p.permitNumber ?? "—"}
                   </td>
-                  <td className="text-xs">{p.masterDeal.client.name}</td>
+                  <td className="text-xs">
+                    <Link
+                      href={`/clients/${p.masterDeal.clientId}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {p.masterDeal.client.companyName}
+                    </Link>
+                  </td>
                   <td className="text-xs">{p.authority.name}</td>
                   <td>
                     <Badge variant={PERMIT_STATUS_VARIANT[p.status]}>

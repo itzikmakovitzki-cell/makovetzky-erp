@@ -163,22 +163,24 @@ model MagicLink {
 // CORE HIERARCHY: Client → MasterDeal → Permit → Building
 // =============================================================
 
+// B2B clients only: companyName/contactName/phone are required identification fields.
+// hp = ח.פ. (Israeli company registration number). email/address/notes optional.
 model Client {
-  id                 String   @id @default(cuid())
-  name               String
-  companyName        String?
-  primaryContactName String?
-  phone              String?
-  email              String?
-  address            String?
-  notes              String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id          String   @id @default(cuid())
+  companyName String
+  hp          String?
+  contactName String
+  phone       String
+  email       String?
+  address     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   masterDeals    MasterDeal[]
   portalAccesses PortalAccess[]
 
-  @@index([name])
+  @@index([companyName])
 }
 
 model MasterDeal {
