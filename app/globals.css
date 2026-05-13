@@ -4,7 +4,9 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
+  /* Warm cream tint (~#faf8f3) keeps the page subtly aligned with the logo's
+     off-white background while cards remain pure white and pop above it. */
+  --background: oklch(0.984 0.006 85);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);

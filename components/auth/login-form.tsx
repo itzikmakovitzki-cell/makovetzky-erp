@@ -10,8 +10,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   return (
     <form action={formAction} className="space-y-3 p-5">
       <header className="mb-3 text-center">
-        <h1 className="text-base font-semibold">מקובצקי — ניהול פרויקטים</h1>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">התחברות לחשבון</p>
+        <p className="text-[11px] text-muted-foreground">התחברות לחשבון</p>
       </header>
 
       <input type="hidden" name="callbackUrl" value={callbackUrl ?? ""} />
