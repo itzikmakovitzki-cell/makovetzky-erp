@@ -1,5 +1,11 @@
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { authConfig } from "./auth.config";
+
+// Build a slim Edge-safe auth() from authConfig (no Credentials provider, no
+// Prisma, no bcryptjs). Session checks here read the JWT only — they never
+// touch the DB.
+const { auth } = NextAuth(authConfig);
 
 // Cross-permit managerial views — admins only.
 const ADMIN_ONLY_PREFIXES = ["/suppliers", "/finances", "/settings"];

@@ -1,13 +1,14 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { authConfig } from "./auth.config";
 
+// Full auth instance. Imports Prisma + bcryptjs (Node-only) — never use this
+// from middleware or any Edge-runtime context. Middleware uses authConfig
+// directly via `NextAuth(authConfig)` in middleware.ts.
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -33,21 +34,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       }
     })
-  ],
-  callbacks: {
-    jwt: async ({ token, user }) => {
-      if (user) {
-        token.id = (user as { id: string }).id;
-        token.role = (user as { role: UserRole }).role;
-      }
-      return token;
-    },
-    session: async ({ session, token }) => {
-      if (session.user) {
-        if (typeof token.id === "string") session.user.id = token.id;
-        if (token.role) session.user.role = token.role as UserRole;
-      }
-      return session;
-    }
-  }
+  ]
 });
