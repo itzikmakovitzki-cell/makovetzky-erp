@@ -18,19 +18,19 @@ export default auth((req) => {
   // Field-worker access via magic link tokens — auth via token, not session.
   if (pathname.startsWith("/m/")) return NextResponse.next();
 
-  // /login is the only public app route. Use a typed presence check on the
-  // user.id we attach in the jwt callback — Auth.js v5 can return a session
-  // shell object when there is no actual JWT in the edge runtime.
-  const isAuthenticated = Boolean(session?.user?.id);
+  // Check session.user.id directly — Auth.js v5 can return a session shell
+  // object that is truthy but has no user when there is no JWT in the edge
+  // runtime, so a bare `if (session)` would let unauthenticated traffic through.
   if (pathname === "/login" || pathname.startsWith("/login/")) {
-    if (isAuthenticated) {
+    if (session?.user?.id) {
       return NextResponse.redirect(new URL("/", nextUrl));
     }
     return NextResponse.next();
   }
 
-  // Everything else requires a session.
-  if (!isAuthenticated) {
+  // Everything else requires a session. The user check here narrows `session`
+  // to non-null for the rest of the function.
+  if (!session?.user?.id) {
     const loginUrl = new URL("/login", nextUrl);
     loginUrl.searchParams.set("callbackUrl", pathname + nextUrl.search);
     return NextResponse.redirect(loginUrl);
