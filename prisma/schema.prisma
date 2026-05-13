@@ -165,8 +165,9 @@ model MagicLink {
 
 // B2B clients only: companyName/contactName/phone are required identification fields.
 // hp = ח.פ. (Israeli company registration number). email/address/notes optional.
+// Soft delete: deletedAt != null means hidden everywhere except /settings/recycle-bin.
 model Client {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   companyName String
   hp          String?
   contactName String
@@ -174,13 +175,15 @@ model Client {
   email       String?
   address     String?
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   masterDeals    MasterDeal[]
   portalAccesses PortalAccess[]
 
   @@index([companyName])
+  @@index([deletedAt])
 }
 
 model MasterDeal {
@@ -191,6 +194,7 @@ model MasterDeal {
   totalValue   Decimal?         @db.Decimal(14, 2)
   status       MasterDealStatus @default(ACTIVE)
   notes        String?
+  deletedAt    DateTime?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -199,6 +203,7 @@ model MasterDeal {
 
   @@index([clientId])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model Permit {
@@ -213,6 +218,7 @@ model Permit {
   startDate         DateTime?
   expectedCloseDate DateTime?
   closedAt          DateTime?
+  deletedAt         DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -231,6 +237,7 @@ model Permit {
   @@index([authorityId])
   @@index([status])
   @@index([expectedCloseDate])
+  @@index([deletedAt])
 }
 
 model Building {
@@ -338,6 +345,7 @@ model Task {
   dueDate     DateTime?
   startedAt   DateTime?
   completedAt DateTime?
+  deletedAt   DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -357,6 +365,7 @@ model Task {
   @@index([assigneeId, status])
   @@index([dueDate])
   @@index([assigneeId, isSpotlight])
+  @@index([deletedAt])
 }
 
 // Strict AND semantics: a task becomes unblocked only when every dependsOn row is satisfied.
@@ -463,6 +472,7 @@ model SupplierCommissionReport {
 
 // Old versions are archived (never deleted). Exactly one row per logical
 // document should have isLatestApproved = true; enforce at application layer.
+// Soft delete via deletedAt — recoverable from /settings/recycle-bin.
 model Document {
   id               String    @id @default(cuid())
   permitId         String
@@ -478,6 +488,7 @@ model Document {
   approvedById     String?
   approvedAt       DateTime?
   notes            String?
+  deletedAt        DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -490,6 +501,7 @@ model Document {
   @@index([permitId, isLatestApproved])
   @@index([buildingId])
   @@index([taskId])
+  @@index([deletedAt])
 }
 
 model Note {
