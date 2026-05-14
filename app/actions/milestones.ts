@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { AuditAction, MilestoneStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/current-user";
+import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 
 // Type is internal — "use server" files can only export async functions.
@@ -31,7 +31,16 @@ export async function submitMilestone(
   _prev: MilestoneFormState,
   formData: FormData
 ): Promise<MilestoneFormState> {
-  const user = await getCurrentUser();
+  // Financial mutation — admins only. Defense in depth on top of the UI gate.
+  let user;
+  try {
+    user = await requireRole(["ADMIN"]);
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "אין הרשאה לפעולה זו",
+      ok: false
+    };
+  }
   const kind = String(formData.get("kind") || "");
 
   try {
@@ -193,7 +202,10 @@ export async function submitMilestone(
 }
 
 export async function markMilestonePaid(milestoneId: string): Promise<void> {
-  const user = await getCurrentUser();
+  // Financial mutation — admins only. Throws (not returns) so the client's
+  // useTransition can surface the error via window.alert if a non-admin
+  // somehow probes this directly.
+  const user = await requireRole(["ADMIN"]);
   const milestone = await prisma.billingMilestone.findUnique({
     where: { id: milestoneId },
     select: { id: true, permitId: true, status: true, name: true, amount: true }

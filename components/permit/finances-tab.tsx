@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { FinanceStats } from "@/components/permit/finance-stats";
 import {
@@ -7,6 +8,9 @@ import {
 } from "@/components/permit/milestones-table-interactive";
 
 export async function FinancesTab({ permitId }: { permitId: string }) {
+  const session = await auth();
+  const isAdmin = session?.user?.role === "ADMIN";
+
   const permit = await prisma.permit.findFirst({
     where: { id: permitId, deletedAt: null },
     select: {
@@ -71,6 +75,7 @@ export async function FinancesTab({ permitId }: { permitId: string }) {
         milestones={serializedMilestones}
         allTasks={allTasks}
         availableTasksForCreate={availableTasksForCreate}
+        isAdmin={isAdmin}
       />
     </div>
   );

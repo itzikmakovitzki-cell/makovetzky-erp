@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil, CheckCircle2, Plus, Loader2 } from "lucide-react";
+import { Pencil, CheckCircle2, Plus, Loader2, Lock } from "lucide-react";
 import type { MilestoneStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { MILESTONE_STATUS_LABEL, MILESTONE_STATUS_VARIANT } from "@/lib/status-maps";
@@ -37,12 +37,14 @@ export function MilestonesTableInteractive({
   permitId,
   milestones,
   allTasks,
-  availableTasksForCreate
+  availableTasksForCreate,
+  isAdmin
 }: {
   permitId: string;
   milestones: MilestoneRow[];
   allTasks: { id: string; name: string }[];
   availableTasksForCreate: { id: string; name: string }[];
+  isAdmin: boolean;
 }) {
   const [mode, setMode] = useState<Mode | null>(null);
 
@@ -85,26 +87,37 @@ export function MilestonesTableInteractive({
     };
   }, [mode, milestoneBeingEdited, allTasks, availableTasksForCreate, permitId]);
 
+  // Column count drives the empty-state colspan and is one less for non-admins
+  // (the Actions column is omitted entirely rather than left empty).
+  const columnCount = isAdmin ? 6 : 5;
+
   return (
     <div className="rounded-md border bg-card">
       <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           אבני דרך לחיוב ({milestones.length})
         </h2>
-        <button
-          type="button"
-          onClick={() => setMode({ kind: "create" })}
-          disabled={availableTasksForCreate.length === 0}
-          className="inline-flex items-center gap-1 rounded border border-foreground bg-foreground px-2.5 py-1 text-[11px] font-medium text-background hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          title={
-            availableTasksForCreate.length === 0
-              ? "אין משימות פנויות לשיוך אבן דרך"
-              : "הוסף אבן דרך חדשה"
-          }
-        >
-          <Plus className="size-3" />
-          הוסף אבן דרך
-        </button>
+        {isAdmin ? (
+          <button
+            type="button"
+            onClick={() => setMode({ kind: "create" })}
+            disabled={availableTasksForCreate.length === 0}
+            className="inline-flex items-center gap-1 rounded border border-foreground bg-foreground px-2.5 py-1 text-[11px] font-medium text-background hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            title={
+              availableTasksForCreate.length === 0
+                ? "אין משימות פנויות לשיוך אבן דרך"
+                : "הוסף אבן דרך חדשה"
+            }
+          >
+            <Plus className="size-3" />
+            הוסף אבן דרך
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Lock className="size-3" />
+            תצוגה בלבד — פעולות פיננסיות שמורות לאדמין
+          </span>
+        )}
       </div>
 
       <table>
@@ -115,14 +128,16 @@ export function MilestonesTableInteractive({
             <th>משימה מפעילה</th>
             <th className="w-24">תאריך יעד</th>
             <th className="w-24">סטטוס</th>
-            <th className="w-32">פעולות</th>
+            {isAdmin && <th className="w-32">פעולות</th>}
           </tr>
         </thead>
         <tbody>
           {milestones.length === 0 && (
             <tr>
-              <td colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
-                אין אבני דרך עדיין. הוסף את הראשונה למעלה.
+              <td colSpan={columnCount} className="py-6 text-center text-xs text-muted-foreground">
+                {isAdmin
+                  ? "אין אבני דרך עדיין. הוסף את הראשונה למעלה."
+                  : "אין אבני דרך."}
               </td>
             </tr>
           )}
@@ -130,13 +145,14 @@ export function MilestonesTableInteractive({
             <MilestoneRowComponent
               key={m.id}
               milestone={m}
+              isAdmin={isAdmin}
               onEdit={() => setMode({ kind: "update", milestoneId: m.id })}
             />
           ))}
         </tbody>
       </table>
 
-      {mode && dialogConfig && (
+      {isAdmin && mode && dialogConfig && (
         <MilestoneFormDialog
           key={mode.kind === "update" ? `edit-${mode.milestoneId}` : "create"}
           mode={dialogConfig.formMode}
@@ -151,14 +167,26 @@ export function MilestonesTableInteractive({
 
 function MilestoneRowComponent({
   milestone,
+  isAdmin,
   onEdit
 }: {
   milestone: MilestoneRow;
+  isAdmin: boolean;
   onEdit: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const isDue = milestone.status === "DUE";
   const isPaid = milestone.status === "PAID";
+
+  const handleMarkPaid = () => {
+    startTransition(async () => {
+      try {
+        await markMilestonePaid(milestone.id);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "שגיאה");
+      }
+    });
+  };
 
   return (
     <tr
@@ -192,40 +220,38 @@ function MilestoneRowComponent({
           {MILESTONE_STATUS_LABEL[milestone.status]}
         </Badge>
       </td>
-      <td>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onEdit}
-            disabled={pending}
-            className="inline-flex items-center gap-1 rounded border border-input px-1.5 py-0.5 text-[10px] hover:bg-accent disabled:opacity-50"
-            title="ערוך אבן דרך"
-          >
-            <Pencil className="size-2.5" />
-            ערוך
-          </button>
-          {!isPaid && (
+      {isAdmin && (
+        <td>
+          <div className="flex items-center gap-1">
             <button
               type="button"
+              onClick={onEdit}
               disabled={pending}
-              onClick={() =>
-                startTransition(() => {
-                  void markMilestonePaid(milestone.id);
-                })
-              }
-              className="inline-flex items-center gap-1 rounded border border-emerald-500/50 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-300"
-              title="סמן כשולם"
+              className="inline-flex items-center gap-1 rounded border border-input px-1.5 py-0.5 text-[10px] hover:bg-accent disabled:opacity-50"
+              title="ערוך אבן דרך"
             >
-              {pending ? (
-                <Loader2 className="size-2.5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="size-2.5" />
-              )}
-              שולם
+              <Pencil className="size-2.5" />
+              ערוך
             </button>
-          )}
-        </div>
-      </td>
+            {!isPaid && (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={handleMarkPaid}
+                className="inline-flex items-center gap-1 rounded border border-emerald-500/50 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-300"
+                title="סמן כשולם"
+              >
+                {pending ? (
+                  <Loader2 className="size-2.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-2.5" />
+                )}
+                שולם
+              </button>
+            )}
+          </div>
+        </td>
+      )}
     </tr>
   );
 }
