@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteAuthority } from "@/app/actions/authorities";
@@ -84,14 +85,30 @@ export function AuthoritiesPageClient({ rows }: { rows: AuthorityRow[] }) {
             const canDelete = row.permitCount === 0 && row.templateCount === 0;
             return (
               <tr key={row.id} className="hover:bg-muted/30">
-                <td className="font-medium">{row.name}</td>
+                <td className="font-medium">
+                  <Link
+                    href={`/settings/authorities/${row.id}`}
+                    className="underline-offset-2 hover:underline"
+                    title="פתח דף רשות + ויקי"
+                  >
+                    {row.name}
+                  </Link>
+                </td>
                 <td className="text-xs text-muted-foreground">{row.region ?? "—"}</td>
                 <td className="text-[11px] text-muted-foreground line-clamp-1" title={row.contactInfo ?? undefined}>
                   {row.contactInfo ?? "—"}
                 </td>
                 <td className="text-center text-xs tabular-nums">{row.permitCount}</td>
                 <td className="text-center text-xs tabular-nums">{row.templateCount}</td>
-                <td className="text-center text-xs tabular-nums">{row.wikiCount}</td>
+                <td className="text-center text-xs tabular-nums">
+                  <Link
+                    href={`/settings/authorities/${row.id}`}
+                    className="underline-offset-2 hover:underline"
+                    title="נהל רשומות ויקי"
+                  >
+                    {row.wikiCount}
+                  </Link>
+                </td>
                 <td>
                   <div className="flex items-center gap-1">
                     <button
