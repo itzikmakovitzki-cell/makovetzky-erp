@@ -6,6 +6,7 @@ import {
   Building2,
   FileCheck2,
   Inbox,
+  LayoutDashboard,
   ListChecks,
   Settings as SettingsIcon,
   Truck,
@@ -23,6 +24,7 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
+  { href: "/", label: "מבט-על", icon: LayoutDashboard, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/permits", label: "היתרים", icon: FileCheck2, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/clients", label: "לקוחות", icon: Building2, allowed: ["ADMIN"] },
   { href: "/tasks", label: "משימות", icon: ListChecks, allowed: ["ADMIN", "EMPLOYEE"] },
@@ -38,8 +40,12 @@ export function DashboardNav({ role }: { role?: UserRole }) {
   return (
     <nav className="flex flex-col gap-0.5 text-sm">
       {NAV_ITEMS.map((item) => {
+        // The home entry uses "/" as its href, which would match every path
+        // under the naive startsWith check — special-case to exact match.
         const isActive =
-          pathname === item.href || pathname.startsWith(`${item.href}/`);
+          item.href === "/"
+            ? pathname === "/"
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
         const isAllowed = role ? item.allowed.includes(role) : true;
         if (!isAllowed) {
           return (

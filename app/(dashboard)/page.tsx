@@ -1,0 +1,492 @@
+import Link from "next/link";
+import {
+  FileCheck2,
+  Building2,
+  Wallet,
+  Hourglass,
+  Inbox as InboxIcon,
+  AlertTriangle,
+  Upload,
+  CheckCircle2,
+  FolderClock
+} from "lucide-react";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { Badge } from "@/components/ui/badge";
+import {
+  PERMIT_STATUS_LABEL,
+  PERMIT_STATUS_VARIANT
+} from "@/lib/status-maps";
+import { cn, formatDateTime, formatILS } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+// A permit is "stuck" if it sat without an update for this many days while
+// not in a terminal status. Tuned to land in "needs admin attention" zone
+// without being noisy on freshly-created records.
+const STUCK_THRESHOLD_DAYS = 14;
+
+// Lookback window for "recent activity" widgets. Anything older drops off
+// the dashboard — the audit log remains authoritative for history.
+const RECENT_WINDOW_DAYS = 30;
+
+export default async function HomeDashboardPage() {
+  const session = await auth();
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  const now = new Date();
+  const stuckThreshold = new Date(now.getTime() - STUCK_THRESHOLD_DAYS * 86_400_000);
+  const recentSince = new Date(now.getTime() - RECENT_WINDOW_DAYS * 86_400_000);
+
+  // Fire all the read queries in parallel — the dashboard renders one frame.
+  const [
+    activePermitsCount,
+    activeClientsCount,
+    awaitingAuthorityCount,
+    pendingMilestoneSum,
+    dueMilestoneSum,
+    paidMilestoneSum,
+    pendingDocs,
+    stuckPermits,
+    fieldUploads
+  ] = await Promise.all([
+    prisma.permit.count({
+      where: { deletedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } }
+    }),
+    prisma.client.count({
+      where: {
+        deletedAt: null,
+        masterDeals: {
+          some: {
+            deletedAt: null,
+            permits: {
+              some: {
+                deletedAt: null,
+                status: { notIn: ["COMPLETED", "CANCELLED"] }
+              }
+            }
+          }
+        }
+      }
+    }),
+    prisma.task.count({
+      where: {
+        deletedAt: null,
+        status: "AWAITING_AUTHORITY",
+        permit: { deletedAt: null }
+      }
+    }),
+    isAdmin
+      ? prisma.billingMilestone.aggregate({
+          _sum: { amount: true },
+          where: { status: "PENDING", permit: { deletedAt: null } }
+        })
+      : Promise.resolve({ _sum: { amount: null } }),
+    isAdmin
+      ? prisma.billingMilestone.aggregate({
+          _sum: { amount: true },
+          where: { status: "DUE", permit: { deletedAt: null } }
+        })
+      : Promise.resolve({ _sum: { amount: null } }),
+    isAdmin
+      ? prisma.billingMilestone.aggregate({
+          _sum: { amount: true },
+          where: { status: "PAID", permit: { deletedAt: null } }
+        })
+      : Promise.resolve({ _sum: { amount: null } }),
+    isAdmin
+      ? prisma.pendingDocument.findMany({
+          where: { status: "PENDING" },
+          orderBy: { createdAt: "desc" },
+          take: 6
+        })
+      : Promise.resolve([]),
+    prisma.permit.findMany({
+      where: {
+        deletedAt: null,
+        status: { in: ["IN_PROGRESS", "AWAITING_AUTHORITY", "DRAFT"] },
+        updatedAt: { lt: stuckThreshold }
+      },
+      include: {
+        authority: { select: { name: true } },
+        masterDeal: {
+          select: { client: { select: { companyName: true } } }
+        }
+      },
+      orderBy: { updatedAt: "asc" },
+      take: 8
+    }),
+    // Field-worker uploads = anonymous Document rows (uploadedById is null).
+    // Pending review = isLatestApproved still false. Window-bound to the
+    // recent lookback so old unreviewed uploads don't pile up here.
+    prisma.document.findMany({
+      where: {
+        uploadedById: null,
+        deletedAt: null,
+        createdAt: { gte: recentSince }
+      },
+      include: {
+        permit: { select: { id: true, name: true } },
+        task: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 6
+    })
+  ]);
+
+  const pendingRevenue =
+    Number(pendingMilestoneSum._sum.amount ?? 0) +
+    Number(dueMilestoneSum._sum.amount ?? 0);
+  const collectedRevenue = Number(paidMilestoneSum._sum.amount ?? 0);
+  const totalRevenue = pendingRevenue + collectedRevenue;
+  const collectedPct =
+    totalRevenue > 0 ? Math.round((collectedRevenue / totalRevenue) * 100) : 0;
+
+  return (
+    <section className="flex flex-col gap-4">
+      <header>
+        <h1 className="text-base font-semibold">
+          {isAdmin ? "מבט-על — מנהל" : "מבט-על"}
+        </h1>
+        <p className="text-[11px] text-muted-foreground">
+          {isAdmin
+            ? "תמונת מצב חוצת-לקוחות וצווארי בקבוק שדורשים טיפול."
+            : "סטטוס פרויקטים פעילים ופעילות אחרונה."}
+        </p>
+      </header>
+
+      <div
+        className={cn(
+          "grid gap-3",
+          isAdmin ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2"
+        )}
+      >
+        <StatCard
+          label="היתרים פעילים"
+          value={activePermitsCount.toString()}
+          icon={<FileCheck2 className="size-4 text-muted-foreground" />}
+          helper="לא כולל הושלם/בוטל"
+          href="/permits"
+        />
+        {isAdmin && (
+          <StatCard
+            label="לקוחות פעילים"
+            value={activeClientsCount.toString()}
+            icon={<Building2 className="size-4 text-muted-foreground" />}
+            helper="לקוח עם היתר פעיל אחד לפחות"
+            href="/clients"
+          />
+        )}
+        {isAdmin && (
+          <StatCard
+            label="צפי הכנסה"
+            value={formatILS(pendingRevenue)}
+            icon={<Wallet className="size-4 text-muted-foreground" />}
+            helper={`נגבה: ${formatILS(collectedRevenue)} (${collectedPct}%)`}
+            href="/finances"
+            accent={pendingRevenue > 0 ? "info" : undefined}
+          />
+        )}
+        <StatCard
+          label="ממתין לרשות"
+          value={awaitingAuthorityCount.toString()}
+          icon={<Hourglass className="size-4 text-muted-foreground" />}
+          helper="צוואר בקבוק — משימות תקועות אצל הרשות"
+          href="/tasks?status=AWAITING_AUTHORITY"
+          accent={awaitingAuthorityCount > 0 ? "warning" : undefined}
+        />
+      </div>
+
+      {isAdmin && totalRevenue > 0 && (
+        <div className="rounded-md border bg-card px-3 py-2">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="font-medium">סטטוס גבייה כולל</span>
+            <span className="tabular-nums text-muted-foreground">
+              {formatILS(collectedRevenue)} / {formatILS(totalRevenue)}
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded bg-muted">
+            <div
+              className="h-full bg-emerald-500"
+              style={{ width: `${collectedPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          "grid gap-3",
+          isAdmin ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"
+        )}
+      >
+        {isAdmin && (
+          <Panel
+            title="מסמכים נכנסים — ממתינים לטיפול"
+            icon={<InboxIcon className="size-4 text-muted-foreground" />}
+            count={pendingDocs.length}
+            href="/inbox"
+            hrefLabel="לתיבת הנכנסים"
+          >
+            {pendingDocs.length === 0 ? (
+              <EmptyRow icon={<CheckCircle2 className="size-3 text-emerald-600" />}>
+                אין מסמכים שממתינים לטיפול
+              </EmptyRow>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>קובץ</th>
+                    <th className="w-20">מקור</th>
+                    <th>שולח</th>
+                    <th className="w-28">התקבל</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingDocs.map((d) => (
+                    <tr key={d.id} className="hover:bg-muted/30">
+                      <td className="font-medium">{d.fileName ?? "ללא שם"}</td>
+                      <td className="text-[11px] text-muted-foreground">
+                        {d.sourceChannel}
+                      </td>
+                      <td className="text-[11px] text-muted-foreground">
+                        {d.senderInfo ?? "—"}
+                      </td>
+                      <td className="text-[11px] tabular-nums text-muted-foreground">
+                        {formatDateTime(d.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
+        )}
+
+        <Panel
+          title={`היתרים תקועים מעל ${STUCK_THRESHOLD_DAYS} ימים`}
+          icon={<AlertTriangle className="size-4 text-amber-600" />}
+          count={stuckPermits.length}
+          hint="ללא עדכון סטטוס/משימה"
+        >
+          {stuckPermits.length === 0 ? (
+            <EmptyRow icon={<CheckCircle2 className="size-3 text-emerald-600" />}>
+              אין היתרים תקועים — כל ההיתרים עודכנו לאחרונה
+            </EmptyRow>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>שם היתר</th>
+                  <th>לקוח</th>
+                  <th>רשות</th>
+                  <th className="w-24">סטטוס</th>
+                  <th className="w-28">עודכן</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stuckPermits.map((p) => {
+                  const daysStuck = Math.floor(
+                    (now.getTime() - new Date(p.updatedAt).getTime()) / 86_400_000
+                  );
+                  return (
+                    <tr key={p.id} className="hover:bg-muted/30">
+                      <td>
+                        <Link
+                          href={`/permits/${p.id}/tasks`}
+                          className="font-medium underline-offset-2 hover:underline"
+                        >
+                          {p.name}
+                        </Link>
+                      </td>
+                      <td className="text-xs">
+                        {p.masterDeal.client.companyName}
+                      </td>
+                      <td className="text-xs">{p.authority.name}</td>
+                      <td>
+                        <Badge variant={PERMIT_STATUS_VARIANT[p.status]}>
+                          {PERMIT_STATUS_LABEL[p.status]}
+                        </Badge>
+                      </td>
+                      <td
+                        className={cn(
+                          "text-[11px] tabular-nums",
+                          daysStuck >= 30
+                            ? "font-semibold text-red-600"
+                            : "text-amber-700"
+                        )}
+                      >
+                        לפני {daysStuck} ימים
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+      </div>
+
+      <Panel
+        title="העלאות מהשטח — דורש סקירה"
+        icon={<Upload className="size-4 text-muted-foreground" />}
+        count={fieldUploads.length}
+        hint={`${RECENT_WINDOW_DAYS} ימים אחרונים · קישורי גישה (Magic Links)`}
+      >
+        {fieldUploads.length === 0 ? (
+          <EmptyRow icon={<FolderClock className="size-3 text-muted-foreground" />}>
+            אין העלאות חדשות מהשטח בטווח הזמן הזה
+          </EmptyRow>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>קובץ</th>
+                <th>היתר</th>
+                <th>משימה</th>
+                <th className="w-24">סטטוס סקירה</th>
+                <th className="w-28">הועלה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fieldUploads.map((doc) => (
+                <tr key={doc.id} className="hover:bg-muted/30">
+                  <td className="font-medium">{doc.fileName}</td>
+                  <td className="text-xs">
+                    {doc.permit ? (
+                      <Link
+                        href={`/permits/${doc.permit.id}/documents`}
+                        className="underline-offset-2 hover:underline"
+                      >
+                        {doc.permit.name}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="text-xs text-muted-foreground">
+                    {doc.task?.name ?? "—"}
+                  </td>
+                  <td>
+                    {doc.isLatestApproved ? (
+                      <Badge variant="success">אושר</Badge>
+                    ) : (
+                      <Badge variant="warning">ממתין</Badge>
+                    )}
+                  </td>
+                  <td className="text-[11px] tabular-nums text-muted-foreground">
+                    {formatDateTime(doc.createdAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </section>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+  helper,
+  href,
+  accent
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  helper: string;
+  href?: string;
+  accent?: "info" | "warning";
+}) {
+  const inner = (
+    <div
+      className={cn(
+        "h-full rounded-md border bg-card px-3 py-2.5 transition-colors",
+        accent === "warning" &&
+          "border-amber-500/40 bg-amber-50/40 dark:bg-amber-500/5",
+        accent === "info" &&
+          "border-sky-500/40 bg-sky-50/40 dark:bg-sky-500/5",
+        href && "hover:border-foreground/40"
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+        {icon}
+      </div>
+      <div
+        className={cn(
+          "mt-1 text-lg font-semibold leading-tight tabular-nums",
+          accent === "warning" && "text-amber-800 dark:text-amber-300"
+        )}
+      >
+        {value}
+      </div>
+      <div className="mt-0.5 text-[10px] text-muted-foreground">{helper}</div>
+    </div>
+  );
+  return href ? <Link href={href}>{inner}</Link> : inner;
+}
+
+function Panel({
+  title,
+  icon,
+  count,
+  hint,
+  href,
+  hrefLabel,
+  children
+}: {
+  title: string;
+  icon: React.ReactNode;
+  count: number;
+  hint?: string;
+  href?: string;
+  hrefLabel?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-md border bg-card">
+      <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
+        <div className="flex items-center gap-2">
+          {icon}
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {title} ({count})
+          </h2>
+          {hint && (
+            <span className="text-[10px] text-muted-foreground">· {hint}</span>
+          )}
+        </div>
+        {href && (
+          <Link
+            href={href}
+            className="text-[11px] underline-offset-2 hover:underline"
+          >
+            {hrefLabel ?? "פתח"}
+          </Link>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function EmptyRow({
+  icon,
+  children
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-1.5 py-6 text-xs text-muted-foreground">
+      {icon}
+      <span>{children}</span>
+    </div>
+  );
+}
