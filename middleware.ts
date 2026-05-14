@@ -60,6 +60,7 @@ export default auth((req) => {
 });
 
 export const config = {
-  // Skip Next internals, auth handler, static assets (files with extensions).
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon\\.ico|.*\\..*).*)"]
+  // Skip Next internals, auth handler, third-party webhooks (no session), and
+  // static assets (any path containing a dot).
+  matcher: ["/((?!api/auth|api/whatsapp|_next/static|_next/image|favicon\\.ico|.*\\..*).*)"]
 };
