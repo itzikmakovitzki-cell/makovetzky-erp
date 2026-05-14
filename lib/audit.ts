@@ -21,7 +21,8 @@ export const AuditEntity = {
   AUTHORITY_WIKI: "AUTHORITY_WIKI",
   BUILDING_TYPE: "BUILDING_TYPE",
   TASK_TEMPLATE: "TASK_TEMPLATE",
-  TASK_TEMPLATE_DEPENDENCY: "TASK_TEMPLATE_DEPENDENCY"
+  TASK_TEMPLATE_DEPENDENCY: "TASK_TEMPLATE_DEPENDENCY",
+  MAGIC_LINK: "MAGIC_LINK"
 } as const;
 
 export type AuditEntityValue = (typeof AuditEntity)[keyof typeof AuditEntity] | (string & {});

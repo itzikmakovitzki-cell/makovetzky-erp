@@ -7,6 +7,7 @@ import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { SpotlightToggle } from "@/components/permit/spotlight-toggle";
 import { DependencyOverride } from "@/components/permit/dependency-override";
 import { SoftDeleteButton } from "@/components/global/soft-delete-button";
+import { MagicLinkButton } from "@/components/permit/magic-link-button";
 import { cn, formatDate } from "@/lib/utils";
 
 export async function TasksTable({ permitId }: { permitId: string }) {
@@ -56,13 +57,13 @@ export async function TasksTable({ permitId }: { permitId: string }) {
             <th className="w-32">אחראי</th>
             <th className="w-28">תאריך יעד</th>
             <th>חסימה / הערות</th>
-            {isAdmin && <th className="w-6"></th>}
+            <th className="w-14"></th>
           </tr>
         </thead>
         <tbody>
           {tasks.length === 0 && (
             <tr>
-              <td colSpan={isAdmin ? 9 : 8} className="py-6 text-center text-xs text-muted-foreground">
+              <td colSpan={9} className="py-6 text-center text-xs text-muted-foreground">
                 אין משימות בהיתר זה
               </td>
             </tr>
@@ -158,16 +159,19 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                     <span>ממתין לתשובת רשות — תאריך יעד מוקפא</span>
                   ) : null}
                 </td>
-                {isAdmin && (
-                  <td className="p-0 text-center">
-                    <SoftDeleteButton
-                      action={deleteTask}
-                      id={t.id}
-                      label={t.name}
-                      variant="icon"
-                    />
-                  </td>
-                )}
+                <td className="p-0">
+                  <div className="flex items-center justify-center gap-0.5">
+                    <MagicLinkButton taskId={t.id} taskName={t.name} />
+                    {isAdmin && (
+                      <SoftDeleteButton
+                        action={deleteTask}
+                        id={t.id}
+                        label={t.name}
+                        variant="icon"
+                      />
+                    )}
+                  </div>
+                </td>
               </tr>
             );
           })}
