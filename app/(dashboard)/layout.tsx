@@ -15,10 +15,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Image
             src="/logo.png"
             alt="מקובצקי — ניהול פרויקטים"
-            width={40}
-            height={40}
+            width={480}
+            height={203}
             priority
-            className="size-10 object-contain"
+            className="h-auto w-full max-w-[200px] object-contain"
           />
         </div>
         <DashboardNav role={user?.role} />

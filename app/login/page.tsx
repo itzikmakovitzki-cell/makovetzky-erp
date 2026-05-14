@@ -22,10 +22,10 @@ export default async function LoginPage({
         <Image
           src="/logo.png"
           alt="מקובצקי — ניהול פרויקטים"
-          width={160}
-          height={160}
+          width={640}
+          height={271}
           priority
-          className="h-auto w-40 object-contain drop-shadow-sm"
+          className="h-auto w-72 object-contain drop-shadow-sm"
         />
         <div className="w-full rounded-md border bg-card shadow-sm">
           <LoginForm callbackUrl={callbackUrl} />
