@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Building2, Box, ListTodo, Trash2 } from "lucide-react";
+import { Users, Building2, Box, ListTodo, Trash2, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/settings/authorities", label: "רשויות", icon: Building2 },
   { href: "/settings/building-types", label: "סוגי בניינים", icon: Box },
   { href: "/settings/templates", label: "תבניות משימות", icon: ListTodo },
+  { href: "/settings/whatsapp", label: "WhatsApp", icon: MessageCircle },
   { href: "/settings/recycle-bin", label: "סל המחזור", icon: Trash2 }
 ];
 
