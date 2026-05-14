@@ -38,3 +38,9 @@ prisma/migrations/dev.db*
 
 # claude code session config (local-only permissions)
 .claude/
+
+# personal logo source files in repo root (deployed asset is public/logo.png)
+/Gemini_Generated_Image_*
+/לוגו*.jpeg
+/לוגו*.jpg
+/לוגו*.png
