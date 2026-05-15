@@ -8,6 +8,7 @@ import { SpotlightToggle } from "@/components/permit/spotlight-toggle";
 import { DependencyOverride } from "@/components/permit/dependency-override";
 import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { MagicLinkButton } from "@/components/permit/magic-link-button";
+import { PermitTasksCsvToolbar } from "@/components/permit/permit-tasks-csv-toolbar";
 import { cn, formatDate } from "@/lib/utils";
 
 export async function TasksTable({ permitId }: { permitId: string }) {
@@ -36,13 +37,16 @@ export async function TasksTable({ permitId }: { permitId: string }) {
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           משימות ({tasks.length})
         </h2>
-        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
-          <LegendDot color="bg-red-500" label="באיחור" />
-          <LegendDot color="bg-amber-500" label="ממתין לרשות / מוקפא" />
-          <LegendDot color="bg-zinc-400" label="חסום ע״י תלות" />
-          <span className="inline-flex items-center gap-1">
-            <Star className="size-3 fill-yellow-500 text-yellow-500" /> Managerial Spotlight
-          </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+            <LegendDot color="bg-red-500" label="באיחור" />
+            <LegendDot color="bg-amber-500" label="ממתין לרשות / מוקפא" />
+            <LegendDot color="bg-zinc-400" label="חסום ע״י תלות" />
+            <span className="inline-flex items-center gap-1">
+              <Star className="size-3 fill-yellow-500 text-yellow-500" /> Managerial Spotlight
+            </span>
+          </div>
+          <PermitTasksCsvToolbar permitId={permitId} canImport={isAdmin} />
         </div>
       </div>
 

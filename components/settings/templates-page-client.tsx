@@ -5,6 +5,11 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteTaskTemplate } from "@/app/actions/task-templates";
+import {
+  exportTaskTemplatesCsv,
+  importTaskTemplatesCsv
+} from "@/app/actions/csv";
+import { CsvToolbar } from "@/components/global/csv-toolbar";
 import { TemplateFormDialog } from "./template-form-dialog";
 import { DependencyManager } from "./dependency-manager";
 
@@ -130,24 +135,41 @@ export function TemplatesPageClient({
         </div>
       ) : (
         <div className="rounded-md border bg-card">
-          <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               תבניות עבור הצירוף ({templates.length})
             </h2>
-            <button
-              type="button"
-              onClick={() =>
-                setMode({
-                  kind: "create",
-                  authorityId: selectedAuthorityId!,
-                  buildingTypeId: selectedBuildingTypeId!
-                })
-              }
-              className="inline-flex items-center gap-1 rounded border border-foreground bg-foreground px-2.5 py-1 text-[11px] font-medium text-background hover:opacity-90"
-            >
-              <Plus className="size-3" />
-              תבנית חדשה
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <CsvToolbar
+                entityLabel="תבניות"
+                helpText="עמודות: שם תבנית, תיאור, משך ימים, סדר, פעיל"
+                exportAction={() =>
+                  exportTaskTemplatesCsv(
+                    selectedAuthorityId!,
+                    selectedBuildingTypeId!
+                  )
+                }
+                importAction={(fd) => {
+                  fd.append("authorityId", selectedAuthorityId!);
+                  fd.append("buildingTypeId", selectedBuildingTypeId!);
+                  return importTaskTemplatesCsv(fd);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setMode({
+                    kind: "create",
+                    authorityId: selectedAuthorityId!,
+                    buildingTypeId: selectedBuildingTypeId!
+                  })
+                }
+                className="inline-flex items-center gap-1 rounded border border-foreground bg-foreground px-2.5 py-1 text-[11px] font-medium text-background hover:opacity-90"
+              >
+                <Plus className="size-3" />
+                תבנית חדשה
+              </button>
+            </div>
           </div>
 
           <table>

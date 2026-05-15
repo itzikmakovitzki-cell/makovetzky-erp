@@ -5,6 +5,8 @@ import { useMemo, useState, useTransition } from "react";
 import { Building2, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteClient } from "@/app/actions/clients";
+import { exportClientsCsv, importClientsCsv } from "@/app/actions/csv";
+import { CsvToolbar } from "@/components/global/csv-toolbar";
 import { ClientFormDialog, type ClientFormInitial } from "./client-form-dialog";
 
 export type ClientRow = {
@@ -69,14 +71,22 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
             כל הלקוחות העסקיים — חברות, עסקאות והיתרים שלהן.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setMode({ kind: "create" })}
-          className="inline-flex items-center gap-1.5 rounded border border-foreground bg-foreground px-3 py-1 text-[11px] font-medium text-background hover:opacity-90"
-        >
-          <Plus className="size-3.5" />
-          לקוח חדש
-        </button>
+        <div className="flex items-center gap-2">
+          <CsvToolbar
+            entityLabel="לקוחות"
+            helpText="עמודות חובה: שם החברה, איש קשר, טלפון"
+            exportAction={exportClientsCsv}
+            importAction={importClientsCsv}
+          />
+          <button
+            type="button"
+            onClick={() => setMode({ kind: "create" })}
+            className="inline-flex items-center gap-1.5 rounded border border-foreground bg-foreground px-3 py-1 text-[11px] font-medium text-background hover:opacity-90"
+          >
+            <Plus className="size-3.5" />
+            לקוח חדש
+          </button>
+        </div>
       </header>
 
       <div className="relative">
