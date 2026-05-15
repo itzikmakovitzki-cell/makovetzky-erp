@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
-import { FileText, CheckCircle2 } from "lucide-react";
+import { FileText, CheckCircle2, ExternalLink } from "lucide-react";
+import { createSignedUrlsSafe, isStoragePath } from "@/lib/supabase-storage";
 
 export async function DocumentsSummary({ permitId }: { permitId: string }) {
   const documents = await prisma.document.findMany({
@@ -15,6 +16,16 @@ export async function DocumentsSummary({ permitId }: { permitId: string }) {
   });
 
   const approvedCount = documents.filter((d) => d.isLatestApproved).length;
+
+  // Sign storage paths in one batch so each file name renders as a clickable
+  // link. External URLs (legacy data) pass through verbatim.
+  const storagePaths = documents.map((d) => d.fileUrl).filter(isStoragePath);
+  const signedUrls = await createSignedUrlsSafe(storagePaths);
+  const previewUrlFor = (fileUrl: string): string | null => {
+    if (!fileUrl) return null;
+    if (isStoragePath(fileUrl)) return signedUrls.get(fileUrl) ?? null;
+    return fileUrl;
+  };
 
   return (
     <div className="space-y-2">
@@ -33,12 +44,27 @@ export async function DocumentsSummary({ permitId }: { permitId: string }) {
               אין מסמכים עדיין
             </li>
           )}
-          {documents.map((d) => (
+          {documents.map((d) => {
+            const url = previewUrlFor(d.fileUrl);
+            return (
             <li key={d.id} className="flex items-start justify-between gap-2 px-2 py-1.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
                   <FileText className="size-3 shrink-0 text-muted-foreground" />
-                  <span className="truncate text-[12px] font-medium">{d.fileName}</span>
+                  {url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-w-0 items-center gap-1 text-[12px] font-medium underline-offset-2 hover:underline"
+                      title="פתח קובץ"
+                    >
+                      <span className="truncate">{d.fileName}</span>
+                      <ExternalLink className="size-2.5 shrink-0 text-muted-foreground" />
+                    </a>
+                  ) : (
+                    <span className="truncate text-[12px] font-medium">{d.fileName}</span>
+                  )}
                   {d.isLatestApproved && (
                     <CheckCircle2 className="size-3 shrink-0 text-emerald-600" />
                   )}
@@ -51,7 +77,8 @@ export async function DocumentsSummary({ permitId }: { permitId: string }) {
                 </div>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </div>
     </div>

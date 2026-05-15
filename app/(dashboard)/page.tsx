@@ -8,7 +8,8 @@ import {
   AlertTriangle,
   Upload,
   CheckCircle2,
-  FolderClock
+  FolderClock,
+  ExternalLink
 } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +19,7 @@ import {
   PERMIT_STATUS_VARIANT
 } from "@/lib/status-maps";
 import { cn, formatDateTime, formatILS } from "@/lib/utils";
+import { createSignedUrlsSafe, isStoragePath } from "@/lib/supabase-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -134,6 +136,21 @@ export default async function HomeDashboardPage() {
     })
   ]);
 
+  // Resolve clickable preview URLs for any storage-backed files surfaced in
+  // the panels below. External URLs (legacy data) pass through verbatim; the
+  // signed batch is best-effort, so missing entries just render as plain text.
+  const allFileUrls = [
+    ...pendingDocs.map((d) => d.fileUrl),
+    ...fieldUploads.map((d) => d.fileUrl)
+  ];
+  const storagePaths = allFileUrls.filter((u) => u && isStoragePath(u));
+  const signedUrls = await createSignedUrlsSafe(storagePaths);
+  const previewUrlFor = (fileUrl: string): string | null => {
+    if (!fileUrl) return null;
+    if (isStoragePath(fileUrl)) return signedUrls.get(fileUrl) ?? null;
+    return fileUrl;
+  };
+
   const pendingRevenue =
     Number(pendingMilestoneSum._sum.amount ?? 0) +
     Number(dueMilestoneSum._sum.amount ?? 0);
@@ -243,20 +260,25 @@ export default async function HomeDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingDocs.map((d) => (
-                    <tr key={d.id} className="hover:bg-muted/30">
-                      <td className="font-medium">{d.fileName ?? "ללא שם"}</td>
-                      <td className="text-[11px] text-muted-foreground">
-                        {d.sourceChannel}
-                      </td>
-                      <td className="text-[11px] text-muted-foreground">
-                        {d.senderInfo ?? "—"}
-                      </td>
-                      <td className="text-[11px] tabular-nums text-muted-foreground">
-                        {formatDateTime(d.createdAt)}
-                      </td>
-                    </tr>
-                  ))}
+                  {pendingDocs.map((d) => {
+                    const url = previewUrlFor(d.fileUrl);
+                    return (
+                      <tr key={d.id} className="hover:bg-muted/30">
+                        <td className="font-medium">
+                          <FileNameLink url={url} fileName={d.fileName} />
+                        </td>
+                        <td className="text-[11px] text-muted-foreground">
+                          {d.sourceChannel}
+                        </td>
+                        <td className="text-[11px] text-muted-foreground">
+                          {d.senderInfo ?? "—"}
+                        </td>
+                        <td className="text-[11px] tabular-nums text-muted-foreground">
+                          {formatDateTime(d.createdAt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -349,9 +371,13 @@ export default async function HomeDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {fieldUploads.map((doc) => (
+              {fieldUploads.map((doc) => {
+                const url = previewUrlFor(doc.fileUrl);
+                return (
                 <tr key={doc.id} className="hover:bg-muted/30">
-                  <td className="font-medium">{doc.fileName}</td>
+                  <td className="font-medium">
+                    <FileNameLink url={url} fileName={doc.fileName} />
+                  </td>
                   <td className="text-xs">
                     {doc.permit ? (
                       <Link
@@ -378,12 +404,33 @@ export default async function HomeDashboardPage() {
                     {formatDateTime(doc.createdAt)}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
       </Panel>
     </section>
+  );
+}
+
+// Renders a file name as a clickable link when we have a URL, otherwise as
+// plain text. URL is null for text-only inbox rows and for storage paths whose
+// signed URL could not be resolved.
+function FileNameLink({ url, fileName }: { url: string | null; fileName: string | null }) {
+  const name = fileName ?? "ללא שם";
+  if (!url) return <span>{name}</span>;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+      title="פתח קובץ"
+    >
+      <span className="truncate">{name}</span>
+      <ExternalLink className="size-2.5 shrink-0 text-muted-foreground" />
+    </a>
   );
 }
 
