@@ -8,6 +8,7 @@ import {
   FileText,
   Loader2,
   Send,
+  Upload,
   XCircle,
   ExternalLink,
   Inbox as InboxIcon
@@ -20,6 +21,7 @@ import {
   ProcessPendingDialog,
   type PendingDocForDialog
 } from "./process-pending-dialog";
+import { ManualUploadDialog } from "./manual-upload-dialog";
 
 export type PendingDocRow = PendingDocForDialog & {
   mimeType: string | null;
@@ -65,6 +67,7 @@ export function InboxTable({
   const [processingDocId, setProcessingDocId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectPending, startRejectTransition] = useTransition();
+  const [manualUploadOpen, setManualUploadOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -112,15 +115,25 @@ export function InboxTable({
             תיקיית כניסה ל-Triage. שייך מסמך לתיק/משימה או דחה עם סיבה.
           </p>
         </div>
-        <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px]">
-          <input
-            type="checkbox"
-            checked={showAll}
-            onChange={(e) => onToggleShowAll(e.target.checked)}
-            className="size-3.5"
-          />
-          הצג גם מסמכים שטופלו (שויכו / נדחו)
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px]">
+            <input
+              type="checkbox"
+              checked={showAll}
+              onChange={(e) => onToggleShowAll(e.target.checked)}
+              className="size-3.5"
+            />
+            הצג גם מסמכים שטופלו (שויכו / נדחו)
+          </label>
+          <button
+            type="button"
+            onClick={() => setManualUploadOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded border border-foreground bg-foreground px-2.5 py-1 text-[12px] font-medium text-background hover:opacity-90"
+          >
+            <Upload className="size-3" />
+            העלה מסמך
+          </button>
+        </div>
       </header>
 
       <div className="rounded-md border bg-card">
@@ -273,6 +286,10 @@ export function InboxTable({
           buildings={buildings}
           onClose={() => setProcessingDocId(null)}
         />
+      )}
+
+      {manualUploadOpen && (
+        <ManualUploadDialog onClose={() => setManualUploadOpen(false)} />
       )}
     </section>
   );

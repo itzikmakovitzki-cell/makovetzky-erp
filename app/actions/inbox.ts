@@ -5,9 +5,13 @@ import { AuditAction } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { buildPendingStoragePath, uploadToStorage } from "@/lib/supabase-storage";
 
-// Type is internal — "use server" files can only export async functions.
+// Types are internal — "use server" files can only export async functions.
 type AssignFormState = { error: string | null; ok: boolean };
+type ManualUploadFormState = { error: string | null; ok: boolean };
+
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // mirrors next.config bodySizeLimit
 
 export async function assignPendingDocument(
   _prev: AssignFormState,
@@ -208,4 +212,70 @@ export async function rejectPendingDocument(
   });
 
   revalidatePath("/inbox");
+}
+
+// Manual upload — drops a file directly into the inbox with sourceChannel=MANUAL.
+// Used when a document arrives outside the connected automated channels (e.g.
+// a contractor hands over a PDF in person, or pre-Cloud-API WhatsApp messages).
+export async function createPendingDocumentManual(
+  _prev: ManualUploadFormState,
+  formData: FormData
+): Promise<ManualUploadFormState> {
+  try {
+    const user = await getCurrentUser();
+    const file = formData.get("file");
+    const senderInfoRaw = String(formData.get("senderInfo") || "").trim();
+    const noteRaw = String(formData.get("note") || "").trim();
+
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: "יש לבחור קובץ", ok: false };
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return {
+        error: `הקובץ גדול מ-${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)} MB`,
+        ok: false
+      };
+    }
+
+    const storagePath = buildPendingStoragePath(file.name);
+    const bytes = await file.arrayBuffer();
+    await uploadToStorage(bytes, storagePath, file.type || null);
+
+    const senderInfo = senderInfoRaw || `הועלה ידנית ע"י ${user.name || user.email}`;
+
+    await prisma.$transaction(async (tx) => {
+      const pending = await tx.pendingDocument.create({
+        data: {
+          sourceChannel: "MANUAL",
+          senderInfo,
+          fileUrl: storagePath,
+          fileName: file.name,
+          mimeType: file.type || null,
+          rawMessage: noteRaw || null,
+          status: "PENDING"
+        }
+      });
+
+      await logAudit(tx, {
+        entityType: AuditEntity.PENDING_DOCUMENT,
+        entityId: pending.id,
+        action: AuditAction.CREATE,
+        newValue: {
+          fileName: file.name,
+          source: "MANUAL",
+          senderInfo,
+          uploadedBy: user.name
+        },
+        userId: user.id
+      });
+    });
+
+    revalidatePath("/inbox");
+    return { error: null, ok: true };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "שגיאה בהעלאת המסמך",
+      ok: false
+    };
+  }
 }
