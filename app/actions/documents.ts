@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 import { buildPermitStoragePath, uploadToStorage } from "@/lib/supabase-storage";
+import { assertPermitOpenForEdits } from "./permits";
 
 // Type is internal — "use server" files can only export async functions.
 type UploadFormState = { error: string | null; ok: boolean };
@@ -39,9 +40,15 @@ export async function uploadDocument(
 
     const permit = await prisma.permit.findFirst({
       where: { id: permitId, deletedAt: null },
-      select: { id: true }
+      select: { id: true, status: true }
     });
     if (!permit) return { error: "היתר לא נמצא", ok: false };
+    if (permit.status === "COMPLETED") {
+      return {
+        error: "ההיתר הושלם וננעל לעריכה. פתח אותו מחדש כדי להעלות מסמכים.",
+        ok: false
+      };
+    }
 
     let taskName: string | null = null;
     if (taskId) {
@@ -145,6 +152,7 @@ export async function approveDocument(documentId: string): Promise<void> {
   });
   if (!doc) throw new Error("מסמך לא נמצא");
   if (doc.approvedById) throw new Error("המסמך כבר אושר");
+  await assertPermitOpenForEdits(doc.permitId);
 
   const now = new Date();
 
@@ -201,6 +209,7 @@ export async function deleteDocument(documentId: string): Promise<void> {
     select: { id: true, permitId: true, fileName: true, version: true }
   });
   if (!doc) throw new Error("מסמך לא נמצא");
+  await assertPermitOpenForEdits(doc.permitId);
 
   const now = new Date();
   await prisma.$transaction(async (tx) => {

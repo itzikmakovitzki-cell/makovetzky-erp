@@ -5,6 +5,7 @@ import { AuditAction, MilestoneStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { assertPermitOpenForEdits } from "./permits";
 
 // Type is internal — "use server" files can only export async functions.
 type MilestoneFormState = { error: string | null; ok: boolean };
@@ -71,6 +72,11 @@ export async function submitMilestone(
       }
       if (task.milestone) {
         return { error: "למשימה זו כבר משויכת אבן דרך אחרת", ok: false };
+      }
+      try {
+        await assertPermitOpenForEdits(permitId);
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : "ההיתר נעול", ok: false };
       }
 
       // If the trigger task is already COMPLETED, the milestone is born DUE.
@@ -139,6 +145,11 @@ export async function submitMilestone(
         }
       });
       if (!existing) return { error: "אבן הדרך לא נמצאה", ok: false };
+      try {
+        await assertPermitOpenForEdits(existing.permitId);
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : "ההיתר נעול", ok: false };
+      }
 
       if (triggerTaskId !== existing.triggerTaskId) {
         const task = await prisma.task.findFirst({
@@ -211,6 +222,7 @@ export async function markMilestonePaid(milestoneId: string): Promise<void> {
     select: { id: true, permitId: true, status: true, name: true, amount: true }
   });
   if (!milestone) throw new Error("אבן הדרך לא נמצאה");
+  await assertPermitOpenForEdits(milestone.permitId);
   if (milestone.status === "PAID") return; // idempotent
 
   const now = new Date();

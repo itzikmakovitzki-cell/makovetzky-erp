@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 import { buildPendingStoragePath, uploadToStorage } from "@/lib/supabase-storage";
+import { assertPermitOpenForEdits } from "./permits";
 
 // Types are internal — "use server" files can only export async functions.
 type AssignFormState = { error: string | null; ok: boolean };
@@ -49,9 +50,15 @@ export async function assignPendingDocument(
 
     const permit = await prisma.permit.findFirst({
       where: { id: permitId, deletedAt: null },
-      select: { id: true }
+      select: { id: true, status: true }
     });
     if (!permit) return { error: "ההיתר לא נמצא", ok: false };
+    if (permit.status === "COMPLETED") {
+      return {
+        error: "ההיתר הושלם וננעל לעריכה. פתח אותו מחדש כדי לשייך מסמכים.",
+        ok: false
+      };
+    }
 
     let taskName: string | null = null;
     if (taskId) {
