@@ -5,6 +5,7 @@ import { AuditAction } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { assertPermitOpenForEdits } from "./permits";
 
 const MAX_CONTENT_LENGTH = 5000;
 const PREVIEW_LENGTH = 60;
@@ -24,12 +25,8 @@ export async function createNote(permitId: string, content: string) {
   }
 
   // Confirm the permit exists and isn't soft-deleted — avoids dangling notes
-  // on trashed permits.
-  const permit = await prisma.permit.findFirst({
-    where: { id: permitId, deletedAt: null },
-    select: { id: true }
-  });
-  if (!permit) throw new Error("היתר לא נמצא");
+  // on trashed permits. Also blocks edits on COMPLETED permits.
+  await assertPermitOpenForEdits(permitId);
 
   await prisma.$transaction(async (tx) => {
     const note = await tx.note.create({
@@ -63,6 +60,7 @@ export async function toggleNotePin(noteId: string) {
     select: { id: true, permitId: true, isPinned: true }
   });
   if (!note) throw new Error("הערה לא נמצאה");
+  await assertPermitOpenForEdits(note.permitId);
 
   const newPinned = !note.isPinned;
 

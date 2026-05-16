@@ -5,6 +5,7 @@ import { AuditAction, MilestoneStatus, Prisma, TaskStatus } from "@prisma/client
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { assertPermitOpenForEdits } from "./permits";
 
 const VALID_TASK_STATUSES = new Set<TaskStatus>([
   "OPEN",
@@ -33,6 +34,7 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
   });
   if (!task) throw new Error("Task not found");
   if (task.status === newStatus) return; // no-op — preserves audit log signal/noise
+  await assertPermitOpenForEdits(task.permitId);
 
   const now = new Date();
   const willBeFrozen = newStatus === "AWAITING_AUTHORITY";
@@ -120,6 +122,7 @@ export async function toggleTaskSpotlight(taskId: string) {
     select: { id: true, permitId: true, isSpotlight: true }
   });
   if (!task) throw new Error("Task not found");
+  await assertPermitOpenForEdits(task.permitId);
 
   const newSpotlight = !task.isSpotlight;
 
@@ -165,6 +168,7 @@ export async function deleteTask(taskId: string): Promise<void> {
     }
   });
   if (!task) throw new Error("המשימה לא נמצאה");
+  await assertPermitOpenForEdits(task.permitId);
   if (task.milestone && task.milestone.status !== "PAID") {
     throw new Error(
       `לא ניתן למחוק — המשימה מפעילה את אבן הדרך "${task.milestone.name}"`
@@ -205,6 +209,7 @@ export async function overrideTaskDependency(taskId: string, dependsOnTaskId: st
   });
   if (!dep) throw new Error("Dependency not found");
   if (dep.overriddenByAdmin) return; // idempotent — already overridden
+  await assertPermitOpenForEdits(dep.task.permitId);
 
   await prisma.$transaction(async (tx) => {
     await tx.taskDependency.update({
