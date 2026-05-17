@@ -25,6 +25,7 @@ type Mode =
         category: string;
         responsibility: TaskResponsibility | "";
         tags: string;
+        defaultAssigneeId: string;
       };
     };
 
@@ -35,11 +36,15 @@ const RESPONSIBILITY_OPTIONS: TaskResponsibility[] = [
   "AUTHORITY"
 ];
 
+type AssignableUser = { id: string; name: string };
+
 export function TemplateFormDialog({
   mode,
+  assignableUsers,
   onClose
 }: {
   mode: Mode;
+  assignableUsers: AssignableUser[];
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -73,7 +78,8 @@ export function TemplateFormDialog({
         orderIndex: "",
         category: "",
         responsibility: "" as TaskResponsibility | "",
-        tags: ""
+        tags: "",
+        defaultAssigneeId: ""
       };
 
   return (
@@ -189,6 +195,24 @@ export function TemplateFormDialog({
               placeholder="הפרד תגיות בקו אנכי |"
               className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
             />
+          </label>
+          <label className="block">
+            <span className="mb-0.5 block text-[11px] font-medium">אחראי ברירת מחדל</span>
+            <select
+              name="defaultAssigneeId"
+              defaultValue={initial.defaultAssigneeId}
+              className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— ללא —</option>
+              {assignableUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            <span className="mt-0.5 block text-[10px] text-muted-foreground">
+              כל משימה שתיווצר אוטומטית מהתבנית תשויך לאחראי זה. ניתן לשנות פר-משימה לאחר היצירה.
+            </span>
           </label>
 
           {state.error && (

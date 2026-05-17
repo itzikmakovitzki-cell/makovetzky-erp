@@ -122,14 +122,15 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  assignedTasks          Task[]
-  uploadedDocuments      Document[]           @relation("DocumentUploader")
-  approvedDocuments      Document[]           @relation("DocumentApprover")
-  notes                  Note[]
-  overriddenDependencies TaskDependency[]
-  weeklySummariesEdited  WeeklySummaryDraft[]
-  auditLogs              AuditLog[]
-  portalAccesses         PortalAccess[]
+  assignedTasks            Task[]
+  defaultAssignedTemplates TaskTemplate[]
+  uploadedDocuments        Document[]           @relation("DocumentUploader")
+  approvedDocuments        Document[]           @relation("DocumentApprover")
+  notes                    Note[]
+  overriddenDependencies   TaskDependency[]
+  weeklySummariesEdited    WeeklySummaryDraft[]
+  auditLogs                AuditLog[]
+  portalAccesses           PortalAccess[]
 
   @@index([role])
 }
@@ -317,10 +318,16 @@ model TaskTemplate {
   responsibility      TaskResponsibility?
   // Free-form labels. Stored as Postgres text[]; filter via { has: x }.
   tags                String[]            @default([])
+  // Optional default assignee applied to every task generated from this
+  // template (createProject / addPermitToDeal). Null = unassigned.
+  defaultAssigneeId   String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  authority    Authority    @relation(fields: [authorityId], references: [id], onDelete: Restrict)
-  buildingType BuildingType @relation(fields: [buildingTypeId], references: [id], onDelete: Restrict)
-  tasks        Task[]
+  authority       Authority    @relation(fields: [authorityId], references: [id], onDelete: Restrict)
+  buildingType    BuildingType @relation(fields: [buildingTypeId], references: [id], onDelete: Restrict)
+  defaultAssignee User?        @relation(fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+  tasks           Task[]
 
   dependsOn    TaskTemplateDependency[] @relation("TemplateDependent")
   dependedOnBy TaskTemplateDependency[] @relation("TemplateDependedOn")
@@ -330,6 +337,7 @@ model TaskTemplate {
   @@index([category])
   @@index([responsibility])
   @@index([tags], type: Gin)
+  @@index([defaultAssigneeId])
 }
 
 model TaskTemplateDependency {

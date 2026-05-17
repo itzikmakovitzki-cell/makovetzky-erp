@@ -47,6 +47,22 @@ export async function submitTaskTemplate(
     const defaultDurationDays = durationRaw ? Number(durationRaw) : null;
     const orderRaw = String(formData.get("orderIndex") || "").trim();
     const orderIndex = orderRaw ? Number(orderRaw) : 0;
+    const defaultAssigneeRaw = String(formData.get("defaultAssigneeId") || "").trim();
+    let defaultAssigneeId: string | null = null;
+    if (defaultAssigneeRaw) {
+      const user = await prisma.user.findFirst({
+        where: {
+          id: defaultAssigneeRaw,
+          isActive: true,
+          role: { in: ["ADMIN", "EMPLOYEE"] }
+        },
+        select: { id: true }
+      });
+      if (!user) {
+        return { error: "המשתמש שנבחר לאחראי ברירת מחדל לא חוקי", ok: false };
+      }
+      defaultAssigneeId = user.id;
+    }
 
     const category = String(formData.get("category") || "").trim() || null;
     const responsibilityRaw = String(formData.get("responsibility") || "").trim();
@@ -81,7 +97,8 @@ export async function submitTaskTemplate(
               isActive: true,
               category,
               responsibility,
-              tags
+              tags,
+              defaultAssigneeId
             }
           });
           await logAudit(tx, {
@@ -96,7 +113,8 @@ export async function submitTaskTemplate(
               orderIndex,
               category,
               responsibility,
-              tags
+              tags,
+              defaultAssigneeId
             },
             userId: me.id
           });
@@ -127,7 +145,8 @@ export async function submitTaskTemplate(
           orderIndex: true,
           category: true,
           responsibility: true,
-          tags: true
+          tags: true,
+          defaultAssigneeId: true
         }
       });
       if (!existing) return { error: "התבנית לא נמצאה", ok: false };
@@ -143,7 +162,8 @@ export async function submitTaskTemplate(
               orderIndex,
               category,
               responsibility,
-              tags
+              tags,
+              defaultAssigneeId
             }
           });
           await logAudit(tx, {
@@ -156,7 +176,8 @@ export async function submitTaskTemplate(
               orderIndex: existing.orderIndex,
               category: existing.category,
               responsibility: existing.responsibility,
-              tags: existing.tags
+              tags: existing.tags,
+              defaultAssigneeId: existing.defaultAssigneeId
             },
             newValue: {
               name,
@@ -164,7 +185,8 @@ export async function submitTaskTemplate(
               orderIndex,
               category,
               responsibility,
-              tags
+              tags,
+              defaultAssigneeId
             },
             userId: me.id
           });

@@ -21,12 +21,17 @@ export default async function SettingsTemplatesPage({
       ? params.buildingType
       : null;
 
-  const [authorities, buildingTypes] = await Promise.all([
+  const [authorities, buildingTypes, assignableUsers] = await Promise.all([
     prisma.authority.findMany({
       select: { id: true, name: true },
       orderBy: { name: "asc" }
     }),
     prisma.buildingType.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" }
+    }),
+    prisma.user.findMany({
+      where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
       select: { id: true, name: true },
       orderBy: { name: "asc" }
     })
@@ -42,6 +47,7 @@ export default async function SettingsTemplatesPage({
             dependsOnTemplate: { select: { id: true, name: true } }
           }
         },
+        defaultAssignee: { select: { id: true, name: true } },
         _count: { select: { tasks: { where: { deletedAt: null } } } }
       },
       orderBy: [{ orderIndex: "asc" }, { name: "asc" }]
@@ -60,7 +66,10 @@ export default async function SettingsTemplatesPage({
       })),
       category: t.category,
       responsibility: t.responsibility,
-      tags: t.tags
+      tags: t.tags,
+      defaultAssignee: t.defaultAssignee
+        ? { id: t.defaultAssignee.id, name: t.defaultAssignee.name }
+        : null
     }));
   }
 
@@ -68,6 +77,7 @@ export default async function SettingsTemplatesPage({
     <TemplatesPageClient
       authorities={authorities}
       buildingTypes={buildingTypes}
+      assignableUsers={assignableUsers}
       selectedAuthorityId={authorityId}
       selectedBuildingTypeId={buildingTypeId}
       templates={templates}
