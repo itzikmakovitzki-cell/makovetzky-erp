@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import { Upload, AlertTriangle, CheckCircle2, Hourglass, FileText, ExternalLink, Circle } from "lucide-react";
-import type { TaskStatus } from "@prisma/client";
+import type { TaskResponsibility, TaskStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
-import { TASK_STATUS_LABEL, TASK_STATUS_VARIANT } from "@/lib/status-maps";
+import {
+  TASK_RESPONSIBILITY_LABEL,
+  TASK_RESPONSIBILITY_VARIANT,
+  TASK_STATUS_LABEL,
+  TASK_STATUS_VARIANT
+} from "@/lib/status-maps";
 import { formatDate } from "@/lib/utils";
 import { PortalUploadDialog } from "./portal-upload-dialog";
 
@@ -23,6 +28,7 @@ export type PortalTaskRowData = {
   dueDate: string | null;
   isOverdue: boolean;
   needsAttention: boolean;
+  responsibility: TaskResponsibility | null;
   documents: PortalTaskDoc[];
 };
 
@@ -74,6 +80,11 @@ export function PortalTaskRow({
             <Badge variant={TASK_STATUS_VARIANT[task.status]}>
               {TASK_STATUS_LABEL[task.status]}
             </Badge>
+            {task.responsibility && (
+              <Badge variant={TASK_RESPONSIBILITY_VARIANT[task.responsibility]}>
+                {TASK_RESPONSIBILITY_LABEL[task.responsibility]}
+              </Badge>
+            )}
             {task.isOverdue && (
               <span className="rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">
                 באיחור

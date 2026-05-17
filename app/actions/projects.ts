@@ -137,6 +137,8 @@ export async function addPermitToDeal(
       }
 
       // 3. Auto-generated tasks (identical to createProject's branch).
+      // NOTE: keep the taskRows mapping in sync with createProject below — both
+      // must propagate template category/responsibility/tags identically.
       if (generateTasks) {
         const templates = await tx.taskTemplate.findMany({
           where: { authorityId, buildingTypeId, isActive: true },
@@ -154,7 +156,10 @@ export async function addPermitToDeal(
                 ? new Date(baseDate.getTime() + tmpl.defaultDurationDays * DAY_MS)
                 : null,
             status: "OPEN" as const,
-            priority: "NORMAL" as const
+            priority: "NORMAL" as const,
+            category: tmpl.category,
+            responsibility: tmpl.responsibility,
+            tags: tmpl.tags
           }));
           const createdTasks = await tx.task.createManyAndReturn({
             data: taskRows,
@@ -408,6 +413,7 @@ export async function createProject(
 
         if (templates.length > 0) {
           const baseDate = startDate ?? new Date();
+          // Keep in sync with addPermitToDeal above — same template→task mapping.
           const taskRows = templates.map((tmpl) => ({
             permitId: permit.id,
             templateId: tmpl.id,
@@ -418,7 +424,10 @@ export async function createProject(
                 ? new Date(baseDate.getTime() + tmpl.defaultDurationDays * DAY_MS)
                 : null,
             status: "OPEN" as const,
-            priority: "NORMAL" as const
+            priority: "NORMAL" as const,
+            category: tmpl.category,
+            responsibility: tmpl.responsibility,
+            tags: tmpl.tags
           }));
 
           // createManyAndReturn lets us map templateId → taskId in a single round-trip.

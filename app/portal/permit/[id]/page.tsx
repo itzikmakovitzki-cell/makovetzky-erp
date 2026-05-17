@@ -86,6 +86,7 @@ export default async function PortalPermitDetailPage({
       dueDate: true,
       frozen: true,
       isSpotlight: true,
+      responsibility: true,
       documents: {
         where: { deletedAt: null },
         select: { id: true, fileName: true, fileUrl: true, createdAt: true },
@@ -131,6 +132,7 @@ export default async function PortalPermitDetailPage({
       dueDate: t.dueDate ? t.dueDate.toISOString() : null,
       isOverdue,
       needsAttention,
+      responsibility: t.responsibility,
       documents: docs.map((d) => ({
         id: d.id,
         fileName: d.fileName,

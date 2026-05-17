@@ -2,8 +2,8 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Star, X } from "lucide-react";
-import type { TaskStatus } from "@prisma/client";
-import { TASK_STATUS_LABEL } from "@/lib/status-maps";
+import type { TaskResponsibility, TaskStatus } from "@prisma/client";
+import { TASK_RESPONSIBILITY_LABEL, TASK_STATUS_LABEL } from "@/lib/status-maps";
 import { cn } from "@/lib/utils";
 
 const STATUS_ORDER: TaskStatus[] = [
@@ -14,10 +14,21 @@ const STATUS_ORDER: TaskStatus[] = [
   "COMPLETED"
 ];
 
+const RESPONSIBILITY_ORDER: TaskResponsibility[] = [
+  "INTERNAL",
+  "CLIENT",
+  "CONTRACTOR",
+  "AUTHORITY"
+];
+
 export function TasksFilterBar({
-  users
+  users,
+  categories,
+  tags
 }: {
   users: { id: string; name: string }[];
+  categories: string[];
+  tags: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -28,9 +39,21 @@ export function TasksFilterBar({
     (searchParams.get("status") ?? "").split(",").filter(Boolean) as TaskStatus[]
   );
   const currentSpotlight = searchParams.get("spotlight") === "true";
+  const currentCategory = searchParams.get("category") ?? "";
+  const currentResponsibilities = new Set(
+    (searchParams.get("responsibility") ?? "")
+      .split(",")
+      .filter(Boolean) as TaskResponsibility[]
+  );
+  const currentTag = searchParams.get("tag") ?? "";
 
   const hasAnyFilter =
-    currentAssignee !== "" || currentStatuses.size > 0 || currentSpotlight;
+    currentAssignee !== "" ||
+    currentStatuses.size > 0 ||
+    currentSpotlight ||
+    currentCategory !== "" ||
+    currentResponsibilities.size > 0 ||
+    currentTag !== "";
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -46,6 +69,14 @@ export function TasksFilterBar({
     else next.add(s);
     const csv = Array.from(next).join(",");
     setParam("status", csv || null);
+  };
+
+  const toggleResponsibility = (r: TaskResponsibility) => {
+    const next = new Set(currentResponsibilities);
+    if (next.has(r)) next.delete(r);
+    else next.add(r);
+    const csv = Array.from(next).join(",");
+    setParam("responsibility", csv || null);
   };
 
   const clearAll = () => {
@@ -92,6 +123,59 @@ export function TasksFilterBar({
               );
             })}
           </div>
+        </FilterGroup>
+
+        <FilterGroup label="קטגוריה">
+          <select
+            value={currentCategory}
+            onChange={(e) => setParam("category", e.target.value || null)}
+            className="rounded border border-input bg-background px-2 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">כל הקטגוריות</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </FilterGroup>
+
+        <FilterGroup label="אחריות">
+          <div className="flex flex-wrap items-center gap-1">
+            {RESPONSIBILITY_ORDER.map((r) => {
+              const selected = currentResponsibilities.has(r);
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => toggleResponsibility(r)}
+                  className={cn(
+                    "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors",
+                    selected
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  {TASK_RESPONSIBILITY_LABEL[r]}
+                </button>
+              );
+            })}
+          </div>
+        </FilterGroup>
+
+        <FilterGroup label="תגית">
+          <select
+            value={currentTag}
+            onChange={(e) => setParam("tag", e.target.value || null)}
+            className="rounded border border-input bg-background px-2 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">כל התגיות</option>
+            {tags.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
         </FilterGroup>
 
         <FilterGroup label="">

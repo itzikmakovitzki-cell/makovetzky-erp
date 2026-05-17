@@ -3,12 +3,18 @@
 import { useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import type { TaskResponsibility } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { deleteTaskTemplate } from "@/app/actions/task-templates";
 import {
   exportTaskTemplatesCsv,
   importTaskTemplatesCsv
 } from "@/app/actions/csv";
+import {
+  TASK_RESPONSIBILITY_LABEL,
+  TASK_RESPONSIBILITY_VARIANT
+} from "@/lib/status-maps";
+import { Badge } from "@/components/ui/badge";
 import { CsvToolbar } from "@/components/global/csv-toolbar";
 import { TemplateFormDialog } from "./template-form-dialog";
 import { DependencyManager } from "./dependency-manager";
@@ -22,6 +28,9 @@ export type TemplateRow = {
   isActive: boolean;
   taskCount: number;
   deps: { id: string; name: string }[];
+  category: string | null;
+  responsibility: TaskResponsibility | null;
+  tags: string[];
 };
 
 export function TemplatesPageClient({
@@ -57,6 +66,9 @@ export function TemplatesPageClient({
           description: string;
           defaultDurationDays: string;
           orderIndex: string;
+          category: string;
+          responsibility: TaskResponsibility | "";
+          tags: string;
         };
       }
     | null
@@ -142,7 +154,7 @@ export function TemplatesPageClient({
             <div className="flex flex-wrap items-center gap-2">
               <CsvToolbar
                 entityLabel="תבניות"
-                helpText="עמודות: שם תבנית, תיאור, משך ימים, סדר, פעיל"
+                helpText="עמודות: שם תבנית, תיאור, משך ימים, סדר, פעיל, קטגוריה, אחריות, תגיות"
                 exportAction={() =>
                   exportTaskTemplatesCsv(
                     selectedAuthorityId!,
@@ -177,6 +189,7 @@ export function TemplatesPageClient({
               <tr>
                 <th className="w-12 text-center">סדר</th>
                 <th>תבנית</th>
+                <th className="w-44">סיווג</th>
                 <th className="w-20 text-center">משך</th>
                 <th className="w-16 text-center">משימות</th>
                 <th>תלויות</th>
@@ -186,7 +199,7 @@ export function TemplatesPageClient({
             <tbody>
               {templates.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
+                  <td colSpan={7} className="py-6 text-center text-xs text-muted-foreground">
                     אין תבניות לצירוף זה. הוסף את הראשונה.
                   </td>
                 </tr>
@@ -210,6 +223,13 @@ export function TemplatesPageClient({
                           {t.description}
                         </div>
                       )}
+                    </td>
+                    <td>
+                      <ClassificationCell
+                        category={t.category}
+                        responsibility={t.responsibility}
+                        tags={t.tags}
+                      />
                     </td>
                     <td className="text-center text-[11px] tabular-nums">
                       {t.defaultDurationDays !== null ? `${t.defaultDurationDays}י` : "—"}
@@ -239,7 +259,10 @@ export function TemplatesPageClient({
                                   t.defaultDurationDays !== null
                                     ? String(t.defaultDurationDays)
                                     : "",
-                                orderIndex: String(t.orderIndex)
+                                orderIndex: String(t.orderIndex),
+                                category: t.category ?? "",
+                                responsibility: t.responsibility ?? "",
+                                tags: t.tags.join("|")
                               }
                             })
                           }
@@ -284,6 +307,42 @@ export function TemplatesPageClient({
           mode={mode}
           onClose={() => setMode(null)}
         />
+      )}
+    </div>
+  );
+}
+
+function ClassificationCell({
+  category,
+  responsibility,
+  tags
+}: {
+  category: string | null;
+  responsibility: TaskResponsibility | null;
+  tags: string[];
+}) {
+  if (!category && !responsibility && tags.length === 0) {
+    return <span className="text-[10px] text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      {category && <span className="text-[10px] text-muted-foreground">{category}</span>}
+      {responsibility && (
+        <Badge variant={TASK_RESPONSIBILITY_VARIANT[responsibility]}>
+          {TASK_RESPONSIBILITY_LABEL[responsibility]}
+        </Badge>
+      )}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-0.5">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded bg-muted px-1 py-0 text-[9px] text-muted-foreground"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );

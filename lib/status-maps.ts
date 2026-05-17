@@ -1,5 +1,6 @@
 import type {
   TaskStatus,
+  TaskResponsibility,
   PermitStatus,
   MilestoneStatus,
   AuditAction,
@@ -45,6 +46,28 @@ export const TASK_STATUS_VARIANT: Record<TaskStatus, BadgeVariant> = {
   AWAITING_AUTHORITY: "warning",
   COMPLETED: "success",
   BLOCKED: "muted"
+};
+
+export const TASK_RESPONSIBILITY_LABEL: Record<TaskResponsibility, string> = {
+  INTERNAL: "הבית",
+  CLIENT: "לקוח",
+  CONTRACTOR: "קבלן",
+  AUTHORITY: "רשות"
+};
+
+export const TASK_RESPONSIBILITY_VARIANT: Record<TaskResponsibility, BadgeVariant> = {
+  INTERNAL: "muted",
+  CLIENT: "info",
+  CONTRACTOR: "warning",
+  AUTHORITY: "default"
+};
+
+// Reverse map for CSV import (Hebrew label → enum value).
+export const TASK_RESPONSIBILITY_HE_TO_ENUM: Record<string, TaskResponsibility> = {
+  הבית: "INTERNAL",
+  לקוח: "CLIENT",
+  קבלן: "CONTRACTOR",
+  רשות: "AUTHORITY"
 };
 
 export const PERMIT_STATUS_LABEL: Record<PermitStatus, string> = {

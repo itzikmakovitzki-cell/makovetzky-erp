@@ -57,7 +57,10 @@ export default async function SettingsTemplatesPage({
       deps: t.dependsOn.map((d) => ({
         id: d.dependsOnTemplate.id,
         name: d.dependsOnTemplate.name
-      }))
+      })),
+      category: t.category,
+      responsibility: t.responsibility,
+      tags: t.tags
     }));
   }
 
