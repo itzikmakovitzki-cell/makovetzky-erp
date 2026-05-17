@@ -18,20 +18,29 @@ export default async function PortalDashboardPage() {
 
   // Empty-state for newly-onboarded users (no PortalAccess rows yet).
   const noAccess = scope.kind === "scoped" && scope.clientIds.length === 0;
+  const isContractor = user.role === "CONTRACTOR";
+
+  // Contractors only see permits where they have at least one task assigned,
+  // AND only see counts for their own tasks. Admins viewing the portal see
+  // everything for support / preview purposes.
+  const taskFilterForUser = isContractor ? { assigneeId: user.id } : {};
 
   const permits = noAccess
     ? []
     : await prisma.permit.findMany({
         where: {
           deletedAt: null,
-          ...permitClientFilter(scope)
+          ...permitClientFilter(scope),
+          ...(isContractor
+            ? { tasks: { some: { deletedAt: null, assigneeId: user.id } } }
+            : {})
         },
         include: {
           masterDeal: { select: { id: true, name: true, client: { select: { id: true, companyName: true } } } },
           authority: { select: { id: true, name: true } },
           _count: {
             select: {
-              tasks: { where: { deletedAt: null } },
+              tasks: { where: { deletedAt: null, ...taskFilterForUser } },
               buildings: true
             }
           }
@@ -40,7 +49,8 @@ export default async function PortalDashboardPage() {
       });
 
   // For each permit, count completed tasks so we can render a progress bar
-  // without dragging all the task rows into the dashboard payload.
+  // without dragging all the task rows into the dashboard payload. For
+  // contractors this is scoped to their own assigned tasks only.
   const permitIds = permits.map((p) => p.id);
   const completedCounts = permitIds.length === 0
     ? new Map<string, number>()
@@ -48,7 +58,12 @@ export default async function PortalDashboardPage() {
         (
           await prisma.task.groupBy({
             by: ["permitId"],
-            where: { permitId: { in: permitIds }, deletedAt: null, status: "COMPLETED" },
+            where: {
+              permitId: { in: permitIds },
+              deletedAt: null,
+              status: "COMPLETED",
+              ...taskFilterForUser
+            },
             _count: { _all: true }
           })
         ).map((row) => [row.permitId, row._count._all])

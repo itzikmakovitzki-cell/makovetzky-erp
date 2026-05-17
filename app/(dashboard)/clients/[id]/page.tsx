@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { ClientProfileActions } from "@/components/clients/client-profile-actions";
+import { PortalAccessSection } from "@/components/clients/portal-access-section";
 import {
   MASTER_DEAL_STATUS_LABEL,
   MASTER_DEAL_STATUS_VARIANT,
@@ -27,32 +28,52 @@ export default async function ClientProfilePage({
 
   const { id } = await params;
 
-  const client = await prisma.client.findFirst({
-    where: { id, deletedAt: null },
-    include: {
-      masterDeals: {
-        where: { deletedAt: null },
-        orderBy: { createdAt: "desc" },
-        include: {
-          permits: {
-            where: { deletedAt: null },
-            orderBy: { createdAt: "desc" },
-            include: {
-              authority: { select: { name: true } },
-              _count: {
-                select: {
-                  tasks: { where: { deletedAt: null } },
-                  buildings: true
+  const [client, contractorCandidates] = await Promise.all([
+    prisma.client.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        masterDeals: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          include: {
+            permits: {
+              where: { deletedAt: null },
+              orderBy: { createdAt: "desc" },
+              include: {
+                authority: { select: { name: true } },
+                _count: {
+                  select: {
+                    tasks: { where: { deletedAt: null } },
+                    buildings: true
+                  }
                 }
               }
             }
           }
+        },
+        portalAccesses: {
+          include: {
+            user: { select: { id: true, name: true, email: true } }
+          },
+          orderBy: { createdAt: "desc" }
         }
       }
-    }
-  });
+    }),
+    prisma.user.findMany({
+      where: { role: "CONTRACTOR", isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" }
+    })
+  ]);
 
   if (!client) notFound();
+
+  const portalAccesses = client.portalAccesses.map((pa) => ({
+    userId: pa.user.id,
+    userName: pa.user.name,
+    userEmail: pa.user.email,
+    createdAt: pa.createdAt.toISOString()
+  }));
 
   const allPermits = client.masterDeals.flatMap((d) => d.permits);
   const activePermits = allPermits.filter(
@@ -147,6 +168,12 @@ export default async function ClientProfilePage({
           <div className="mt-0.5 whitespace-pre-wrap">{client.notes}</div>
         </div>
       )}
+
+      <PortalAccessSection
+        clientId={client.id}
+        accesses={portalAccesses}
+        contractorCandidates={contractorCandidates}
+      />
 
       {/* Deals + Permits */}
       <div className="rounded-md border bg-card">
