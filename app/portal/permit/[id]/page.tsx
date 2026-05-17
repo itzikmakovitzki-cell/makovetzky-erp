@@ -76,8 +76,15 @@ export default async function PortalPermitDetailPage({
   });
   if (!permit) notFound();
 
+  // Contractors only see tasks assigned to them personally — admins viewing
+  // the portal (for support) still see everything.
+  const taskWhere = {
+    permitId,
+    deletedAt: null,
+    ...(user.role === "CONTRACTOR" ? { assigneeId: user.id } : {})
+  };
   const tasks = await prisma.task.findMany({
-    where: { permitId, deletedAt: null },
+    where: taskWhere,
     select: {
       id: true,
       name: true,

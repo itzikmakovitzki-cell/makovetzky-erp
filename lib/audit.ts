@@ -22,7 +22,8 @@ export const AuditEntity = {
   BUILDING_TYPE: "BUILDING_TYPE",
   TASK_TEMPLATE: "TASK_TEMPLATE",
   TASK_TEMPLATE_DEPENDENCY: "TASK_TEMPLATE_DEPENDENCY",
-  MAGIC_LINK: "MAGIC_LINK"
+  MAGIC_LINK: "MAGIC_LINK",
+  PORTAL_ACCESS: "PORTAL_ACCESS"
 } as const;
 
 export type AuditEntityValue = (typeof AuditEntity)[keyof typeof AuditEntity] | (string & {});
