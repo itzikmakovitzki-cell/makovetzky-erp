@@ -58,6 +58,13 @@ enum TaskPriority {
   URGENT
 }
 
+enum TaskResponsibility {
+  INTERNAL
+  CLIENT
+  CONTRACTOR
+  AUTHORITY
+}
+
 enum MilestoneStatus {
   PENDING
   DUE
@@ -296,16 +303,20 @@ model BuildingType {
 }
 
 model TaskTemplate {
-  id                  String   @id @default(cuid())
+  id                  String              @id @default(cuid())
   authorityId         String
   buildingTypeId      String
   name                String
   description         String?
   defaultDurationDays Int?
-  orderIndex          Int      @default(0)
-  isActive            Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  orderIndex          Int                 @default(0)
+  isActive            Boolean             @default(true)
+  // Free-text classification (e.g. "שלד", "אישורי רשויות"). Imported from Excel as-is.
+  category            String?
+  // Which party owns the task by default. Inherited by generated Task rows.
+  responsibility      TaskResponsibility?
+  // Free-form labels. Stored as Postgres text[]; filter via { has: x }.
+  tags                String[]            @default([])
 
   authority    Authority    @relation(fields: [authorityId], references: [id], onDelete: Restrict)
   buildingType BuildingType @relation(fields: [buildingTypeId], references: [id], onDelete: Restrict)
@@ -316,6 +327,9 @@ model TaskTemplate {
 
   @@unique([authorityId, buildingTypeId, name])
   @@index([authorityId, buildingTypeId])
+  @@index([category])
+  @@index([responsibility])
+  @@index([tags], type: Gin)
 }
 
 model TaskTemplateDependency {
@@ -330,24 +344,30 @@ model TaskTemplateDependency {
 }
 
 model Task {
-  id          String       @id @default(cuid())
+  id          String              @id @default(cuid())
   permitId    String
   templateId  String?
   assigneeId  String?
   name        String
   description String?
-  status      TaskStatus   @default(OPEN)
-  priority    TaskPriority @default(NORMAL)
+  status      TaskStatus          @default(OPEN)
+  priority    TaskPriority        @default(NORMAL)
   // Managerial Spotlight — pushes the task to the top of the assignee's queue.
-  isSpotlight Boolean      @default(false)
+  isSpotlight Boolean             @default(false)
   // True while status = AWAITING_AUTHORITY. Freezes due date and suppresses overdue alerts.
-  frozen      Boolean      @default(false)
+  frozen      Boolean             @default(false)
+  // Free-text classification (e.g. "שלד", "אישורי רשויות"). Imported from Excel as-is.
+  category    String?
+  // Which party owns the task. Surfaced in portal so contractors see what's theirs.
+  responsibility TaskResponsibility?
+  // Free-form labels. Stored as Postgres text[]; filter via { has: x }.
+  tags        String[]            @default([])
   dueDate     DateTime?
   startedAt   DateTime?
   completedAt DateTime?
   deletedAt   DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   permit              Permit                   @relation(fields: [permitId], references: [id], onDelete: Cascade)
   template            TaskTemplate?            @relation(fields: [templateId], references: [id], onDelete: SetNull)
@@ -366,6 +386,9 @@ model Task {
   @@index([dueDate])
   @@index([assigneeId, isSpotlight])
   @@index([deletedAt])
+  @@index([category])
+  @@index([responsibility])
+  @@index([tags], type: Gin)
 }
 
 // Strict AND semantics: a task becomes unblocked only when every dependsOn row is satisfied.

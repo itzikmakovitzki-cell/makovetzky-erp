@@ -1,7 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AuditAction, MilestoneStatus, Prisma, TaskStatus } from "@prisma/client";
+import {
+  AuditAction,
+  MilestoneStatus,
+  Prisma,
+  TaskPriority,
+  TaskResponsibility,
+  TaskStatus
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
@@ -14,6 +21,27 @@ const VALID_TASK_STATUSES = new Set<TaskStatus>([
   "COMPLETED",
   "BLOCKED"
 ]);
+
+const VALID_PRIORITIES = new Set<TaskPriority>(["NORMAL", "URGENT"]);
+const VALID_RESPONSIBILITIES = new Set<TaskResponsibility>([
+  "INTERNAL",
+  "CLIENT",
+  "CONTRACTOR",
+  "AUTHORITY"
+]);
+
+function normalizeTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of tags) {
+    const trimmed = String(t).trim();
+    if (!trimmed) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
 
 export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
   if (!VALID_TASK_STATUSES.has(newStatus)) {
@@ -196,6 +224,164 @@ export async function deleteTask(taskId: string): Promise<void> {
   revalidatePath(`/permits/${task.permitId}`, "layout");
   revalidatePath("/tasks");
   revalidatePath("/settings/recycle-bin");
+}
+
+type TaskMetadataInput = {
+  name?: string;
+  description?: string | null;
+  category?: string | null;
+  responsibility?: TaskResponsibility | null;
+  tags?: readonly string[];
+  dueDate?: Date | null;
+  priority?: TaskPriority;
+  assigneeId?: string | null;
+};
+
+type TaskMetadataResult = { ok: boolean; error: string | null };
+
+// Generic field editor for a single task. Not for status/spotlight/delete —
+// those have purpose-built actions that also do cascade work (milestones, etc.).
+// Only writes keys actually provided; logs UPDATE audit with the diff.
+export async function updateTaskMetadata(
+  taskId: string,
+  input: TaskMetadataInput
+): Promise<TaskMetadataResult> {
+  try {
+    const me = await requireRole(["ADMIN", "EMPLOYEE"]);
+    const task = await prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: {
+        id: true,
+        permitId: true,
+        name: true,
+        description: true,
+        category: true,
+        responsibility: true,
+        tags: true,
+        dueDate: true,
+        priority: true,
+        assigneeId: true
+      }
+    });
+    if (!task) return { ok: false, error: "המשימה לא נמצאה" };
+    await assertPermitOpenForEdits(task.permitId);
+
+    const data: Prisma.TaskUpdateInput = {};
+    // Loosely typed because Prisma.InputJsonValue rejects `null` even though
+    // Postgres JSONB accepts it. We cast at the logAudit call below.
+    const oldValue: Record<string, string | number | boolean | string[] | null> = {};
+    const newValue: Record<string, string | number | boolean | string[] | null> = {};
+
+    if (input.name !== undefined) {
+      const next = String(input.name).trim();
+      if (!next) return { ok: false, error: "שם המשימה חובה" };
+      if (next !== task.name) {
+        data.name = next;
+        oldValue.name = task.name;
+        newValue.name = next;
+      }
+    }
+
+    if (input.description !== undefined) {
+      const next =
+        input.description === null ? null : String(input.description).trim() || null;
+      if (next !== task.description) {
+        data.description = next;
+        oldValue.description = task.description;
+        newValue.description = next;
+      }
+    }
+
+    if (input.category !== undefined) {
+      const next =
+        input.category === null ? null : String(input.category).trim() || null;
+      if (next !== task.category) {
+        data.category = next;
+        oldValue.category = task.category;
+        newValue.category = next;
+      }
+    }
+
+    if (input.responsibility !== undefined) {
+      const next = input.responsibility;
+      if (next !== null && !VALID_RESPONSIBILITIES.has(next)) {
+        return { ok: false, error: "אחריות לא חוקית" };
+      }
+      if (next !== task.responsibility) {
+        data.responsibility = next;
+        oldValue.responsibility = task.responsibility;
+        newValue.responsibility = next;
+      }
+    }
+
+    if (input.tags !== undefined) {
+      const next = normalizeTags(input.tags);
+      const prev = task.tags;
+      const changed =
+        next.length !== prev.length || next.some((t, i) => t !== prev[i]);
+      if (changed) {
+        data.tags = next;
+        oldValue.tags = prev;
+        newValue.tags = next;
+      }
+    }
+
+    if (input.dueDate !== undefined) {
+      const prevIso = task.dueDate?.toISOString() ?? null;
+      const nextIso = input.dueDate?.toISOString() ?? null;
+      if (prevIso !== nextIso) {
+        data.dueDate = input.dueDate;
+        oldValue.dueDate = prevIso;
+        newValue.dueDate = nextIso;
+      }
+    }
+
+    if (input.priority !== undefined) {
+      if (!VALID_PRIORITIES.has(input.priority)) {
+        return { ok: false, error: "עדיפות לא חוקית" };
+      }
+      if (input.priority !== task.priority) {
+        data.priority = input.priority;
+        oldValue.priority = task.priority;
+        newValue.priority = input.priority;
+      }
+    }
+
+    if (input.assigneeId !== undefined) {
+      const next = input.assigneeId;
+      if (next !== task.assigneeId) {
+        data.assignee =
+          next === null ? { disconnect: true } : { connect: { id: next } };
+        oldValue.assigneeId = task.assigneeId;
+        newValue.assigneeId = next;
+      }
+    }
+
+    if (Object.keys(newValue).length === 0) {
+      return { ok: true, error: null };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.task.update({ where: { id: taskId }, data });
+      await logAudit(tx, {
+        entityType: AuditEntity.TASK,
+        entityId: taskId,
+        action: AuditAction.UPDATE,
+        oldValue: oldValue as Prisma.InputJsonValue,
+        newValue: newValue as Prisma.InputJsonValue,
+        userId: me.id
+      });
+    });
+
+    revalidatePath(`/permits/${task.permitId}`, "layout");
+    revalidatePath("/tasks");
+    return { ok: true, error: null };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "שגיאה לא צפויה"
+    };
+  }
 }
 
 export async function overrideTaskDependency(taskId: string, dependsOnTaskId: string) {

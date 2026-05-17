@@ -1,10 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AuditAction, Prisma, TaskPriority, TaskStatus } from "@prisma/client";
+import {
+  AuditAction,
+  Prisma,
+  TaskPriority,
+  TaskResponsibility,
+  TaskStatus
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import {
+  TASK_RESPONSIBILITY_HE_TO_ENUM,
+  TASK_RESPONSIBILITY_LABEL
+} from "@/lib/status-maps";
 import {
   buildCsv,
   EMPTY_IMPORT_RESULT,
@@ -17,6 +27,20 @@ import {
   type ExportResult,
   type ImportResult
 } from "@/lib/csv";
+
+// Tags travel as pipe-separated values inside a single CSV cell — commas
+// would clash with the CSV separator if a tag ever contained one.
+function parseTagsCell(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split("|")) {
+    const t = part.trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
 
 // All actions in this module write/read CSV. Imports are uniformly
 // gated to ADMIN; exports loosen to EMPLOYEE only where the underlying
@@ -176,7 +200,18 @@ export async function importClientsCsv(
 // TASK TEMPLATES (scoped to a specific authority + building type combo)
 // ============================================================================
 
-const TEMPLATE_HEADERS = ["שם תבנית", "תיאור", "משך ימים", "סדר", "פעיל"];
+// New columns appended at the end keep older exported files compatible with
+// the importer (missing trailing columns = null / empty array).
+const TEMPLATE_HEADERS = [
+  "שם תבנית",
+  "תיאור",
+  "משך ימים",
+  "סדר",
+  "פעיל",
+  "קטגוריה",
+  "אחריות",
+  "תגיות"
+];
 
 export async function exportTaskTemplatesCsv(
   authorityId: string,
@@ -219,7 +254,10 @@ export async function exportTaskTemplatesCsv(
       t.description ?? "",
       t.defaultDurationDays !== null ? String(t.defaultDurationDays) : "",
       String(t.orderIndex),
-      t.isActive ? "כן" : "לא"
+      t.isActive ? "כן" : "לא",
+      t.category ?? "",
+      t.responsibility ? TASK_RESPONSIBILITY_LABEL[t.responsibility] : "",
+      t.tags.join("|")
     ]);
     return {
       ok: true,
@@ -265,6 +303,9 @@ export async function importTaskTemplatesCsv(
       defaultDurationDays: number | null;
       orderIndex: number;
       isActive: boolean;
+      category: string | null;
+      responsibility: TaskResponsibility | null;
+      tags: string[];
     }> = [];
 
     const existing = await prisma.taskTemplate.findMany({
@@ -316,6 +357,19 @@ export async function importTaskTemplatesCsv(
         activeRaw === "true" ||
         activeRaw === "1";
 
+      const category = (row["קטגוריה"] || "").trim() || null;
+      const responsibilityRaw = (row["אחריות"] || "").trim();
+      let responsibility: TaskResponsibility | null = null;
+      if (responsibilityRaw) {
+        const mapped = TASK_RESPONSIBILITY_HE_TO_ENUM[responsibilityRaw];
+        if (!mapped) {
+          errors.push({ row: lineNum, message: `אחריות לא חוקית: ${responsibilityRaw}` });
+          return;
+        }
+        responsibility = mapped;
+      }
+      const tags = parseTagsCell(row["תגיות"] || "");
+
       seenInThisFile.add(key);
       toCreate.push({
         authorityId,
@@ -324,7 +378,10 @@ export async function importTaskTemplatesCsv(
         description: (row["תיאור"] || "").trim() || null,
         defaultDurationDays,
         orderIndex,
-        isActive
+        isActive,
+        category,
+        responsibility,
+        tags
       });
     });
 
@@ -379,13 +436,17 @@ export async function importTaskTemplatesCsv(
 // PERMIT TASKS (scoped to a specific permit)
 // ============================================================================
 
+// Trailing 3 columns are optional in import (older exports without them still parse).
 const TASK_HEADERS = [
   "שם המשימה",
   "תיאור",
   "סטטוס",
   "עדיפות",
   "תאריך יעד",
-  "אחראי-אימייל"
+  "אחראי-אימייל",
+  "קטגוריה",
+  "אחריות",
+  "תגיות"
 ];
 
 const STATUS_HE_TO_ENUM: Record<string, TaskStatus> = {
@@ -436,7 +497,10 @@ export async function exportPermitTasksCsv(
       STATUS_ENUM_TO_HE[t.status],
       PRIORITY_ENUM_TO_HE[t.priority],
       formatDateForCsv(t.dueDate),
-      t.assignee?.email ?? ""
+      t.assignee?.email ?? "",
+      t.category ?? "",
+      t.responsibility ? TASK_RESPONSIBILITY_LABEL[t.responsibility] : "",
+      t.tags.join("|")
     ]);
     return {
       ok: true,
@@ -489,6 +553,9 @@ export async function importPermitTasksCsv(
       dueDate: Date | null;
       assigneeId: string | null;
       frozen: boolean;
+      category: string | null;
+      responsibility: TaskResponsibility | null;
+      tags: string[];
     };
     const toCreate: TaskRow[] = [];
 
@@ -557,6 +624,19 @@ export async function importPermitTasksCsv(
         }
         assigneeId = id;
       }
+      const category = (row["קטגוריה"] || "").trim() || null;
+      const responsibilityRaw = (row["אחריות"] || "").trim();
+      let responsibility: TaskResponsibility | null = null;
+      if (responsibilityRaw) {
+        const mapped = TASK_RESPONSIBILITY_HE_TO_ENUM[responsibilityRaw];
+        if (!mapped) {
+          errors.push({ row: lineNum, message: `אחריות לא חוקית: ${responsibilityRaw}` });
+          return;
+        }
+        responsibility = mapped;
+      }
+      const tags = parseTagsCell(row["תגיות"] || "");
+
       toCreate.push({
         permitId,
         name,
@@ -566,7 +646,10 @@ export async function importPermitTasksCsv(
         dueDate,
         assigneeId,
         // Match the runtime rule: AWAITING_AUTHORITY pairs with frozen=true.
-        frozen: status === "AWAITING_AUTHORITY"
+        frozen: status === "AWAITING_AUTHORITY",
+        category,
+        responsibility,
+        tags
       });
     });
 

@@ -2,7 +2,9 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Loader2, X } from "lucide-react";
+import type { TaskResponsibility } from "@prisma/client";
 import { submitTaskTemplate } from "@/app/actions/task-templates";
+import { TASK_RESPONSIBILITY_LABEL } from "@/lib/status-maps";
 
 type Mode =
   | {
@@ -20,8 +22,18 @@ type Mode =
         description: string;
         defaultDurationDays: string;
         orderIndex: string;
+        category: string;
+        responsibility: TaskResponsibility | "";
+        tags: string;
       };
     };
+
+const RESPONSIBILITY_OPTIONS: TaskResponsibility[] = [
+  "INTERNAL",
+  "CLIENT",
+  "CONTRACTOR",
+  "AUTHORITY"
+];
 
 export function TemplateFormDialog({
   mode,
@@ -54,7 +66,15 @@ export function TemplateFormDialog({
   const isEdit = mode.kind === "update";
   const initial = isEdit
     ? mode.initial
-    : { name: "", description: "", defaultDurationDays: "", orderIndex: "" };
+    : {
+        name: "",
+        description: "",
+        defaultDurationDays: "",
+        orderIndex: "",
+        category: "",
+        responsibility: "" as TaskResponsibility | "",
+        tags: ""
+      };
 
   return (
     <dialog
@@ -132,6 +152,44 @@ export function TemplateFormDialog({
               />
             </label>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-0.5 block text-[11px] font-medium">קטגוריה</span>
+              <input
+                type="text"
+                name="category"
+                defaultValue={initial.category}
+                maxLength={80}
+                placeholder='למשל: "שלד", "אישורי רשויות"'
+                className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-0.5 block text-[11px] font-medium">אחריות</span>
+              <select
+                name="responsibility"
+                defaultValue={initial.responsibility}
+                className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">— ללא —</option>
+                {RESPONSIBILITY_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {TASK_RESPONSIBILITY_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-0.5 block text-[11px] font-medium">תגיות</span>
+            <input
+              type="text"
+              name="tags"
+              defaultValue={initial.tags}
+              placeholder="הפרד תגיות בקו אנכי |"
+              className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </label>
 
           {state.error && (
             <div className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-700 dark:text-red-300">

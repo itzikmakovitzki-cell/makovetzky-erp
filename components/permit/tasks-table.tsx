@@ -1,4 +1,5 @@
 import { Star, Lock, Hourglass } from "lucide-react";
+import type { TaskResponsibility } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { deleteTask } from "@/app/actions/tasks";
@@ -9,25 +10,48 @@ import { DependencyOverride } from "@/components/permit/dependency-override";
 import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { MagicLinkButton } from "@/components/permit/magic-link-button";
 import { PermitTasksCsvToolbar } from "@/components/permit/permit-tasks-csv-toolbar";
+import { TaskEditButton } from "@/components/permit/task-edit-dialog";
+import {
+  TASK_RESPONSIBILITY_LABEL,
+  TASK_RESPONSIBILITY_VARIANT
+} from "@/lib/status-maps";
 import { cn, formatDate } from "@/lib/utils";
 
 export async function TasksTable({ permitId }: { permitId: string }) {
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";
 
-  const tasks = await prisma.task.findMany({
-    where: { permitId, deletedAt: null },
-    include: {
-      assignee: { select: { id: true, name: true } },
-      template: { select: { name: true } },
-      dependsOn: {
-        include: {
-          dependsOn: { select: { id: true, name: true, status: true } }
+  const [tasks, assignees, categoryRows] = await Promise.all([
+    prisma.task.findMany({
+      where: { permitId, deletedAt: null },
+      include: {
+        assignee: { select: { id: true, name: true } },
+        template: { select: { name: true } },
+        dependsOn: {
+          include: {
+            dependsOn: { select: { id: true, name: true, status: true } }
+          }
         }
-      }
-    },
-    orderBy: [{ isSpotlight: "desc" }, { priority: "desc" }, { dueDate: "asc" }]
-  });
+      },
+      orderBy: [{ isSpotlight: "desc" }, { priority: "desc" }, { dueDate: "asc" }]
+    }),
+    prisma.user.findMany({
+      where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" }
+    }),
+    prisma.task.findMany({
+      where: { deletedAt: null, category: { not: null } },
+      select: { category: true },
+      distinct: ["category"],
+      orderBy: { category: "asc" },
+      take: 200
+    })
+  ]);
+
+  const categorySuggestions = categoryRows
+    .map((r) => r.category)
+    .filter((c): c is string => !!c);
 
   const now = new Date();
 
@@ -56,18 +80,19 @@ export async function TasksTable({ permitId }: { permitId: string }) {
             <th className="w-1.5 p-0"></th>
             <th className="w-7"></th>
             <th>משימה</th>
+            <th className="w-44">סיווג</th>
             <th className="w-36">סטטוס</th>
             <th className="w-20">עדיפות</th>
             <th className="w-32">אחראי</th>
             <th className="w-28">תאריך יעד</th>
             <th>חסימה / הערות</th>
-            <th className="w-14"></th>
+            <th className="w-20"></th>
           </tr>
         </thead>
         <tbody>
           {tasks.length === 0 && (
             <tr>
-              <td colSpan={9} className="py-6 text-center text-xs text-muted-foreground">
+              <td colSpan={10} className="py-6 text-center text-xs text-muted-foreground">
                 אין משימות בהיתר זה
               </td>
             </tr>
@@ -108,6 +133,13 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                       תבנית: {t.template.name}
                     </div>
                   )}
+                </td>
+                <td>
+                  <ClassificationCell
+                    category={t.category}
+                    responsibility={t.responsibility}
+                    tags={t.tags}
+                  />
                 </td>
                 <td>
                   <div className="flex items-center gap-1">
@@ -165,6 +197,21 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                 </td>
                 <td className="p-0">
                   <div className="flex items-center justify-center gap-0.5">
+                    <TaskEditButton
+                      task={{
+                        id: t.id,
+                        name: t.name,
+                        description: t.description ?? "",
+                        category: t.category ?? "",
+                        responsibility: t.responsibility ?? "",
+                        tags: t.tags,
+                        dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+                        priority: t.priority,
+                        assigneeId: t.assignee?.id ?? ""
+                      }}
+                      assignees={assignees}
+                      categorySuggestions={categorySuggestions}
+                    />
                     <MagicLinkButton taskId={t.id} taskName={t.name} />
                     {isAdmin && (
                       <SoftDeleteButton
@@ -191,5 +238,41 @@ function LegendDot({ color, label }: { color: string; label: string }) {
       <span className={cn("size-2 rounded-sm", color)} />
       {label}
     </span>
+  );
+}
+
+function ClassificationCell({
+  category,
+  responsibility,
+  tags
+}: {
+  category: string | null;
+  responsibility: TaskResponsibility | null;
+  tags: string[];
+}) {
+  if (!category && !responsibility && tags.length === 0) {
+    return <span className="text-[10px] text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      {category && <span className="text-[10px] text-muted-foreground">{category}</span>}
+      {responsibility && (
+        <Badge variant={TASK_RESPONSIBILITY_VARIANT[responsibility]}>
+          {TASK_RESPONSIBILITY_LABEL[responsibility]}
+        </Badge>
+      )}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-0.5">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded bg-muted px-1 py-0 text-[9px] text-muted-foreground"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

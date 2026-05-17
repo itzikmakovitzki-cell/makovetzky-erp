@@ -1,12 +1,36 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AuditAction, Prisma } from "@prisma/client";
+import { AuditAction, Prisma, TaskResponsibility } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 
 type FormState = { error: string | null; ok: boolean };
+
+const VALID_RESPONSIBILITIES = new Set<TaskResponsibility>([
+  "INTERNAL",
+  "CLIENT",
+  "CONTRACTOR",
+  "AUTHORITY"
+]);
+
+// Tags arrive from the form as a single pipe-separated string. Split, trim,
+// drop empties, dedupe (case-sensitive — Hebrew tags may legitimately differ).
+function parseTagsField(raw: FormDataEntryValue | null): string[] {
+  if (raw === null) return [];
+  const str = String(raw);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of str.split("|")) {
+    const t = part.trim();
+    if (!t) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
 
 export async function submitTaskTemplate(
   _prev: FormState,
@@ -23,6 +47,17 @@ export async function submitTaskTemplate(
     const defaultDurationDays = durationRaw ? Number(durationRaw) : null;
     const orderRaw = String(formData.get("orderIndex") || "").trim();
     const orderIndex = orderRaw ? Number(orderRaw) : 0;
+
+    const category = String(formData.get("category") || "").trim() || null;
+    const responsibilityRaw = String(formData.get("responsibility") || "").trim();
+    let responsibility: TaskResponsibility | null = null;
+    if (responsibilityRaw) {
+      if (!VALID_RESPONSIBILITIES.has(responsibilityRaw as TaskResponsibility)) {
+        return { error: "אחריות לא חוקית", ok: false };
+      }
+      responsibility = responsibilityRaw as TaskResponsibility;
+    }
+    const tags = parseTagsField(formData.get("tags"));
 
     if (!name) return { error: "שם התבנית חובה", ok: false };
     if (!authorityId || !buildingTypeId) {
@@ -43,7 +78,10 @@ export async function submitTaskTemplate(
               description,
               defaultDurationDays,
               orderIndex,
-              isActive: true
+              isActive: true,
+              category,
+              responsibility,
+              tags
             }
           });
           await logAudit(tx, {
@@ -55,7 +93,10 @@ export async function submitTaskTemplate(
               buildingTypeId,
               name,
               defaultDurationDays,
-              orderIndex
+              orderIndex,
+              category,
+              responsibility,
+              tags
             },
             userId: me.id
           });
@@ -83,7 +124,10 @@ export async function submitTaskTemplate(
           name: true,
           description: true,
           defaultDurationDays: true,
-          orderIndex: true
+          orderIndex: true,
+          category: true,
+          responsibility: true,
+          tags: true
         }
       });
       if (!existing) return { error: "התבנית לא נמצאה", ok: false };
@@ -92,7 +136,15 @@ export async function submitTaskTemplate(
         await prisma.$transaction(async (tx) => {
           await tx.taskTemplate.update({
             where: { id },
-            data: { name, description, defaultDurationDays, orderIndex }
+            data: {
+              name,
+              description,
+              defaultDurationDays,
+              orderIndex,
+              category,
+              responsibility,
+              tags
+            }
           });
           await logAudit(tx, {
             entityType: AuditEntity.TASK_TEMPLATE,
@@ -101,9 +153,19 @@ export async function submitTaskTemplate(
             oldValue: {
               name: existing.name,
               defaultDurationDays: existing.defaultDurationDays,
-              orderIndex: existing.orderIndex
+              orderIndex: existing.orderIndex,
+              category: existing.category,
+              responsibility: existing.responsibility,
+              tags: existing.tags
             },
-            newValue: { name, defaultDurationDays, orderIndex },
+            newValue: {
+              name,
+              defaultDurationDays,
+              orderIndex,
+              category,
+              responsibility,
+              tags
+            },
             userId: me.id
           });
         });
