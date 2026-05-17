@@ -35,6 +35,181 @@ function parseIntField(raw: FormDataEntryValue | null, fallback = 0): number {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+type AddPermitFormState = { error: string | null; ok: boolean };
+
+// Adds a single permit (with optional buildings + auto-generated tasks) under
+// an existing MasterDeal. Mirrors the permit/building/task sections of
+// createProject but skips Client/Deal creation since both already exist.
+// Used by the AddPermitDialog on /projects/[id].
+export async function addPermitToDeal(
+  _prev: AddPermitFormState,
+  formData: FormData
+): Promise<AddPermitFormState> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+
+    const masterDealId = String(formData.get("masterDealId") || "");
+    if (!masterDealId) return { error: "חסר מזהה פרויקט", ok: false };
+
+    const permitName = String(formData.get("permitName") || "").trim();
+    if (!permitName) return { error: "שם ההיתר חובה", ok: false };
+    const permitNumber =
+      String(formData.get("permitNumber") || "").trim() || null;
+    const permitType = String(formData.get("permitType") || "").trim() || null;
+    const authorityId = String(formData.get("authorityId") || "");
+    const buildingTypeId = String(formData.get("buildingTypeId") || "");
+    if (!authorityId) return { error: "יש לבחור רשות", ok: false };
+    if (!buildingTypeId) return { error: "יש לבחור סוג בניין", ok: false };
+    const startDate = parseDate(formData.get("startDate"));
+    const expectedCloseDate = parseDate(formData.get("expectedCloseDate"));
+    const buildingCount = parseIntField(formData.get("buildingCount"), 0);
+    const generateTasks = formData.get("generateTasks") !== "false";
+
+    // The MasterDeal must exist and be in a state that accepts new work.
+    // COMPLETED / CANCELLED projects shouldn't grow new permits.
+    const deal = await prisma.masterDeal.findFirst({
+      where: { id: masterDealId, deletedAt: null },
+      select: { id: true, name: true, status: true }
+    });
+    if (!deal) return { error: "הפרויקט לא נמצא", ok: false };
+    if (deal.status === "COMPLETED" || deal.status === "CANCELLED") {
+      return { error: "לא ניתן להוסיף היתר לפרויקט שהושלם/בוטל", ok: false };
+    }
+
+    const [authority, buildingType] = await Promise.all([
+      prisma.authority.findUnique({
+        where: { id: authorityId },
+        select: { id: true, name: true }
+      }),
+      prisma.buildingType.findUnique({
+        where: { id: buildingTypeId },
+        select: { id: true, name: true }
+      })
+    ]);
+    if (!authority) return { error: "הרשות לא נמצאה", ok: false };
+    if (!buildingType) return { error: "סוג הבניין לא נמצא", ok: false };
+
+    const buildingPrefix =
+      String(formData.get("buildingPrefix") || "").trim() || buildingType.name;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Permit
+      const permit = await tx.permit.create({
+        data: {
+          masterDealId: deal.id,
+          authorityId,
+          name: permitName,
+          permitNumber,
+          type: permitType,
+          status: "DRAFT",
+          startDate,
+          expectedCloseDate,
+          progressPercent: 0
+        }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.PERMIT,
+        entityId: permit.id,
+        action: AuditAction.CREATE,
+        newValue: {
+          masterDealId: deal.id,
+          dealName: deal.name,
+          authorityId,
+          authorityName: authority.name,
+          buildingTypeId,
+          buildingTypeName: buildingType.name,
+          name: permitName,
+          permitNumber,
+          event: "added_to_existing_deal"
+        },
+        userId: me.id
+      });
+
+      // 2. Buildings (optional)
+      if (buildingCount > 0) {
+        await tx.building.createMany({
+          data: Array.from({ length: buildingCount }, (_, i) => ({
+            permitId: permit.id,
+            label: `${buildingPrefix} ${i + 1}`,
+            type: buildingType.name
+          }))
+        });
+      }
+
+      // 3. Auto-generated tasks (identical to createProject's branch).
+      if (generateTasks) {
+        const templates = await tx.taskTemplate.findMany({
+          where: { authorityId, buildingTypeId, isActive: true },
+          orderBy: { orderIndex: "asc" }
+        });
+        if (templates.length > 0) {
+          const baseDate = startDate ?? new Date();
+          const taskRows = templates.map((tmpl) => ({
+            permitId: permit.id,
+            templateId: tmpl.id,
+            name: tmpl.name,
+            description: tmpl.description,
+            dueDate:
+              tmpl.defaultDurationDays !== null
+                ? new Date(baseDate.getTime() + tmpl.defaultDurationDays * DAY_MS)
+                : null,
+            status: "OPEN" as const,
+            priority: "NORMAL" as const
+          }));
+          const createdTasks = await tx.task.createManyAndReturn({
+            data: taskRows,
+            select: { id: true, templateId: true }
+          });
+          const templateToTaskId = new Map<string, string>();
+          for (const t of createdTasks) {
+            if (t.templateId) templateToTaskId.set(t.templateId, t.id);
+          }
+          const templateIds = Array.from(templateToTaskId.keys());
+          if (templateIds.length > 0) {
+            const templateDeps = await tx.taskTemplateDependency.findMany({
+              where: {
+                templateId: { in: templateIds },
+                dependsOnTemplateId: { in: templateIds }
+              }
+            });
+            if (templateDeps.length > 0) {
+              await tx.taskDependency.createMany({
+                data: templateDeps.map((dep) => ({
+                  taskId: templateToTaskId.get(dep.templateId)!,
+                  dependsOnTaskId: templateToTaskId.get(dep.dependsOnTemplateId)!
+                }))
+              });
+            }
+          }
+          await logAudit(tx, {
+            entityType: AuditEntity.PERMIT,
+            entityId: permit.id,
+            action: AuditAction.UPDATE,
+            newValue: {
+              event: "tasks_generated_from_templates",
+              tasksCreated: createdTasks.length,
+              authorityName: authority.name,
+              buildingTypeName: buildingType.name
+            },
+            userId: me.id
+          });
+        }
+      }
+    });
+
+    // Stay on the project page — caller revalidates the row count + permit list.
+    revalidatePath(`/projects/${masterDealId}`);
+    revalidatePath("/projects");
+    revalidatePath("/permits");
+    return { error: null, ok: true };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "שגיאה ביצירת ההיתר",
+      ok: false
+    };
+  }
+}
+
 export async function createProject(
   _prev: FormState,
   formData: FormData

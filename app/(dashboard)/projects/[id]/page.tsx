@@ -4,7 +4,6 @@ import {
   ArrowRight,
   Building2,
   FolderKanban,
-  Plus,
   StickyNote
 } from "lucide-react";
 import type { PermitStatus, MasterDealStatus } from "@prisma/client";
@@ -18,6 +17,7 @@ import {
   PERMIT_STATUS_VARIANT
 } from "@/lib/status-maps";
 import { cn, formatDate, formatILS } from "@/lib/utils";
+import { AddPermitDialogTrigger } from "@/components/projects/add-permit-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,11 @@ export default async function ProjectDetailPage({
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";
 
-  const deal = await prisma.masterDeal.findFirst({
+  // Authorities + building types feed the AddPermitDialog dropdowns. We fetch
+  // them in parallel with the deal — small payloads, both used in the same
+  // render so there's no point in deferring.
+  const [deal, authorities, buildingTypes] = await Promise.all([
+    prisma.masterDeal.findFirst({
     where: { id, deletedAt: null },
     include: {
       client: { select: { id: true, companyName: true } },
@@ -66,7 +70,16 @@ export default async function ProjectDetailPage({
         }
       }
     }
-  });
+  }),
+    prisma.authority.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" }
+    }),
+    prisma.buildingType.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" }
+    })
+  ]);
 
   if (!deal) notFound();
 
@@ -191,13 +204,13 @@ export default async function ProjectDetailPage({
 
       <section className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">היתרים בפרויקט</h2>
-        <Link
-          href="/permits/new"
-          className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
-        >
-          <Plus className="size-3" />
-          היתר/פרויקט חדש
-        </Link>
+        <AddPermitDialogTrigger
+          masterDealId={deal.id}
+          dealName={deal.name}
+          dealLocked={deal.status === "COMPLETED" || deal.status === "CANCELLED"}
+          authorities={authorities}
+          buildingTypes={buildingTypes}
+        />
       </section>
 
       <div className="rounded-md border bg-card">
@@ -219,7 +232,7 @@ export default async function ProjectDetailPage({
             {deal.permits.length === 0 && (
               <tr>
                 <td colSpan={9} className="py-6 text-center text-xs text-muted-foreground">
-                  אין היתרים תחת הפרויקט הזה — לחץ &quot;היתר/פרויקט חדש&quot; כדי להוסיף אחד.
+                  אין היתרים תחת הפרויקט הזה — לחץ &quot;הוסף היתר&quot; למעלה כדי להוסיף אחד.
                 </td>
               </tr>
             )}
