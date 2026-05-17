@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   FileCheck2,
+  FileText,
   FolderKanban,
   Inbox,
   LayoutDashboard,
@@ -26,6 +27,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "מבט-על", icon: LayoutDashboard, allowed: ["ADMIN", "EMPLOYEE"] },
+  { href: "/proposals", label: "הצעות מחיר", icon: FileText, allowed: ["ADMIN"] },
   { href: "/projects", label: "פרויקטים", icon: FolderKanban, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/permits", label: "היתרים", icon: FileCheck2, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/clients", label: "לקוחות", icon: Building2, allowed: ["ADMIN"] },
