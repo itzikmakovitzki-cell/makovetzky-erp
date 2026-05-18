@@ -138,7 +138,7 @@ export async function addPermitToDeal(
 
       // 3. Auto-generated tasks (identical to createProject's branch).
       // NOTE: keep the taskRows mapping in sync with createProject below — both
-      // must propagate template category/responsibility/tags identically.
+      // must propagate template category/responsibility/tags + defaultAssigneeId.
       if (generateTasks) {
         const templates = await tx.taskTemplate.findMany({
           where: { authorityId, buildingTypeId, isActive: true },
@@ -159,7 +159,8 @@ export async function addPermitToDeal(
             priority: "NORMAL" as const,
             category: tmpl.category,
             responsibility: tmpl.responsibility,
-            tags: tmpl.tags
+            tags: tmpl.tags,
+            assigneeId: tmpl.defaultAssigneeId
           }));
           const createdTasks = await tx.task.createManyAndReturn({
             data: taskRows,
@@ -427,7 +428,8 @@ export async function createProject(
             priority: "NORMAL" as const,
             category: tmpl.category,
             responsibility: tmpl.responsibility,
-            tags: tmpl.tags
+            tags: tmpl.tags,
+            assigneeId: tmpl.defaultAssigneeId
           }));
 
           // createManyAndReturn lets us map templateId → taskId in a single round-trip.

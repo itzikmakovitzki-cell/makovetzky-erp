@@ -31,17 +31,22 @@ export type TemplateRow = {
   category: string | null;
   responsibility: TaskResponsibility | null;
   tags: string[];
+  defaultAssignee: { id: string; name: string } | null;
 };
+
+type AssignableUser = { id: string; name: string };
 
 export function TemplatesPageClient({
   authorities,
   buildingTypes,
+  assignableUsers,
   selectedAuthorityId,
   selectedBuildingTypeId,
   templates
 }: {
   authorities: { id: string; name: string }[];
   buildingTypes: { id: string; name: string }[];
+  assignableUsers: AssignableUser[];
   selectedAuthorityId: string | null;
   selectedBuildingTypeId: string | null;
   templates: TemplateRow[];
@@ -69,6 +74,7 @@ export function TemplatesPageClient({
           category: string;
           responsibility: TaskResponsibility | "";
           tags: string;
+          defaultAssigneeId: string;
         };
       }
     | null
@@ -154,7 +160,7 @@ export function TemplatesPageClient({
             <div className="flex flex-wrap items-center gap-2">
               <CsvToolbar
                 entityLabel="תבניות"
-                helpText="עמודות: שם תבנית, תיאור, משך ימים, סדר, פעיל, קטגוריה, אחריות, תגיות"
+                helpText="עמודות: שם תבנית, תיאור, משך ימים, סדר, פעיל, קטגוריה, אחריות, תגיות, אחראי ב״מ - אימייל"
                 exportAction={() =>
                   exportTaskTemplatesCsv(
                     selectedAuthorityId!,
@@ -190,6 +196,7 @@ export function TemplatesPageClient({
                 <th className="w-12 text-center">סדר</th>
                 <th>תבנית</th>
                 <th className="w-44">סיווג</th>
+                <th className="w-32">אחראי ב״מ</th>
                 <th className="w-20 text-center">משך</th>
                 <th className="w-16 text-center">משימות</th>
                 <th>תלויות</th>
@@ -199,7 +206,7 @@ export function TemplatesPageClient({
             <tbody>
               {templates.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-xs text-muted-foreground">
+                  <td colSpan={8} className="py-6 text-center text-xs text-muted-foreground">
                     אין תבניות לצירוף זה. הוסף את הראשונה.
                   </td>
                 </tr>
@@ -230,6 +237,13 @@ export function TemplatesPageClient({
                         responsibility={t.responsibility}
                         tags={t.tags}
                       />
+                    </td>
+                    <td className="text-[11px]">
+                      {t.defaultAssignee ? (
+                        t.defaultAssignee.name
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="text-center text-[11px] tabular-nums">
                       {t.defaultDurationDays !== null ? `${t.defaultDurationDays}י` : "—"}
@@ -262,7 +276,8 @@ export function TemplatesPageClient({
                                 orderIndex: String(t.orderIndex),
                                 category: t.category ?? "",
                                 responsibility: t.responsibility ?? "",
-                                tags: t.tags.join("|")
+                                tags: t.tags.join("|"),
+                                defaultAssigneeId: t.defaultAssignee?.id ?? ""
                               }
                             })
                           }
@@ -305,6 +320,7 @@ export function TemplatesPageClient({
         <TemplateFormDialog
           key={mode.kind === "update" ? `edit-${mode.id}` : "create"}
           mode={mode}
+          assignableUsers={assignableUsers}
           onClose={() => setMode(null)}
         />
       )}

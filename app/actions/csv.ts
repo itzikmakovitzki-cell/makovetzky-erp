@@ -210,7 +210,8 @@ const TEMPLATE_HEADERS = [
   "פעיל",
   "קטגוריה",
   "אחריות",
-  "תגיות"
+  "תגיות",
+  "אחראי ב״מ - אימייל"
 ];
 
 export async function exportTaskTemplatesCsv(
@@ -230,6 +231,7 @@ export async function exportTaskTemplatesCsv(
     const [templates, authority, buildingType] = await Promise.all([
       prisma.taskTemplate.findMany({
         where: { authorityId, buildingTypeId },
+        include: { defaultAssignee: { select: { email: true } } },
         orderBy: [{ orderIndex: "asc" }, { name: "asc" }]
       }),
       prisma.authority.findUnique({
@@ -257,7 +259,8 @@ export async function exportTaskTemplatesCsv(
       t.isActive ? "כן" : "לא",
       t.category ?? "",
       t.responsibility ? TASK_RESPONSIBILITY_LABEL[t.responsibility] : "",
-      t.tags.join("|")
+      t.tags.join("|"),
+      t.defaultAssignee?.email ?? ""
     ]);
     return {
       ok: true,
@@ -306,6 +309,7 @@ export async function importTaskTemplatesCsv(
       category: string | null;
       responsibility: TaskResponsibility | null;
       tags: string[];
+      defaultAssigneeId: string | null;
     }> = [];
 
     const existing = await prisma.taskTemplate.findMany({
@@ -315,6 +319,26 @@ export async function importTaskTemplatesCsv(
     const existingNames = new Set(existing.map((t) => t.name.toLowerCase()));
     const seenInThisFile = new Set<string>();
     let skipped = 0;
+
+    // Bulk-resolve default assignee emails up front so we don't issue a User
+    // query per row. Only ADMIN/EMPLOYEE may be a default assignee.
+    const emailsInFile = new Set<string>();
+    parsed.data.forEach((row) => {
+      const e = (row["אחראי ב״מ - אימייל"] || "").trim().toLowerCase();
+      if (e) emailsInFile.add(e);
+    });
+    let emailToUserId = new Map<string, string>();
+    if (emailsInFile.size > 0) {
+      const users = await prisma.user.findMany({
+        where: {
+          email: { in: Array.from(emailsInFile), mode: "insensitive" },
+          isActive: true,
+          role: { in: ["ADMIN", "EMPLOYEE"] }
+        },
+        select: { id: true, email: true }
+      });
+      emailToUserId = new Map(users.map((u) => [u.email.toLowerCase(), u.id]));
+    }
 
     parsed.data.forEach((row, idx) => {
       const lineNum = idx + 2;
@@ -370,6 +394,22 @@ export async function importTaskTemplatesCsv(
       }
       const tags = parseTagsCell(row["תגיות"] || "");
 
+      const defaultEmail = (row["אחראי ב״מ - אימייל"] || "")
+        .trim()
+        .toLowerCase();
+      let defaultAssigneeId: string | null = null;
+      if (defaultEmail) {
+        const id = emailToUserId.get(defaultEmail);
+        if (!id) {
+          errors.push({
+            row: lineNum,
+            message: `משתמש ברירת מחדל לא נמצא או לא פעיל: ${defaultEmail}`
+          });
+          return;
+        }
+        defaultAssigneeId = id;
+      }
+
       seenInThisFile.add(key);
       toCreate.push({
         authorityId,
@@ -381,7 +421,8 @@ export async function importTaskTemplatesCsv(
         isActive,
         category,
         responsibility,
-        tags
+        tags,
+        defaultAssigneeId
       });
     });
 
