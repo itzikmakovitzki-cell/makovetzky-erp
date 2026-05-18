@@ -5,6 +5,7 @@ import type { Prisma, ProposalStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { ProposalMobileCard } from "@/components/proposals/proposal-mobile-card";
 import {
   PROPOSAL_STATUS_LABEL,
   PROPOSAL_STATUS_VARIANT
@@ -104,7 +105,20 @@ export default async function ProposalsListPage({
         ))}
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="md:hidden flex flex-col gap-2">
+        <div className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          תוצאות ({proposals.length})
+        </div>
+        {proposals.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            אין הצעות תואמות לסינון
+          </div>
+        ) : (
+          proposals.map((p) => <ProposalMobileCard key={p.id} proposal={p} />)
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
         <div className="border-b bg-muted/30 px-3 py-1.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             תוצאות ({proposals.length})
