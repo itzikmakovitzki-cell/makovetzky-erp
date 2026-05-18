@@ -28,6 +28,30 @@ function parseDate(raw: FormDataEntryValue | null): Date | null {
   return d;
 }
 
+// Trigger mode is the XOR: a milestone fires either when its anchor task is
+// completed (legacy/explicit) or when the permit's overall task-completion
+// crosses a percentage threshold. Exactly one of the two must be set.
+type TriggerMode =
+  | { kind: "task"; triggerTaskId: string; triggerPercentage: null }
+  | { kind: "percentage"; triggerTaskId: null; triggerPercentage: number };
+
+function parseTrigger(formData: FormData): TriggerMode | { error: string } {
+  const triggerKind = String(formData.get("triggerKind") || "").trim();
+  if (triggerKind === "percentage") {
+    const raw = String(formData.get("triggerPercentage") || "").trim();
+    if (!raw) return { error: "יש להזין אחוז יעד" };
+    const n = Number(raw);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 100) {
+      return { error: "האחוז חייב להיות שלם בטווח 1–100" };
+    }
+    return { kind: "percentage", triggerTaskId: null, triggerPercentage: n };
+  }
+  // Default: legacy task-based trigger.
+  const taskId = String(formData.get("triggerTaskId") || "").trim();
+  if (!taskId) return { error: "יש לבחור משימה מפעילה" };
+  return { kind: "task", triggerTaskId: taskId, triggerPercentage: null };
+}
+
 export async function submitMilestone(
   _prev: MilestoneFormState,
   formData: FormData
@@ -49,46 +73,70 @@ export async function submitMilestone(
       const permitId = String(formData.get("permitId") || "");
       const name = String(formData.get("name") || "").trim();
       const amount = parseAmount(formData.get("amount"));
-      const triggerTaskId = String(formData.get("triggerTaskId") || "");
       const dueDate = parseDate(formData.get("dueDate"));
       const notes = String(formData.get("notes") || "").trim() || null;
+      const triggerResult = parseTrigger(formData);
+      if ("error" in triggerResult) return { error: triggerResult.error, ok: false };
 
       if (!permitId) return { error: "חסר מזהה היתר", ok: false };
       if (!name) return { error: "שם אבן הדרך חובה", ok: false };
       if (amount === null) return { error: "סכום לא חוקי", ok: false };
-      if (!triggerTaskId) return { error: "יש לבחור משימה מפעילה", ok: false };
 
-      const task = await prisma.task.findFirst({
-        where: { id: triggerTaskId, deletedAt: null },
-        select: {
-          id: true,
-          permitId: true,
-          status: true,
-          milestone: { select: { id: true } }
-        }
-      });
-      if (!task || task.permitId !== permitId) {
-        return { error: "המשימה אינה שייכת להיתר", ok: false };
-      }
-      if (task.milestone) {
-        return { error: "למשימה זו כבר משויכת אבן דרך אחרת", ok: false };
-      }
       try {
         await assertPermitOpenForEdits(permitId);
       } catch (e) {
         return { error: e instanceof Error ? e.message : "ההיתר נעול", ok: false };
       }
 
-      // If the trigger task is already COMPLETED, the milestone is born DUE.
-      const initialStatus =
-        task.status === "COMPLETED" ? MilestoneStatus.DUE : MilestoneStatus.PENDING;
-      const initialTriggeredAt = initialStatus === MilestoneStatus.DUE ? new Date() : null;
+      // Percentage-based milestones start PENDING and only flip to DUE when
+      // the live completion rate crosses the threshold (computed on every
+      // permit page load — see finances-tab.tsx). Task-based milestones keep
+      // the original semantics: born DUE if the anchor task is already done.
+      let initialStatus: MilestoneStatus = MilestoneStatus.PENDING;
+      let initialTriggeredAt: Date | null = null;
+
+      if (triggerResult.kind === "task") {
+        const task = await prisma.task.findFirst({
+          where: { id: triggerResult.triggerTaskId, deletedAt: null },
+          select: {
+            id: true,
+            permitId: true,
+            status: true,
+            milestone: { select: { id: true } }
+          }
+        });
+        if (!task || task.permitId !== permitId) {
+          return { error: "המשימה אינה שייכת להיתר", ok: false };
+        }
+        if (task.milestone) {
+          return { error: "למשימה זו כבר משויכת אבן דרך אחרת", ok: false };
+        }
+        if (task.status === "COMPLETED") {
+          initialStatus = MilestoneStatus.DUE;
+          initialTriggeredAt = new Date();
+        }
+      } else if (triggerResult.kind === "percentage") {
+        // Born DUE if the permit's current completion already meets the target.
+        const [completedCount, totalCount] = await Promise.all([
+          prisma.task.count({
+            where: { permitId, deletedAt: null, status: "COMPLETED" }
+          }),
+          prisma.task.count({ where: { permitId, deletedAt: null } })
+        ]);
+        const currentPct =
+          totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
+        if (currentPct >= triggerResult.triggerPercentage) {
+          initialStatus = MilestoneStatus.DUE;
+          initialTriggeredAt = new Date();
+        }
+      }
 
       await prisma.$transaction(async (tx) => {
         const milestone = await tx.billingMilestone.create({
           data: {
             permitId,
-            triggerTaskId,
+            triggerTaskId: triggerResult.triggerTaskId,
+            triggerPercentage: triggerResult.triggerPercentage,
             name,
             amount,
             status: initialStatus,
@@ -105,8 +153,9 @@ export async function submitMilestone(
             permitId,
             name,
             amount,
-            triggerTaskId,
-            triggerTaskName: undefined, // filled below for context
+            triggerKind: triggerResult.kind,
+            triggerTaskId: triggerResult.triggerTaskId,
+            triggerPercentage: triggerResult.triggerPercentage,
             dueDate: dueDate?.toISOString() ?? null,
             status: initialStatus
           },
@@ -122,14 +171,14 @@ export async function submitMilestone(
       const milestoneId = String(formData.get("milestoneId") || "");
       const name = String(formData.get("name") || "").trim();
       const amount = parseAmount(formData.get("amount"));
-      const triggerTaskId = String(formData.get("triggerTaskId") || "");
       const dueDate = parseDate(formData.get("dueDate"));
       const notes = String(formData.get("notes") || "").trim() || null;
+      const triggerResult = parseTrigger(formData);
+      if ("error" in triggerResult) return { error: triggerResult.error, ok: false };
 
       if (!milestoneId) return { error: "חסר מזהה אבן דרך", ok: false };
       if (!name) return { error: "שם אבן הדרך חובה", ok: false };
       if (amount === null) return { error: "סכום לא חוקי", ok: false };
-      if (!triggerTaskId) return { error: "יש לבחור משימה מפעילה", ok: false };
 
       const existing = await prisma.billingMilestone.findUnique({
         where: { id: milestoneId },
@@ -139,6 +188,7 @@ export async function submitMilestone(
           name: true,
           amount: true,
           triggerTaskId: true,
+          triggerPercentage: true,
           dueDate: true,
           notes: true,
           status: true
@@ -151,13 +201,18 @@ export async function submitMilestone(
         return { error: e instanceof Error ? e.message : "ההיתר נעול", ok: false };
       }
 
-      if (triggerTaskId !== existing.triggerTaskId) {
+      // If switching to (or staying on) a task trigger that differs from the
+      // current anchor, validate the new task belongs to the same permit and
+      // isn't already attached to a different milestone.
+      if (
+        triggerResult.kind === "task" &&
+        triggerResult.triggerTaskId !== existing.triggerTaskId
+      ) {
         const task = await prisma.task.findFirst({
-          where: { id: triggerTaskId, deletedAt: null },
+          where: { id: triggerResult.triggerTaskId, deletedAt: null },
           select: {
             id: true,
             permitId: true,
-            status: true,
             milestone: { select: { id: true } }
           }
         });
@@ -173,13 +228,15 @@ export async function submitMilestone(
         name: existing.name,
         amount: Number(existing.amount.toString()),
         triggerTaskId: existing.triggerTaskId,
+        triggerPercentage: existing.triggerPercentage,
         dueDate: existing.dueDate?.toISOString() ?? null,
         notes: existing.notes
       };
       const newValue = {
         name,
         amount,
-        triggerTaskId,
+        triggerTaskId: triggerResult.triggerTaskId,
+        triggerPercentage: triggerResult.triggerPercentage,
         dueDate: dueDate?.toISOString() ?? null,
         notes
       };
@@ -187,7 +244,14 @@ export async function submitMilestone(
       await prisma.$transaction(async (tx) => {
         await tx.billingMilestone.update({
           where: { id: milestoneId },
-          data: { name, amount, triggerTaskId, dueDate, notes }
+          data: {
+            name,
+            amount,
+            triggerTaskId: triggerResult.triggerTaskId,
+            triggerPercentage: triggerResult.triggerPercentage,
+            dueDate,
+            notes
+          }
         });
         await logAudit(tx, {
           entityType: AuditEntity.MILESTONE,

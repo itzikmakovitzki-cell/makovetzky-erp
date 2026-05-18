@@ -174,7 +174,11 @@ export default async function FinancesGlobalPage({
                   </td>
                   <td className="text-[12px]">{r.name}</td>
                   <td className="text-[11px] text-muted-foreground">
-                    {r.triggerTask.name}
+                    {r.triggerTask
+                      ? r.triggerTask.name
+                      : r.triggerPercentage !== null
+                        ? `יעד ${r.triggerPercentage}% מהמשימות`
+                        : "—"}
                   </td>
                   <td className="text-end text-[12px] tabular-nums font-medium">
                     {formatILS(r.amount)}

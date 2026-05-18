@@ -11,10 +11,13 @@ type FormState = { ok: boolean; error: string | null; id?: string };
 
 // Public-facing milestone shape stored inside Proposal.milestones JSON column.
 // Stays free-form until conversion materializes it into DealMilestone rows.
+// triggerPercentage (1–100) is optional — when set, the eventual DealMilestone
+// inherits it so the finances tab can render a live progress bar against it.
 export type ProposalMilestoneJson = {
   description: string;
   amount: number;
   dueDate?: string | null;
+  triggerPercentage?: number | null;
 };
 
 function parseMilestonesPayload(raw: unknown): ProposalMilestoneJson[] {
@@ -33,10 +36,19 @@ function parseMilestonesPayload(raw: unknown): ProposalMilestoneJson[] {
       const d = new Date(dueRaw);
       if (!Number.isNaN(d.getTime())) dueDate = d.toISOString();
     }
+    const pctRaw = obj.triggerPercentage;
+    let triggerPercentage: number | null = null;
+    if (pctRaw !== null && pctRaw !== undefined && pctRaw !== "") {
+      const n = Number(pctRaw);
+      if (Number.isFinite(n) && Number.isInteger(n) && n >= 1 && n <= 100) {
+        triggerPercentage = n;
+      }
+    }
     out.push({
       description,
       amount: Math.round(amountNum * 100) / 100,
-      dueDate
+      dueDate,
+      triggerPercentage
     });
   }
   return out;
@@ -501,12 +513,15 @@ export async function convertProposalToProject(
       });
 
       // 3. DealMilestones — materialize the JSON list into real rows.
+      // triggerPercentage (when set on the proposal milestone) is carried
+      // over so the finances tab can show its progress against project tasks.
       const milestoneRows = milestonesJson.map((m, idx) => ({
         masterDealId: deal.id,
         description: m.description,
         amount: m.amount,
         dueDate: m.dueDate ? new Date(m.dueDate) : null,
-        orderIndex: idx
+        orderIndex: idx,
+        triggerPercentage: m.triggerPercentage ?? null
       }));
       await tx.dealMilestone.createMany({ data: milestoneRows });
       await logAudit(tx, {

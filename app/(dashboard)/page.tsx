@@ -9,11 +9,13 @@ import {
   Upload,
   CheckCircle2,
   FolderClock,
-  ExternalLink
+  ExternalLink,
+  Activity
 } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { ClientModeShield } from "@/components/global/client-mode-shield";
 import {
   PERMIT_STATUS_LABEL,
   PERMIT_STATUS_VARIANT
@@ -160,7 +162,7 @@ export default async function HomeDashboardPage() {
     totalRevenue > 0 ? Math.round((collectedRevenue / totalRevenue) * 100) : 0;
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-6">
       <header>
         <h1 className="text-base font-semibold">
           {isAdmin ? "מבט-על — מנהל" : "מבט-על"}
@@ -172,64 +174,52 @@ export default async function HomeDashboardPage() {
         </p>
       </header>
 
-      <div
-        className={cn(
-          "grid gap-3",
-          isAdmin ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2"
-        )}
-      >
-        <StatCard
-          label="היתרים פעילים"
-          value={activePermitsCount.toString()}
-          icon={<FileCheck2 className="size-4 text-muted-foreground" />}
-          helper="לא כולל הושלם/בוטל"
-          href="/permits"
-        />
-        {isAdmin && (
-          <StatCard
-            label="לקוחות פעילים"
-            value={activeClientsCount.toString()}
-            icon={<Building2 className="size-4 text-muted-foreground" />}
-            helper="לקוח עם היתר פעיל אחד לפחות"
-            href="/clients"
-          />
-        )}
-        {isAdmin && (
-          <StatCard
-            label="צפי הכנסה"
-            value={formatILS(pendingRevenue)}
-            icon={<Wallet className="size-4 text-muted-foreground" />}
-            helper={`נגבה: ${formatILS(collectedRevenue)} (${collectedPct}%)`}
-            href="/finances"
-            accent={pendingRevenue > 0 ? "info" : undefined}
-          />
-        )}
-        <StatCard
-          label="ממתין לרשות"
-          value={awaitingAuthorityCount.toString()}
-          icon={<Hourglass className="size-4 text-muted-foreground" />}
-          helper="צוואר בקבוק — משימות תקועות אצל הרשות"
-          href="/tasks?status=AWAITING_AUTHORITY"
-          accent={awaitingAuthorityCount > 0 ? "warning" : undefined}
-        />
-      </div>
-
-      {isAdmin && totalRevenue > 0 && (
-        <div className="rounded-md border bg-card px-3 py-2">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="font-medium">סטטוס גבייה כולל</span>
-            <span className="tabular-nums text-muted-foreground">
-              {formatILS(collectedRevenue)} / {formatILS(totalRevenue)}
-            </span>
-          </div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded bg-muted">
-            <div
-              className="h-full bg-emerald-500"
-              style={{ width: `${collectedPct}%` }}
-            />
-          </div>
+      {/* =====================================================================
+         OPERATIONAL SECTION (top)
+         Per Block 19: this entire block must stay free of monetary values so
+         the screen is safe to face a client. Anything money-coded lives in
+         the ClientModeShield-wrapped financial section at the bottom.
+         ===================================================================== */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+          <Activity className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">תפעול</h2>
+          <span className="text-[10px] text-muted-foreground">
+            סטטוסי פרויקטים, משימות, צווארי בקבוק
+          </span>
         </div>
-      )}
+
+        <div
+          className={cn(
+            "grid gap-3",
+            isAdmin ? "grid-cols-2 md:grid-cols-3" : "grid-cols-2"
+          )}
+        >
+          <StatCard
+            label="היתרים פעילים"
+            value={activePermitsCount.toString()}
+            icon={<FileCheck2 className="size-4 text-muted-foreground" />}
+            helper="לא כולל הושלם/בוטל"
+            href="/permits"
+          />
+          {isAdmin && (
+            <StatCard
+              label="לקוחות פעילים"
+              value={activeClientsCount.toString()}
+              icon={<Building2 className="size-4 text-muted-foreground" />}
+              helper="לקוח עם היתר פעיל אחד לפחות"
+              href="/clients"
+            />
+          )}
+          <StatCard
+            label="ממתין לרשות"
+            value={awaitingAuthorityCount.toString()}
+            icon={<Hourglass className="size-4 text-muted-foreground" />}
+            helper="צוואר בקבוק — משימות תקועות אצל הרשות"
+            href="/tasks?status=AWAITING_AUTHORITY"
+            accent={awaitingAuthorityCount > 0 ? "warning" : undefined}
+          />
+        </div>
 
       <div
         className={cn(
@@ -410,6 +400,57 @@ export default async function HomeDashboardPage() {
           </table>
         )}
       </Panel>
+      </div>
+      {/* ===== end of OPERATIONAL section ===== */}
+
+      {/* =====================================================================
+         FINANCIAL SECTION (bottom)
+         Wrapped in <ClientModeShield> so the user can blur the entire block
+         with one click before showing the screen to a client. Only admins see
+         money in this app, but the wrapper renders for everyone so the toggle
+         is still discoverable on shared screens.
+         ===================================================================== */}
+      {isAdmin && (
+        <ClientModeShield>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+            <StatCard
+              label="צפי הכנסה"
+              value={formatILS(pendingRevenue)}
+              icon={<Wallet className="size-4 text-muted-foreground" />}
+              helper={`נגבה: ${formatILS(collectedRevenue)} (${collectedPct}%)`}
+              href="/finances"
+              accent={pendingRevenue > 0 ? "info" : undefined}
+            />
+            <StatCard
+              label="סכום שנגבה"
+              value={formatILS(collectedRevenue)}
+              icon={<CheckCircle2 className="size-4 text-emerald-600" />}
+              helper={`מתוך ${formatILS(totalRevenue)} סך החיובים`}
+              href="/finances"
+            />
+          </div>
+
+          {totalRevenue > 0 && (
+            <div className="rounded-lg border border-border/70 bg-card px-3 py-2.5 shadow-sm">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-medium">סטטוס גבייה כולל</span>
+                <span className="tabular-nums text-muted-foreground">
+                  {formatILS(collectedRevenue)} / {formatILS(totalRevenue)}
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                  style={{ width: `${collectedPct}%` }}
+                />
+              </div>
+              <div className="mt-1 text-[10px] tabular-nums text-muted-foreground">
+                {collectedPct}% נגבה
+              </div>
+            </div>
+          )}
+        </ClientModeShield>
+      )}
     </section>
   );
 }

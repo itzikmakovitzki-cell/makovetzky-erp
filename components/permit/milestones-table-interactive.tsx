@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil, CheckCircle2, Plus, Loader2, Lock } from "lucide-react";
+import { Pencil, CheckCircle2, Plus, Loader2, Lock, Percent } from "lucide-react";
 import type { MilestoneStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { MILESTONE_STATUS_LABEL, MILESTONE_STATUS_VARIANT } from "@/lib/status-maps";
@@ -16,8 +16,10 @@ export type MilestoneRow = {
   amount: number;
   status: MilestoneStatus;
   dueDate: string | null;
-  triggerTaskId: string;
-  triggerTaskName: string;
+  // Exactly one of triggerTaskId / triggerPercentage is set per milestone.
+  triggerTaskId: string | null;
+  triggerTaskName: string | null;
+  triggerPercentage: number | null;
   notes: string | null;
 };
 
@@ -28,7 +30,9 @@ type Mode =
 const EMPTY_INITIAL: DialogInitialValues = {
   name: "",
   amount: "",
+  triggerKind: "task",
   triggerTaskId: "",
+  triggerPercentage: "",
   dueDate: "",
   notes: ""
 };
@@ -38,12 +42,18 @@ export function MilestonesTableInteractive({
   milestones,
   allTasks,
   availableTasksForCreate,
+  permitCompletionPct,
+  permitCompletedCount,
+  permitTotalCount,
   isAdmin
 }: {
   permitId: string;
   milestones: MilestoneRow[];
   allTasks: { id: string; name: string }[];
   availableTasksForCreate: { id: string; name: string }[];
+  permitCompletionPct: number;
+  permitCompletedCount: number;
+  permitTotalCount: number;
   isAdmin: boolean;
 }) {
   const [mode, setMode] = useState<Mode | null>(null);
@@ -64,25 +74,34 @@ export function MilestonesTableInteractive({
     }
     if (!milestoneBeingEdited) return null;
     // In edit mode, allow keeping the current task even though it's "used".
-    const currentTask = allTasks.find((t) => t.id === milestoneBeingEdited.triggerTaskId);
+    const currentTask = milestoneBeingEdited.triggerTaskId
+      ? allTasks.find((t) => t.id === milestoneBeingEdited.triggerTaskId) ?? null
+      : null;
     const tasks = currentTask
       ? [currentTask, ...availableTasksForCreate.filter((t) => t.id !== currentTask.id)]
       : availableTasksForCreate;
+    const initial: DialogInitialValues = {
+      name: milestoneBeingEdited.name,
+      amount: milestoneBeingEdited.amount,
+      triggerKind:
+        milestoneBeingEdited.triggerPercentage !== null ? "percentage" : "task",
+      triggerTaskId: milestoneBeingEdited.triggerTaskId ?? "",
+      triggerPercentage:
+        milestoneBeingEdited.triggerPercentage !== null
+          ? milestoneBeingEdited.triggerPercentage
+          : "",
+      dueDate: milestoneBeingEdited.dueDate
+        ? milestoneBeingEdited.dueDate.slice(0, 10)
+        : "",
+      notes: milestoneBeingEdited.notes ?? ""
+    };
     return {
       formMode: {
         kind: "update" as const,
         milestoneId: milestoneBeingEdited.id,
         permitId: milestoneBeingEdited.permitId
       },
-      initial: {
-        name: milestoneBeingEdited.name,
-        amount: milestoneBeingEdited.amount,
-        triggerTaskId: milestoneBeingEdited.triggerTaskId,
-        dueDate: milestoneBeingEdited.dueDate
-          ? milestoneBeingEdited.dueDate.slice(0, 10)
-          : "",
-        notes: milestoneBeingEdited.notes ?? ""
-      },
+      initial,
       tasks
     };
   }, [mode, milestoneBeingEdited, allTasks, availableTasksForCreate, permitId]);
@@ -146,6 +165,9 @@ export function MilestonesTableInteractive({
               key={m.id}
               milestone={m}
               isAdmin={isAdmin}
+              permitCompletionPct={permitCompletionPct}
+              permitCompletedCount={permitCompletedCount}
+              permitTotalCount={permitTotalCount}
               onEdit={() => setMode({ kind: "update", milestoneId: m.id })}
             />
           ))}
@@ -168,15 +190,25 @@ export function MilestonesTableInteractive({
 function MilestoneRowComponent({
   milestone,
   isAdmin,
+  permitCompletionPct,
+  permitCompletedCount,
+  permitTotalCount,
   onEdit
 }: {
   milestone: MilestoneRow;
   isAdmin: boolean;
+  permitCompletionPct: number;
+  permitCompletedCount: number;
+  permitTotalCount: number;
   onEdit: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const isDue = milestone.status === "DUE";
   const isPaid = milestone.status === "PAID";
+  const isPercentageBased = milestone.triggerPercentage !== null;
+  const hasHitTarget =
+    isPercentageBased &&
+    permitCompletionPct >= (milestone.triggerPercentage ?? Number.POSITIVE_INFINITY);
 
   const handleMarkPaid = () => {
     startTransition(async () => {
@@ -213,7 +245,19 @@ function MilestoneRowComponent({
       >
         {formatILS(milestone.amount)}
       </td>
-      <td className="text-xs">{milestone.triggerTaskName}</td>
+      <td className="text-xs">
+        {isPercentageBased ? (
+          <PercentageProgress
+            target={milestone.triggerPercentage as number}
+            currentPct={permitCompletionPct}
+            completedCount={permitCompletedCount}
+            totalCount={permitTotalCount}
+            hasHitTarget={hasHitTarget}
+          />
+        ) : (
+          milestone.triggerTaskName ?? <span className="text-muted-foreground">—</span>
+        )}
+      </td>
       <td className="text-xs tabular-nums">{formatDate(milestone.dueDate)}</td>
       <td>
         <Badge variant={MILESTONE_STATUS_VARIANT[milestone.status]}>
@@ -253,5 +297,67 @@ function MilestoneRowComponent({
         </td>
       )}
     </tr>
+  );
+}
+
+// Mini progress bar used in the "trigger" cell for percentage-based milestones.
+// Visually clamps current at 100% but keeps the numeric label honest.
+function PercentageProgress({
+  target,
+  currentPct,
+  completedCount,
+  totalCount,
+  hasHitTarget
+}: {
+  target: number;
+  currentPct: number;
+  completedCount: number;
+  totalCount: number;
+  hasHitTarget: boolean;
+}) {
+  const fillPct = Math.max(0, Math.min(100, currentPct));
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-[10px] font-medium">
+        <Percent className="size-2.5 text-muted-foreground" />
+        <span className="text-muted-foreground">יעד:</span>
+        <span className="tabular-nums text-foreground">{target}%</span>
+        <span className="text-muted-foreground">·</span>
+        <span className="text-muted-foreground">כעת:</span>
+        <span
+          className={cn(
+            "tabular-nums",
+            hasHitTarget
+              ? "text-emerald-700 dark:text-emerald-300"
+              : "text-foreground"
+          )}
+        >
+          {currentPct}%
+        </span>
+        {hasHitTarget && (
+          <span className="ms-1 rounded bg-emerald-500/15 px-1 py-0 text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+            לחיוב
+          </span>
+        )}
+      </div>
+      <div className="relative h-1.5 w-40 max-w-full overflow-hidden rounded-full bg-muted">
+        {/* Target line — a thin notch the current bar must reach. */}
+        <span
+          className="absolute inset-y-0 w-px bg-foreground/40"
+          style={{ left: `${Math.min(100, target)}%` }}
+          aria-hidden
+        />
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-300",
+            hasHitTarget ? "bg-emerald-500" : "bg-sky-500"
+          )}
+          style={{ width: `${fillPct}%` }}
+        />
+      </div>
+      <div className="text-[9px] tabular-nums text-muted-foreground">
+        {completedCount} / {totalCount} משימות הושלמו
+      </div>
+    </div>
   );
 }

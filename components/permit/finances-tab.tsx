@@ -20,7 +20,7 @@ export async function FinancesTab({ permitId }: { permitId: string }) {
   });
   if (!permit) notFound();
 
-  const [milestones, allTasks] = await Promise.all([
+  const [milestones, allTasks, completedTaskCount] = await Promise.all([
     prisma.billingMilestone.findMany({
       where: { permitId },
       include: { triggerTask: { select: { id: true, name: true } } },
@@ -30,10 +30,20 @@ export async function FinancesTab({ permitId }: { permitId: string }) {
       where: { permitId, deletedAt: null },
       select: { id: true, name: true },
       orderBy: { createdAt: "asc" }
+    }),
+    prisma.task.count({
+      where: { permitId, deletedAt: null, status: "COMPLETED" }
     })
   ]);
 
+  const totalTaskCount = allTasks.length;
+  const permitCompletionPct =
+    totalTaskCount === 0
+      ? 0
+      : Math.round((completedTaskCount / totalTaskCount) * 100);
+
   // Decimals + Dates aren't directly serializable to Client Components — flatten.
+  // triggerTaskId is nullable now (Block 19: percentage-based milestones).
   const serializedMilestones: MilestoneRow[] = milestones.map((m) => ({
     id: m.id,
     permitId: m.permitId,
@@ -42,11 +52,16 @@ export async function FinancesTab({ permitId }: { permitId: string }) {
     status: m.status,
     dueDate: m.dueDate ? m.dueDate.toISOString() : null,
     triggerTaskId: m.triggerTaskId,
-    triggerTaskName: m.triggerTask.name,
+    triggerTaskName: m.triggerTask?.name ?? null,
+    triggerPercentage: m.triggerPercentage,
     notes: m.notes
   }));
 
-  const usedTaskIds = new Set(serializedMilestones.map((m) => m.triggerTaskId));
+  const usedTaskIds = new Set(
+    serializedMilestones
+      .map((m) => m.triggerTaskId)
+      .filter((id): id is string => id !== null)
+  );
   const availableTasksForCreate = allTasks.filter((t) => !usedTaskIds.has(t.id));
 
   const dealValue = permit.masterDeal.totalValue
@@ -75,6 +90,9 @@ export async function FinancesTab({ permitId }: { permitId: string }) {
         milestones={serializedMilestones}
         allTasks={allTasks}
         availableTasksForCreate={availableTasksForCreate}
+        permitCompletionPct={permitCompletionPct}
+        permitCompletedCount={completedTaskCount}
+        permitTotalCount={totalTaskCount}
         isAdmin={isAdmin}
       />
     </div>

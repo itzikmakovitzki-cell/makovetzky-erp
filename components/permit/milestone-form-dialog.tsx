@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { submitMilestone } from "@/app/actions/milestones";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,11 @@ type FormMode =
 export type DialogInitialValues = {
   name: string;
   amount: number | "";
+  // "task" = legacy 1:1 trigger; "percentage" = fires when permit-task
+  // completion crosses triggerPercentage. Exactly one is meaningful.
+  triggerKind: "task" | "percentage";
   triggerTaskId: string;
+  triggerPercentage: number | "";
   dueDate: string;
   notes: string;
 };
@@ -33,6 +37,11 @@ export function MilestoneFormDialog({
     error: null,
     ok: false
   });
+  // Local state controls which trigger panel (task vs percentage) is visible.
+  // The form posts triggerKind so the server knows which branch to validate.
+  const [triggerKind, setTriggerKind] = useState<"task" | "percentage">(
+    initial.triggerKind ?? "task"
+  );
 
   // Open the dialog when mounted.
   useEffect(() => {
@@ -124,26 +133,70 @@ export function MilestoneFormDialog({
             </Field>
           </div>
 
-          <Field label="משימה מפעילה" required>
-            <select
-              name="triggerTaskId"
-              defaultValue={initial.triggerTaskId}
-              required
-              className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+          {/* Trigger kind picker — a segmented pill above the relevant input. */}
+          <div>
+            <span className="mb-0.5 block text-[11px] font-medium text-foreground">
+              מנגנון הפעלה
+              <span className="ms-0.5 text-red-600">*</span>
+            </span>
+            <input type="hidden" name="triggerKind" value={triggerKind} />
+            <div
+              className="inline-flex w-full items-center gap-0.5 rounded-md border border-input bg-muted/40 p-0.5"
+              role="radiogroup"
+              aria-label="מנגנון הפעלה"
             >
-              <option value="" disabled>
-                בחר משימה…
-              </option>
-              {availableTasks.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
+              <TriggerKindButton
+                active={triggerKind === "task"}
+                onClick={() => setTriggerKind("task")}
+                label="לפי משימה"
+              />
+              <TriggerKindButton
+                active={triggerKind === "percentage"}
+                onClick={() => setTriggerKind("percentage")}
+                label="לפי % השלמה"
+              />
+            </div>
+          </div>
+
+          {triggerKind === "task" ? (
+            <Field label="משימה מפעילה" required>
+              <select
+                name="triggerTaskId"
+                defaultValue={initial.triggerTaskId}
+                required={triggerKind === "task"}
+                className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="" disabled>
+                  בחר משימה…
                 </option>
-              ))}
-            </select>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">
-              השלמת המשימה תפעיל אוטומטית סטטוס "מועד הגיע".
-            </p>
-          </Field>
+                {availableTasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                השלמת המשימה תפעיל אוטומטית סטטוס "מועד הגיע".
+              </p>
+            </Field>
+          ) : (
+            <Field label="אחוז השלמה ליעד (1–100)" required>
+              <input
+                type="number"
+                name="triggerPercentage"
+                defaultValue={initial.triggerPercentage}
+                required={triggerKind === "percentage"}
+                min={1}
+                max={100}
+                step={1}
+                placeholder="לדוגמה: 80"
+                className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                אבן הדרך תסומן "מועד הגיע" כשהיתר זה יגיע לאחוז השלמת המשימות.
+              </p>
+            </Field>
+          )}
 
           <Field label="הערות (אופציונלי)">
             <textarea
@@ -203,5 +256,32 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+function TriggerKindButton({
+  active,
+  onClick,
+  label
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      className={cn(
+        "flex-1 rounded px-2 py-1 text-[11px] font-medium transition-all duration-150",
+        active
+          ? "bg-background text-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+      )}
+    >
+      {label}
+    </button>
   );
 }
