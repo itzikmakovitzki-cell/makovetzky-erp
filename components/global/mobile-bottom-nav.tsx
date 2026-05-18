@@ -152,6 +152,8 @@ export function MobileBottomNav({
         onOpenChange={setMoreOpen}
         title="ניווט"
         returnFocusRef={moreButtonRef}
+        side="bottom"
+        showAt="mobile"
       >
         <div className="flex flex-col">
           <ul className="flex flex-col py-1">

@@ -452,32 +452,58 @@ function StatCard({
   const inner = (
     <div
       className={cn(
-        "h-full rounded-md border bg-card px-3 py-2.5 transition-colors",
+        "group relative h-full overflow-hidden rounded-lg border border-border/70 bg-card px-3.5 py-3 shadow-sm transition-all duration-200 md:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_1px_rgba(0,0,0,0.02)]",
         accent === "warning" &&
-          "border-amber-500/40 bg-amber-50/40 dark:bg-amber-500/5",
-        accent === "info" &&
-          "border-sky-500/40 bg-sky-50/40 dark:bg-sky-500/5",
-        href && "hover:border-foreground/40"
+          "border-amber-500/40 bg-amber-50/50 dark:bg-amber-500/5",
+        accent === "info" && "border-sky-500/40 bg-sky-50/50 dark:bg-sky-500/5",
+        href &&
+          "cursor-pointer hover:border-foreground/30 hover:shadow-md md:hover:-translate-y-0.5"
       )}
     >
+      {/* Top accent rail surfaces only on hover for clickable cards — feels alive without being noisy at rest. */}
+      {href && (
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-x-3.5 top-0 h-px scale-x-0 bg-gradient-to-r from-transparent via-foreground/30 to-transparent transition-transform duration-300 group-hover:scale-x-100",
+            accent === "warning" && "via-amber-600/40",
+            accent === "info" && "via-sky-600/40"
+          )}
+        />
+      )}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
-        {icon}
+        <span
+          className={cn(
+            "transition-colors duration-200",
+            href && "group-hover:text-foreground"
+          )}
+        >
+          {icon}
+        </span>
       </div>
       <div
         className={cn(
-          "mt-1 text-lg font-semibold leading-tight tabular-nums",
+          "mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums md:text-[1.4rem]",
           accent === "warning" && "text-amber-800 dark:text-amber-300"
         )}
       >
         {value}
       </div>
-      <div className="mt-0.5 text-[10px] text-muted-foreground">{helper}</div>
+      <div className="mt-1 text-[10.5px] leading-snug text-muted-foreground">
+        {helper}
+      </div>
     </div>
   );
-  return href ? <Link href={href}>{inner}</Link> : inner;
+  return href ? (
+    <Link href={href} className="block">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  );
 }
 
 function Panel({
@@ -498,8 +524,8 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-md border bg-card">
-      <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
+    <div className="rounded-lg border border-border/70 bg-card shadow-sm transition-shadow duration-200 md:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_1px_rgba(0,0,0,0.02)] md:hover:shadow-md">
+      <div className="flex items-center justify-between gap-2 rounded-t-lg border-b border-border/60 bg-muted/40 px-3 py-2">
         <div className="flex items-center gap-2">
           {icon}
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -512,7 +538,7 @@ function Panel({
         {href && (
           <Link
             href={href}
-            className="text-[11px] underline-offset-2 hover:underline"
+            className="text-[11px] font-medium text-foreground/70 underline-offset-2 transition-colors hover:text-foreground hover:underline"
           >
             {hrefLabel ?? "פתח"}
           </Link>

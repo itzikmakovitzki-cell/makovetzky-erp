@@ -11,8 +11,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-56 shrink-0 flex-col border-l bg-muted/30 px-3 py-4 md:flex">
-        <div className="mb-5 flex items-center justify-center border-b border-border/60 pb-3">
+      <aside className="hidden w-60 shrink-0 flex-col border-l border-border/60 bg-muted/30 px-3 py-4 md:flex md:sticky md:top-0 md:h-screen">
+        <div className="mb-4 flex items-center justify-center border-b border-border/60 pb-3">
           <Image
             src="/logo.png"
             alt="מקובצקי — ניהול פרויקטים"

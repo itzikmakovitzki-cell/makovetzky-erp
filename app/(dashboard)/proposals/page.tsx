@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { ProposalMobileCard } from "@/components/proposals/proposal-mobile-card";
+import { ProposalRowActions } from "@/components/proposals/proposal-row-actions";
 import {
   PROPOSAL_STATUS_LABEL,
   PROPOSAL_STATUS_VARIANT
@@ -118,51 +119,54 @@ export default async function ProposalsListPage({
         )}
       </div>
 
-      <div className="hidden md:block rounded-md border bg-card">
-        <div className="border-b bg-muted/30 px-3 py-1.5">
+      <div className="hidden md:block overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+        <div className="border-b border-border/60 bg-muted/40 px-3 py-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             תוצאות ({proposals.length})
           </h2>
         </div>
 
-        <table>
+        <table className="table-loose table-sticky-head">
           <thead>
             <tr>
               <th>לקוח</th>
-              <th className="w-32">טלפון</th>
-              <th className="w-40">מיקום</th>
-              <th className="w-28">סטטוס</th>
-              <th className="w-28 text-end">סכום</th>
+              <th className="w-36">טלפון</th>
+              <th className="w-44">מיקום</th>
+              <th className="w-32">סטטוס</th>
+              <th className="w-32 text-end">סכום</th>
               <th className="w-28">נחתמה</th>
               <th className="w-28">נוצרה</th>
-              <th className="w-24">נוצרה ע"י</th>
+              <th className="w-28">נוצרה ע"י</th>
+              <th className="w-12"></th>
             </tr>
           </thead>
           <tbody>
             {proposals.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-6 text-center text-xs text-muted-foreground">
+                <td colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
                   אין הצעות תואמות לסינון
                 </td>
               </tr>
             )}
             {proposals.map((p) => (
-              <tr key={p.id} className="hover:bg-muted/30">
+              <tr key={p.id} className="group hover:bg-muted/50">
                 <td>
-                  <Link
-                    href={`/proposals/${p.id}`}
-                    className="font-medium underline-offset-2 hover:underline"
-                  >
-                    {p.customerName}
-                  </Link>
-                  {p.convertedAt && (
-                    <span className="ms-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium text-emerald-800 dark:text-emerald-200">
-                      הומר לפרויקט
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/proposals/${p.id}`}
+                      className="font-medium text-foreground underline-offset-2 transition-colors group-hover:underline"
+                    >
+                      {p.customerName}
+                    </Link>
+                    {p.convertedAt && (
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200">
+                        הומר לפרויקט
+                      </span>
+                    )}
+                  </div>
                 </td>
-                <td className="text-xs tabular-nums">{p.customerPhone}</td>
-                <td className="truncate text-xs" title={p.projectLocation ?? undefined}>
+                <td className="tabular-nums text-foreground/80">{p.customerPhone}</td>
+                <td className="truncate text-foreground/80" title={p.projectLocation ?? undefined}>
                   {p.projectLocation ?? <span className="text-muted-foreground">—</span>}
                 </td>
                 <td>
@@ -170,17 +174,25 @@ export default async function ProposalsListPage({
                     {PROPOSAL_STATUS_LABEL[p.status]}
                   </Badge>
                 </td>
-                <td className="text-end text-xs tabular-nums">
+                <td className="text-end font-medium tabular-nums text-foreground">
                   {formatILS(p.totalAmount)}
                 </td>
-                <td className="text-xs tabular-nums text-muted-foreground">
+                <td className="tabular-nums text-muted-foreground">
                   {p.signedAt ? formatDate(p.signedAt) : "—"}
                 </td>
-                <td className="text-xs tabular-nums text-muted-foreground">
+                <td className="tabular-nums text-muted-foreground">
                   {formatDate(p.createdAt)}
                 </td>
-                <td className="text-xs">
+                <td className="text-foreground/80">
                   {p.createdBy?.name ?? <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="p-1 text-center">
+                  <ProposalRowActions
+                    proposalId={p.id}
+                    customerName={p.customerName}
+                    status={p.status}
+                    isConverted={!!p.convertedAt}
+                  />
                 </td>
               </tr>
             ))}
