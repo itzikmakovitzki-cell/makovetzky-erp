@@ -3,6 +3,7 @@ import { FolderPlus } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { PermitMobileCard } from "@/components/permits/permit-mobile-card";
 import { PERMIT_STATUS_LABEL, PERMIT_STATUS_VARIANT } from "@/lib/status-maps";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -57,7 +58,23 @@ export default async function PermitsListPage() {
         )}
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="md:hidden flex flex-col gap-2">
+        {permits.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            אין היתרים עדיין
+          </div>
+        ) : (
+          permits.map((p) => (
+            <PermitMobileCard
+              key={p.id}
+              permit={p}
+              completionPct={completionByPermit.get(p.id) ?? 0}
+            />
+          ))
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
         <table>
           <thead>
             <tr>

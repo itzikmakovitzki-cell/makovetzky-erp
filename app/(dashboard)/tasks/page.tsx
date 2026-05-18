@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { TasksFilterBar } from "@/components/global/tasks-filter-bar";
+import { TaskMobileCard } from "@/components/tasks/task-mobile-card";
 import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT
@@ -152,7 +153,20 @@ export default async function TasksGlobalPage({
 
       <TasksFilterBar users={users} categories={categories} tags={tags} />
 
-      <div className="rounded-md border bg-card">
+      <div className="md:hidden flex flex-col gap-2">
+        <div className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          תוצאות ({tasks.length})
+        </div>
+        {tasks.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            אין משימות תואמות לסינון
+          </div>
+        ) : (
+          tasks.map((t) => <TaskMobileCard key={t.id} task={t} now={now} />)
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             תוצאות ({tasks.length})
