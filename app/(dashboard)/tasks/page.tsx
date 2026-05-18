@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { TasksFilterBar } from "@/components/global/tasks-filter-bar";
 import { TaskMobileCard } from "@/components/tasks/task-mobile-card";
+import { TaskRowActions } from "@/components/tasks/task-row-actions";
 import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT
@@ -166,14 +167,14 @@ export default async function TasksGlobalPage({
         )}
       </div>
 
-      <div className="hidden md:block rounded-md border bg-card">
-        <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
+      <div className="hidden md:block overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+        <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-3 py-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             תוצאות ({tasks.length})
           </h2>
         </div>
 
-        <table>
+        <table className="table-sticky-head">
           <thead>
             <tr>
               <th className="w-1.5 p-0"></th>
@@ -186,12 +187,13 @@ export default async function TasksGlobalPage({
               <th className="w-32">אחראי</th>
               <th className="w-28">תאריך יעד</th>
               <th>חסימה</th>
+              <th className="w-10"></th>
             </tr>
           </thead>
           <tbody>
             {tasks.length === 0 && (
               <tr>
-                <td colSpan={10} className="py-6 text-center text-xs text-muted-foreground">
+                <td colSpan={11} className="py-6 text-center text-xs text-muted-foreground">
                   אין משימות תואמות לסינון
                 </td>
               </tr>
@@ -217,7 +219,7 @@ export default async function TasksGlobalPage({
                 <tr
                   key={t.id}
                   className={cn(
-                    "group hover:bg-muted/30",
+                    "group hover:bg-muted/50",
                     isCompleted && "text-muted-foreground"
                   )}
                 >
@@ -310,6 +312,21 @@ export default async function TasksGlobalPage({
                         <span>{unmetDeps.map((d) => d.dependsOn.name).join(", ")}</span>
                       </span>
                     )}
+                  </td>
+                  <td className="p-1 text-center">
+                    <TaskRowActions
+                      task={{
+                        id: t.id,
+                        name: t.name,
+                        dueDate: t.dueDate,
+                        priority: t.priority,
+                        assigneeId: t.assigneeId,
+                        responsibility: t.responsibility,
+                        category: t.category,
+                        isSpotlight: t.isSpotlight
+                      }}
+                      users={users}
+                    />
                   </td>
                 </tr>
               );

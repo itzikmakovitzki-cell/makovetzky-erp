@@ -42,7 +42,7 @@ export function DashboardNav({ role }: { role?: UserRole }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-col gap-0.5 text-sm">
+    <nav className="flex flex-col gap-0.5 text-[13px]" aria-label="ניווט ראשי">
       {NAV_ITEMS.map((item) => {
         // The home entry uses "/" as its href, which would match every path
         // under the naive startsWith check — special-case to exact match.
@@ -55,12 +55,12 @@ export function DashboardNav({ role }: { role?: UserRole }) {
           return (
             <span
               key={item.href}
-              className="flex cursor-not-allowed items-center gap-2 rounded px-2 py-1.5 text-foreground/30"
+              className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2.5 py-2 text-foreground/30"
               title="אין הרשאה — מיועד למנהל"
             >
-              <item.icon className="size-4" />
-              {item.label}
-              <Lock className="ms-auto size-3" />
+              <item.icon className="size-4 shrink-0" strokeWidth={1.75} />
+              <span className="flex-1 truncate">{item.label}</span>
+              <Lock className="size-3 shrink-0" />
             </span>
           );
         }
@@ -68,15 +68,29 @@ export function DashboardNav({ role }: { role?: UserRole }) {
           <Link
             key={item.href}
             href={item.href}
+            // Relative anchor lets the active stripe sit on the row's logical-start edge.
             className={cn(
-              "flex items-center gap-2 rounded px-2 py-1.5 transition-colors",
+              "group relative flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-all duration-150",
               isActive
-                ? "bg-foreground text-background"
-                : "text-foreground/80 hover:bg-accent hover:text-accent-foreground"
+                ? "bg-foreground font-medium text-background shadow-sm"
+                : "text-foreground/75 hover:bg-accent hover:text-foreground"
             )}
+            aria-current={isActive ? "page" : undefined}
           >
-            <item.icon className="size-4" />
-            {item.label}
+            {isActive && (
+              <span
+                className="absolute inset-y-1 start-0 w-0.5 rounded-full bg-background/60"
+                aria-hidden
+              />
+            )}
+            <item.icon
+              className={cn(
+                "size-4 shrink-0 transition-transform duration-150",
+                isActive ? "scale-110" : "text-foreground/60 group-hover:text-foreground"
+              )}
+              strokeWidth={isActive ? 2.25 : 1.75}
+            />
+            <span className="flex-1 truncate">{item.label}</span>
           </Link>
         );
       })}

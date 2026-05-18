@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { PermitMobileCard } from "@/components/permits/permit-mobile-card";
+import { PermitRowActions } from "@/components/permits/permit-row-actions";
 import { PERMIT_STATUS_LABEL, PERMIT_STATUS_VARIANT } from "@/lib/status-maps";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -74,25 +75,26 @@ export default async function PermitsListPage() {
         )}
       </div>
 
-      <div className="hidden md:block rounded-md border bg-card">
-        <table>
+      <div className="hidden md:block overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+        <table className="table-loose table-sticky-head">
           <thead>
             <tr>
               <th>שם היתר</th>
               <th>מספר היתר</th>
               <th>לקוח</th>
               <th>רשות</th>
-              <th className="w-28">סטטוס</th>
-              <th className="w-36">התקדמות</th>
-              <th className="w-20 text-center">משימות</th>
-              <th className="w-20 text-center">בניינים</th>
-              <th className="w-24">צפוי לסיום</th>
+              <th className="w-32">סטטוס</th>
+              <th className="w-44">התקדמות</th>
+              <th className="w-24 text-center">משימות</th>
+              <th className="w-24 text-center">בניינים</th>
+              <th className="w-28">צפוי לסיום</th>
+              <th className="w-12"></th>
             </tr>
           </thead>
           <tbody>
             {permits.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-6 text-center text-xs text-muted-foreground">
+                <td colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
                   אין היתרים עדיין
                 </td>
               </tr>
@@ -100,27 +102,27 @@ export default async function PermitsListPage() {
             {permits.map((p) => {
               const pct = completionByPermit.get(p.id) ?? 0;
               return (
-                <tr key={p.id} className="hover:bg-muted/30">
+                <tr key={p.id} className="group hover:bg-muted/50">
                   <td>
                     <Link
                       href={`/permits/${p.id}/tasks`}
-                      className="font-medium underline-offset-2 hover:underline"
+                      className="font-medium text-foreground underline-offset-2 transition-colors group-hover:text-foreground group-hover:underline"
                     >
                       {p.name}
                     </Link>
                   </td>
-                  <td className="font-mono text-[11px] text-muted-foreground">
+                  <td className="font-mono text-xs text-muted-foreground">
                     {p.permitNumber ?? "—"}
                   </td>
-                  <td className="text-xs">
+                  <td>
                     <Link
                       href={`/clients/${p.masterDeal.clientId}`}
-                      className="underline-offset-2 hover:underline"
+                      className="text-foreground/90 underline-offset-2 transition-colors hover:text-foreground hover:underline"
                     >
                       {p.masterDeal.client.companyName}
                     </Link>
                   </td>
-                  <td className="text-xs">{p.authority.name}</td>
+                  <td className="text-foreground/80">{p.authority.name}</td>
                   <td>
                     <Badge variant={PERMIT_STATUS_VARIANT[p.status]}>
                       {PERMIT_STATUS_LABEL[p.status]}
@@ -128,21 +130,33 @@ export default async function PermitsListPage() {
                   </td>
                   <td>
                     <div className="flex items-center gap-2">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded bg-muted">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
                         <div
                           className={cn(
-                            "h-full",
+                            "h-full rounded-full transition-all duration-300",
                             pct === 100 ? "bg-emerald-500" : "bg-sky-500"
                           )}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="w-9 text-end text-[11px] tabular-nums">{pct}%</span>
+                      <span className="w-10 text-end text-xs font-medium tabular-nums text-foreground">
+                        {pct}%
+                      </span>
                     </div>
                   </td>
-                  <td className="text-center text-xs tabular-nums">{p._count.tasks}</td>
-                  <td className="text-center text-xs tabular-nums">{p._count.buildings}</td>
-                  <td className="text-xs tabular-nums">{formatDate(p.expectedCloseDate)}</td>
+                  <td className="text-center tabular-nums">{p._count.tasks}</td>
+                  <td className="text-center tabular-nums">{p._count.buildings}</td>
+                  <td className="tabular-nums text-muted-foreground">
+                    {formatDate(p.expectedCloseDate)}
+                  </td>
+                  <td className="p-1 text-center">
+                    <PermitRowActions
+                      permitId={p.id}
+                      permitName={p.name}
+                      status={p.status}
+                      isAdmin={isAdmin}
+                    />
+                  </td>
                 </tr>
               );
             })}
