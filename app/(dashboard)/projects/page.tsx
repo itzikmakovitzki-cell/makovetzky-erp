@@ -4,6 +4,8 @@ import type { PermitStatus, MasterDealStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { ClientModeShield } from "@/components/global/client-mode-shield";
+import { MoneyCell } from "@/components/global/money-cell";
 import {
   MASTER_DEAL_STATUS_LABEL,
   MASTER_DEAL_STATUS_VARIANT
@@ -139,29 +141,34 @@ export default async function ProjectsListPage() {
       </header>
 
       {isAdmin && grandTotals && (
-        <div className="grid grid-cols-3 gap-2">
-          <SummaryStat
-            label="ערך פרויקטים כולל"
-            value={formatILS(grandTotals.totalValue)}
-            hint={`${rows.length} פרויקטים`}
-          />
-          <SummaryStat
-            label="שולם עד כה"
-            value={formatILS(grandTotals.paid)}
-            hint={
-              grandTotals.totalValue > 0
-                ? `${Math.round((grandTotals.paid / grandTotals.totalValue) * 100)}% מהערך הכולל`
-                : "—"
-            }
-            accent="success"
-          />
-          <SummaryStat
-            label="יתרה לחיוב"
-            value={formatILS(grandTotals.pending)}
-            hint="סך אבני דרך שטרם שולמו"
-            accent="warning"
-          />
-        </div>
+        <ClientModeShield
+          title="סיכום פיננסי"
+          subtitle="ערך, גבייה ויתרה לחיוב — מוסתר כברירת מחדל"
+        >
+          <div className="grid grid-cols-3 gap-2">
+            <SummaryStat
+              label="ערך פרויקטים כולל"
+              value={formatILS(grandTotals.totalValue)}
+              hint={`${rows.length} פרויקטים`}
+            />
+            <SummaryStat
+              label="שולם עד כה"
+              value={formatILS(grandTotals.paid)}
+              hint={
+                grandTotals.totalValue > 0
+                  ? `${Math.round((grandTotals.paid / grandTotals.totalValue) * 100)}% מהערך הכולל`
+                  : "—"
+              }
+              accent="success"
+            />
+            <SummaryStat
+              label="יתרה לחיוב"
+              value={formatILS(grandTotals.pending)}
+              hint="סך אבני דרך שטרם שולמו"
+              accent="warning"
+            />
+          </div>
+        </ClientModeShield>
       )}
 
       <div className="rounded-md border bg-card">
@@ -248,22 +255,26 @@ export default async function ProjectsListPage() {
                 </td>
                 {isAdmin && (
                   <td className="text-end text-[12px] tabular-nums font-medium">
-                    {r.totalValue !== null ? formatILS(r.totalValue) : "—"}
+                    <MoneyCell>
+                      {r.totalValue !== null ? formatILS(r.totalValue) : "—"}
+                    </MoneyCell>
                   </td>
                 )}
                 {isAdmin && (
                   <td className="text-end text-[11px] tabular-nums">
-                    <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                      {formatILS(r.paidSum)}
-                    </span>
-                    {r.pendingSum > 0 && (
-                      <>
-                        <span className="text-muted-foreground"> · </span>
-                        <span className="text-amber-700 dark:text-amber-300">
-                          {formatILS(r.pendingSum)}
-                        </span>
-                      </>
-                    )}
+                    <MoneyCell>
+                      <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                        {formatILS(r.paidSum)}
+                      </span>
+                      {r.pendingSum > 0 && (
+                        <>
+                          <span className="text-muted-foreground"> · </span>
+                          <span className="text-amber-700 dark:text-amber-300">
+                            {formatILS(r.pendingSum)}
+                          </span>
+                        </>
+                      )}
+                    </MoneyCell>
                   </td>
                 )}
                 <td>
