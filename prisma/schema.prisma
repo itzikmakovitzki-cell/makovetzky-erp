@@ -444,7 +444,13 @@ model TaskDependency {
 model BillingMilestone {
   id            String          @id @default(cuid())
   permitId      String
-  triggerTaskId String          @unique
+  // Either triggerTaskId or triggerPercentage drives the milestone — exactly
+  // one is set. The legacy 1:1 task trigger remains the default; percentage-
+  // based triggers fire when the permit's overall task completion crosses the
+  // threshold (e.g. 80% of tasks completed → DUE). Both nullable so existing
+  // rows are valid and we can express either model without schema migration.
+  triggerTaskId      String?    @unique
+  triggerPercentage  Int?
   name          String
   amount        Decimal         @db.Decimal(14, 2)
   status        MilestoneStatus @default(PENDING)
@@ -456,7 +462,7 @@ model BillingMilestone {
   updatedAt     DateTime        @updatedAt
 
   permit      Permit @relation(fields: [permitId], references: [id], onDelete: Restrict)
-  triggerTask Task   @relation(fields: [triggerTaskId], references: [id], onDelete: Restrict)
+  triggerTask Task?  @relation(fields: [triggerTaskId], references: [id], onDelete: Restrict)
 
   @@index([permitId, status])
   @@index([status, dueDate])
@@ -692,6 +698,10 @@ model DealMilestone {
   status       MilestoneStatus @default(PENDING)
   paidAt       DateTime?
   orderIndex   Int             @default(0)
+  // Percentage of permit-tasks-completed at which this milestone is "ready
+  // for billing". Used by the finances tab to surface a live progress bar
+  // against the target — null = manual / date-driven only.
+  triggerPercentage Int?
   notes        String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
