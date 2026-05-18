@@ -50,15 +50,6 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
         {isPending ? <Loader2 className="size-3 animate-spin" /> : <LogIn className="size-3" />}
         התחבר
       </button>
-
-      <div className="mt-2 rounded border border-dashed border-input bg-muted/30 px-2 py-1.5 text-[10px] text-muted-foreground">
-        <div className="font-medium text-foreground">חשבונות דמו (סיסמה לכולם: admin123)</div>
-        <div className="mt-1 space-y-0.5 tabular-nums">
-          <div>אדמין: <code className="font-mono">ofir@makovetzky.local</code></div>
-          <div>עובד: <code className="font-mono">yossi@makovetzky.local</code> / <code className="font-mono">dana@makovetzky.local</code></div>
-          <div>קבלן: <code className="font-mono">contact@cohenbrothers.local</code></div>
-        </div>
-      </div>
     </form>
   );
 }
