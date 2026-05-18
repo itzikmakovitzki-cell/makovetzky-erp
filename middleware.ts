@@ -18,6 +18,10 @@ export default auth((req) => {
   // Field-worker access via magic link tokens — auth via token, not session.
   if (pathname.startsWith("/m/")) return NextResponse.next();
 
+  // Public proposal/quote pages — auth via the unguessable cuid in the URL,
+  // not via session. Lets prospects sign before becoming a Client/user.
+  if (pathname.startsWith("/quote/")) return NextResponse.next();
+
   // Check session.user.id directly — Auth.js v5 can return a session shell
   // object that is truthy but has no user when there is no JWT in the edge
   // runtime, so a bare `if (session)` would let unauthenticated traffic through.

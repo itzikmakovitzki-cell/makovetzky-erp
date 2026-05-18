@@ -97,6 +97,15 @@ enum DocumentSourceChannel {
   MANUAL
 }
 
+// Lifecycle of a standalone proposal. DRAFT → SENT → SIGNED (or REJECTED).
+// Once SIGNED, the admin can convert into Client + MasterDeal + DealMilestones.
+enum ProposalStatus {
+  DRAFT
+  SENT
+  SIGNED
+  REJECTED
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -131,6 +140,7 @@ model User {
   weeklySummariesEdited    WeeklySummaryDraft[]
   auditLogs                AuditLog[]
   portalAccesses           PortalAccess[]
+  createdProposals         Proposal[]           @relation("ProposalCreator")
 
   @@index([role])
 }
@@ -189,6 +199,7 @@ model Client {
 
   masterDeals    MasterDeal[]
   portalAccesses PortalAccess[]
+  proposals      Proposal[]
 
   @@index([companyName])
   @@index([deletedAt])
@@ -206,8 +217,10 @@ model MasterDeal {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
-  client  Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  permits Permit[]
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  permits        Permit[]
+  dealMilestones DealMilestone[]
+  proposals      Proposal[]
 
   @@index([clientId])
   @@index([status])
@@ -607,4 +620,76 @@ model WeeklySummaryDraft {
   editedBy User?  @relation(fields: [editedById], references: [id], onDelete: SetNull)
 
   @@index([permitId, generatedAt])
+}
+
+// =============================================================
+// BLOCK 15: STANDALONE PROPOSALS
+// =============================================================
+
+// Lightweight quote/offer that does NOT force a Client/MasterDeal until
+// signed. The cuid id doubles as the unguessable token for the public
+// /quote/[id] signing page. After signature, the admin converts it into a
+// real Client + MasterDeal + DealMilestone records via a one-shot action.
+model Proposal {
+  id              String         @id @default(cuid())
+  // Lead-stage customer info — copied into the real Client at conversion.
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  projectLocation String?
+  totalAmount     Decimal        @db.Decimal(14, 2)
+  // Payment schedule as a flexible JSON array. Each entry is
+  // { description: string, amount: number, dueDate?: string (ISO) }.
+  // Stays in JSON until conversion, then materialized as DealMilestone rows.
+  milestones      Json
+  terms           String?
+  status          ProposalStatus @default(DRAFT)
+  // Either a base64 PNG dataURL from the canvas signature pad, or a typed
+  // full-name string. Storage is opaque; the UI knows how to render both.
+  signatureData   String?
+  signedName      String?
+  signedAt        DateTime?
+  // Free-text reason captured when the customer rejects the proposal.
+  rejectionReason String?
+  // Conversion linkage — null until the admin converts. Both are set
+  // atomically by convertProposalToProject.
+  clientId        String?
+  masterDealId    String?
+  convertedAt     DateTime?
+  createdById     String?
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  client      Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  masterDeal  MasterDeal? @relation(fields: [masterDealId], references: [id], onDelete: SetNull)
+  createdBy   User?       @relation("ProposalCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([clientId])
+  @@index([masterDealId])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+// Deal-level payment milestones materialized from a converted Proposal.
+// Distinct from BillingMilestone, which is permit-scoped and trigger-task
+// based — these run on the deal layer and use plain due-dates.
+model DealMilestone {
+  id           String          @id @default(cuid())
+  masterDealId String
+  description  String
+  amount       Decimal         @db.Decimal(14, 2)
+  dueDate      DateTime?
+  status       MilestoneStatus @default(PENDING)
+  paidAt       DateTime?
+  orderIndex   Int             @default(0)
+  notes        String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  masterDeal MasterDeal @relation(fields: [masterDealId], references: [id], onDelete: Cascade)
+
+  @@index([masterDealId, status])
+  @@index([masterDealId, orderIndex])
 }
