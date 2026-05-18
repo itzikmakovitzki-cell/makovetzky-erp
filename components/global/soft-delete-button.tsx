@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils";
 //
 // Variant "icon" is for inline use inside dense tables (just an X-circle).
 // Variant "button" gets a label, used in headers and detail pages.
+// Server actions are migrating from "throws on failure" to a structured
+// { ok, error? } shape (Block 20). This button tolerates either — old
+// actions return undefined on success, new ones return { ok: true }.
+type DeleteActionResult = void | { ok: boolean; error?: string | null };
+
 export function SoftDeleteButton({
   action,
   id,
@@ -17,7 +22,7 @@ export function SoftDeleteButton({
   variant = "button",
   buttonLabel = "מחק"
 }: {
-  action: (id: string) => Promise<void>;
+  action: (id: string) => Promise<DeleteActionResult>;
   id: string;
   label: string;
   variant?: "icon" | "button";
@@ -34,8 +39,14 @@ export function SoftDeleteButton({
     if (!confirmed) return;
     startTransition(async () => {
       try {
-        await action(id);
+        const result = await action(id);
+        if (result && typeof result === "object" && result.ok === false) {
+          const msg = result.error ?? "שגיאה";
+          window.alert(msg);
+          setErrorMsg(msg);
+        }
       } catch (e) {
+        // Old-style throwing actions still flow through here.
         const msg = e instanceof Error ? e.message : "שגיאה";
         window.alert(msg);
         setErrorMsg(msg);

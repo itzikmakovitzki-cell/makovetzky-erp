@@ -31,7 +31,9 @@ export default async function SettingsTemplatesPage({
       orderBy: { name: "asc" }
     }),
     prisma.user.findMany({
-      where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      // Block 20: contractors can be the default assignee on a template too —
+      // useful when a template task is always owned by an external partner.
+      where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE", "CONTRACTOR"] } },
       select: { id: true, name: true },
       orderBy: { name: "asc" }
     })

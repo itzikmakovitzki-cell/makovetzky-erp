@@ -11,6 +11,12 @@ import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { MagicLinkButton } from "@/components/permit/magic-link-button";
 import { PermitTasksCsvToolbar } from "@/components/permit/permit-tasks-csv-toolbar";
 import { TaskEditButton } from "@/components/permit/task-edit-dialog";
+import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
+import {
+  TaskBulkCheckbox,
+  TaskBulkSelectAll
+} from "@/components/tasks/task-bulk-checkbox";
+import { BulkSelectionProvider } from "@/lib/use-bulk-selection";
 import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT
@@ -36,7 +42,8 @@ export async function TasksTable({ permitId }: { permitId: string }) {
       orderBy: [{ isSpotlight: "desc" }, { priority: "desc" }, { dueDate: "asc" }]
     }),
     prisma.user.findMany({
-      where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      // Block 20: contractors are valid assignment targets.
+      where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE", "CONTRACTOR"] } },
       select: { id: true, name: true },
       orderBy: { name: "asc" }
     }),
@@ -54,9 +61,12 @@ export async function TasksTable({ permitId }: { permitId: string }) {
     .filter((c): c is string => !!c);
 
   const now = new Date();
+  const visibleTaskIds = tasks.map((t) => t.id);
 
   return (
-    <div className="rounded-md border bg-card">
+    <BulkSelectionProvider>
+      <BulkTaskActionBar users={assignees} canDelete={isAdmin} />
+      <div className="rounded-md border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           משימות ({tasks.length})
@@ -77,6 +87,9 @@ export async function TasksTable({ permitId }: { permitId: string }) {
       <table>
         <thead>
           <tr>
+            <th className="w-9 p-1 text-center">
+              <TaskBulkSelectAll visibleIds={visibleTaskIds} />
+            </th>
             <th className="w-1.5 p-0"></th>
             <th className="w-7"></th>
             <th>משימה</th>
@@ -92,7 +105,7 @@ export async function TasksTable({ permitId }: { permitId: string }) {
         <tbody>
           {tasks.length === 0 && (
             <tr>
-              <td colSpan={10} className="py-6 text-center text-xs text-muted-foreground">
+              <td colSpan={11} className="py-6 text-center text-xs text-muted-foreground">
                 אין משימות בהיתר זה
               </td>
             </tr>
@@ -122,6 +135,9 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                   isCompleted && "text-muted-foreground"
                 )}
               >
+                <td className="p-1 text-center">
+                  <TaskBulkCheckbox taskId={t.id} />
+                </td>
                 <td className={cn("p-0", indicatorColor)} />
                 <td className="text-center">
                   <SpotlightToggle taskId={t.id} isSpotlight={t.isSpotlight} />
@@ -228,7 +244,8 @@ export async function TasksTable({ permitId }: { permitId: string }) {
           })}
         </tbody>
       </table>
-    </div>
+      </div>
+    </BulkSelectionProvider>
   );
 }
 
