@@ -323,6 +323,11 @@ model TaskTemplate {
   name                String
   description         String?
   defaultDurationDays Int?
+  // Days from the project base date when the task is expected to *start*.
+  // Used by the Gantt/Timeline view to plot the bar's left edge; the existing
+  // task-generation logic (which computes dueDate from defaultDurationDays)
+  // is unchanged.
+  defaultStartOffsetDays Int?
   orderIndex          Int                 @default(0)
   isActive            Boolean             @default(true)
   // Free-text classification (e.g. "שלד", "אישורי רשויות"). Imported from Excel as-is.
@@ -383,6 +388,9 @@ model Task {
   responsibility TaskResponsibility?
   // Free-form labels. Stored as Postgres text[]; filter via { has: x }.
   tags        String[]            @default([])
+  // Planned start (different from startedAt which records when work actually began).
+  // Used by the Gantt/Timeline view; nullable to keep all legacy tasks valid.
+  startDate   DateTime?
   dueDate     DateTime?
   startedAt   DateTime?
   completedAt DateTime?
