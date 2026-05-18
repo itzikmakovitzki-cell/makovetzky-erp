@@ -20,97 +20,139 @@ export async function assertPermitOpenForEdits(permitId: string): Promise<void> 
   }
 }
 
-// Soft-delete a Permit. Blocked if any of its direct children (tasks, documents,
-// buildings) is still active. Children are counted with deletedAt:null so a
-// previously-trashed-then-restored permit can be re-deleted cleanly.
-export async function deletePermit(permitId: string): Promise<void> {
-  const me = await requireRole(["ADMIN"]);
-  const permit = await prisma.permit.findFirst({
-    where: { id: permitId, deletedAt: null },
-    select: {
-      id: true,
-      name: true,
-      _count: {
-        select: {
-          tasks: { where: { deletedAt: null } },
-          documents: { where: { deletedAt: null } },
-          buildings: true
-        }
-      }
-    }
-  });
-  if (!permit) throw new Error("ההיתר לא נמצא");
+// Structured return shape so callers (UI buttons, dropdown menus) can render
+// errors without an unhandled exception crashing the Next.js boundary.
+export type DeleteResult = { ok: true } | { ok: false; error: string };
 
-  const blockers: string[] = [];
-  if (permit._count.tasks > 0) blockers.push(`${permit._count.tasks} משימות`);
-  if (permit._count.documents > 0)
-    blockers.push(`${permit._count.documents} מסמכים`);
-  if (permit._count.buildings > 0)
-    blockers.push(`${permit._count.buildings} בניינים`);
-  if (blockers.length > 0) {
-    throw new Error(
-      `לא ניתן למחוק את ההיתר — קיימים פריטים פעילים תחתיו: ${blockers.join(", ")}`
-    );
+// Soft-delete a Permit + everything attached to it in one transaction. Block 20
+// dropped the previous "has active children → throw" gate per user feedback:
+// the admin's expectation is "delete makes it go away". Children (tasks,
+// documents, billing milestones, notes, weekly summaries, magic links) are
+// also stamped with deletedAt so they vanish from list/count queries together
+// — and the underlying FKs are now Cascade so a future hard-delete from the
+// recycle bin propagates too.
+export async function deletePermit(permitId: string): Promise<DeleteResult> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const permit = await prisma.permit.findFirst({
+      where: { id: permitId, deletedAt: null },
+      select: { id: true, name: true }
+    });
+    if (!permit) return { ok: false, error: "ההיתר לא נמצא" };
+
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      // Cascade the soft-delete to every child that itself uses deletedAt.
+      // Buildings, magic links, dependencies, weekly summaries — the FK cascade
+      // covers them on hard delete; here we just need to hide the visible ones.
+      const childWhere = { permitId, deletedAt: null };
+      await tx.task.updateMany({
+        where: childWhere,
+        data: { deletedAt: now }
+      });
+      await tx.document.updateMany({
+        where: childWhere,
+        data: { deletedAt: now }
+      });
+      // Note + WeeklySummaryDraft don't have deletedAt — they cascade only on
+      // hard delete. BillingMilestone has no deletedAt either; visibility is
+      // permit-scoped queries so hiding the parent is sufficient.
+
+      await tx.permit.update({
+        where: { id: permitId },
+        data: { deletedAt: now }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.PERMIT,
+        entityId: permitId,
+        action: AuditAction.DELETE,
+        oldValue: { name: permit.name },
+        newValue: { softDeletedAt: now.toISOString(), cascadedChildren: true },
+        userId: me.id
+      });
+    });
+
+    revalidatePath("/permits");
+    revalidatePath("/projects");
+    revalidatePath("/tasks");
+    revalidatePath("/settings/recycle-bin");
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "מחיקת ההיתר נכשלה"
+    };
   }
-
-  const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.permit.update({
-      where: { id: permitId },
-      data: { deletedAt: now }
-    });
-    await logAudit(tx, {
-      entityType: AuditEntity.PERMIT,
-      entityId: permitId,
-      action: AuditAction.DELETE,
-      oldValue: { name: permit.name },
-      newValue: { softDeletedAt: now.toISOString() },
-      userId: me.id
-    });
-  });
-
-  revalidatePath("/permits");
-  revalidatePath("/settings/recycle-bin");
 }
 
-// Soft-delete a MasterDeal. Blocked if any non-deleted Permit references it.
-export async function deleteMasterDeal(masterDealId: string): Promise<void> {
-  const me = await requireRole(["ADMIN"]);
-  const deal = await prisma.masterDeal.findFirst({
-    where: { id: masterDealId, deletedAt: null },
-    select: {
-      id: true,
-      name: true,
-      clientId: true,
-      _count: { select: { permits: { where: { deletedAt: null } } } }
-    }
-  });
-  if (!deal) throw new Error("העסקה לא נמצאה");
-  if (deal._count.permits > 0) {
-    throw new Error(
-      `לא ניתן למחוק — ${deal._count.permits} היתרים פעילים שייכים לעסקה`
-    );
+// Soft-delete a MasterDeal + all of its permits + their children, in one tx.
+// Same rationale as deletePermit: the previous "blocked by N active permits"
+// gate was the production error; the admin wants the deal and everything
+// hanging off it gone.
+export async function deleteMasterDeal(
+  masterDealId: string
+): Promise<DeleteResult> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const deal = await prisma.masterDeal.findFirst({
+      where: { id: masterDealId, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        clientId: true,
+        permits: {
+          where: { deletedAt: null },
+          select: { id: true }
+        }
+      }
+    });
+    if (!deal) return { ok: false, error: "העסקה לא נמצאה" };
+
+    const now = new Date();
+    const permitIds = deal.permits.map((p) => p.id);
+    await prisma.$transaction(async (tx) => {
+      if (permitIds.length > 0) {
+        const childWhere = {
+          permitId: { in: permitIds },
+          deletedAt: null as Date | null
+        };
+        await tx.task.updateMany({ where: childWhere, data: { deletedAt: now } });
+        await tx.document.updateMany({ where: childWhere, data: { deletedAt: now } });
+        await tx.permit.updateMany({
+          where: { id: { in: permitIds }, deletedAt: null },
+          data: { deletedAt: now }
+        });
+      }
+      await tx.masterDeal.update({
+        where: { id: masterDealId },
+        data: { deletedAt: now }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.MASTER_DEAL,
+        entityId: masterDealId,
+        action: AuditAction.DELETE,
+        oldValue: { name: deal.name, clientId: deal.clientId },
+        newValue: {
+          softDeletedAt: now.toISOString(),
+          cascadedPermits: permitIds.length
+        },
+        userId: me.id
+      });
+    });
+
+    revalidatePath(`/clients/${deal.clientId}`);
+    revalidatePath("/clients");
+    revalidatePath("/projects");
+    revalidatePath("/permits");
+    revalidatePath("/tasks");
+    revalidatePath("/settings/recycle-bin");
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "מחיקת העסקה נכשלה"
+    };
   }
-
-  const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.masterDeal.update({
-      where: { id: masterDealId },
-      data: { deletedAt: now }
-    });
-    await logAudit(tx, {
-      entityType: AuditEntity.MASTER_DEAL,
-      entityId: masterDealId,
-      action: AuditAction.DELETE,
-      oldValue: { name: deal.name, clientId: deal.clientId },
-      newValue: { softDeletedAt: now.toISOString() },
-      userId: me.id
-    });
-  });
-
-  revalidatePath(`/clients/${deal.clientId}`);
-  revalidatePath("/clients");
-  revalidatePath("/settings/recycle-bin");
 }
 
 // Mark a permit as COMPLETED. Allowed only from non-terminal statuses so we

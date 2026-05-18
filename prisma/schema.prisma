@@ -169,8 +169,10 @@ model MagicLink {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
-  task   Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  permit Permit? @relation(fields: [permitId], references: [id], onDelete: SetNull)
+  // Block 20: 48h-TTL magic links die with the permit/task they were minted
+  // for — there's no reason to keep an unusable dangling link around.
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  permit Permit? @relation(fields: [permitId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
   @@index([taskId])
@@ -243,7 +245,10 @@ model Permit {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  masterDeal       MasterDeal           @relation(fields: [masterDealId], references: [id], onDelete: Restrict)
+  // Block 20: deleting a deal cascades to its permits (and from there to
+  // their tasks, billing milestones, documents, notes). The previous Restrict
+  // blocked the cleanup path the admin actually wanted.
+  masterDeal       MasterDeal           @relation(fields: [masterDealId], references: [id], onDelete: Cascade)
   authority        Authority            @relation(fields: [authorityId], references: [id], onDelete: Restrict)
   buildings        Building[]
   tasks            Task[]
@@ -461,8 +466,11 @@ model BillingMilestone {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  permit      Permit @relation(fields: [permitId], references: [id], onDelete: Restrict)
-  triggerTask Task?  @relation(fields: [triggerTaskId], references: [id], onDelete: Restrict)
+  // Block 20: billing milestones cascade out when their parent permit goes;
+  // and when the anchor task is removed (also cascading from the permit) the
+  // milestone goes with it instead of blocking the delete with a FK error.
+  permit      Permit @relation(fields: [permitId], references: [id], onDelete: Cascade)
+  triggerTask Task?  @relation(fields: [triggerTaskId], references: [id], onDelete: Cascade)
 
   @@index([permitId, status])
   @@index([status, dueDate])
@@ -550,7 +558,9 @@ model Document {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  permit     Permit    @relation(fields: [permitId], references: [id], onDelete: Restrict)
+  // Block 20: docs cascade out with their permit. Hard-deletes from the
+  // recycle bin still hit storage cleanup via the application transaction.
+  permit     Permit    @relation(fields: [permitId], references: [id], onDelete: Cascade)
   building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
   task       Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
   uploadedBy User?     @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)

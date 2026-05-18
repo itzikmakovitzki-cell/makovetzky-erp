@@ -104,14 +104,20 @@ export function PermitRowActions({
               variant="destructive"
               icon={<Trash2 className="size-3.5" />}
               onSelect={() => {
-                if (!window.confirm(`למחוק את ההיתר "${permitName}"?`)) return;
+                if (
+                  !window.confirm(
+                    `למחוק את ההיתר "${permitName}"? הפעולה תמחק גם את המשימות, המסמכים, ואבני הדרך התלויות בו.`
+                  )
+                ) {
+                  return;
+                }
                 startTransition(async () => {
-                  try {
-                    await deletePermit(permitId);
-                    router.refresh();
-                  } catch (err) {
-                    window.alert(err instanceof Error ? err.message : "מחיקה נכשלה");
+                  const result = await deletePermit(permitId);
+                  if (!result.ok) {
+                    window.alert(result.error);
+                    return;
                   }
+                  router.refresh();
                 });
               }}
             >

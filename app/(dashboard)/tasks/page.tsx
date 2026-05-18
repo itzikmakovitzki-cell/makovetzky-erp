@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { Star, Lock, Hourglass } from "lucide-react";
 import type { Prisma, TaskResponsibility, TaskStatus } from "@prisma/client";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { TasksFilterBar } from "@/components/global/tasks-filter-bar";
 import { TaskMobileCard } from "@/components/tasks/task-mobile-card";
 import { TaskRowActions } from "@/components/tasks/task-row-actions";
+import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
+import {
+  TaskBulkCheckbox,
+  TaskBulkSelectAll
+} from "@/components/tasks/task-bulk-checkbox";
+import { BulkSelectionProvider } from "@/lib/use-bulk-selection";
 import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT
@@ -116,7 +123,11 @@ export default async function TasksGlobalPage({
       ]
     }),
     prisma.user.findMany({
-      where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      // Block 20: include CONTRACTOR so external partners (e.g. Sigal at
+      // Bisis Handasa) show up in the assignee dropdown. The portal already
+      // enforces scoped visibility for contractors, so it's safe to surface
+      // them as assignment targets.
+      where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE", "CONTRACTOR"] } },
       select: { id: true, name: true },
       orderBy: { name: "asc" }
     }),
@@ -141,16 +152,23 @@ export default async function TasksGlobalPage({
   for (const row of tagRows) for (const t of row.tags) tagSet.add(t);
   const tags = Array.from(tagSet).sort((a, b) => a.localeCompare(b, "he"));
 
+  const session = await auth();
+  const isAdmin = session?.user?.role === "ADMIN";
+  const visibleTaskIds = tasks.map((t) => t.id);
+
   const now = new Date();
 
   return (
-    <section className="flex flex-col gap-3">
+    <BulkSelectionProvider>
+      <section className="flex flex-col gap-3">
       <header>
         <h1 className="text-base font-semibold">משימות — מבט-על</h1>
         <p className="text-[11px] text-muted-foreground">
           תצוגה חוצת-פרויקטים. סינון נשמר ב-URL — אפשר לסמן כסימנייה.
         </p>
       </header>
+
+      <BulkTaskActionBar users={users} canDelete={isAdmin} />
 
       <TasksFilterBar users={users} categories={categories} tags={tags} />
 
@@ -163,7 +181,19 @@ export default async function TasksGlobalPage({
             אין משימות תואמות לסינון
           </div>
         ) : (
-          tasks.map((t) => <TaskMobileCard key={t.id} task={t} now={now} />)
+          tasks.map((t) => (
+            // Wrapper keeps the existing Link-based card untouched while
+            // overlaying a checkbox in the top-start corner. The checkbox
+            // stops propagation so the card's tap-to-navigate behavior is
+            // preserved everywhere else.
+            <div key={t.id} className="relative">
+              <TaskBulkCheckbox
+                taskId={t.id}
+                className="absolute top-3 start-3 z-10 shadow-sm"
+              />
+              <TaskMobileCard task={t} now={now} />
+            </div>
+          ))
         )}
       </div>
 
@@ -177,6 +207,9 @@ export default async function TasksGlobalPage({
         <table className="table-sticky-head">
           <thead>
             <tr>
+              <th className="w-9 p-1 text-center">
+                <TaskBulkSelectAll visibleIds={visibleTaskIds} />
+              </th>
               <th className="w-1.5 p-0"></th>
               <th className="w-7"></th>
               <th>היתר</th>
@@ -193,7 +226,7 @@ export default async function TasksGlobalPage({
           <tbody>
             {tasks.length === 0 && (
               <tr>
-                <td colSpan={11} className="py-6 text-center text-xs text-muted-foreground">
+                <td colSpan={12} className="py-6 text-center text-xs text-muted-foreground">
                   אין משימות תואמות לסינון
                 </td>
               </tr>
@@ -223,6 +256,9 @@ export default async function TasksGlobalPage({
                     isCompleted && "text-muted-foreground"
                   )}
                 >
+                  <td className="p-1 text-center">
+                    <TaskBulkCheckbox taskId={t.id} />
+                  </td>
                   <td className={cn("p-0", indicatorColor)} />
                   <td className="text-center">
                     {t.isSpotlight && (
@@ -334,6 +370,7 @@ export default async function TasksGlobalPage({
           </tbody>
         </table>
       </div>
-    </section>
+      </section>
+    </BulkSelectionProvider>
   );
 }
