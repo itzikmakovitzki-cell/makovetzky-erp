@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { deleteTask } from "@/app/actions/tasks";
 import { Badge } from "@/components/ui/badge";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
+import { InlineAssignee } from "@/components/tasks/inline-assignee";
+import { InlineDueDate } from "@/components/tasks/inline-due-date";
 import { SpotlightToggle } from "@/components/permit/spotlight-toggle";
 import { DependencyOverride } from "@/components/permit/dependency-override";
 import { SoftDeleteButton } from "@/components/global/soft-delete-button";
@@ -21,7 +23,7 @@ import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT
 } from "@/lib/status-maps";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export async function TasksTable({ permitId }: { permitId: string }) {
   const session = await auth();
@@ -175,16 +177,20 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                     <span className="text-[10px] text-muted-foreground">רגיל</span>
                   )}
                 </td>
-                <td className="text-xs">{t.assignee?.name ?? "—"}</td>
-                <td
-                  className={cn(
-                    "text-xs tabular-nums",
-                    isOverdue && "font-semibold text-red-600",
-                    t.frozen && "text-amber-700"
-                  )}
-                >
-                  {formatDate(t.dueDate)}
-                  {isOverdue && <span className="ms-1 text-[10px]">איחור</span>}
+                <td>
+                  <InlineAssignee
+                    taskId={t.id}
+                    assigneeId={t.assignee?.id ?? null}
+                    users={assignees}
+                  />
+                </td>
+                <td>
+                  <InlineDueDate
+                    taskId={t.id}
+                    value={t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null}
+                    isOverdue={isOverdue}
+                    frozen={t.frozen}
+                  />
                 </td>
                 <td className="text-[11px] text-muted-foreground">
                   {isBlockedByDeps ? (
