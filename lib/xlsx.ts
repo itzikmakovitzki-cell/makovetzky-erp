@@ -1,10 +1,13 @@
-// Makovetzki-format Excel engine. The community `xlsx` package (SheetJS CE)
-// reads/writes .xlsx structure but does not emit cell styling — values,
-// merges, column widths, and RTL view direction are all we can rely on.
-// That's enough to reproduce the customer's "טופס 4 / תעודת גמר" status
-// table: a title spanning A1:C1, headers in row 3, data from row 4 down.
+// Makovetzki-format Excel engine.
+//
+// Block 24: export is built with `exceljs` so we can emit the customer's
+// fully-styled "טופס 4 / תעודת גמר" template — RTL sheet, sized columns, a
+// merged bold title, a shaded header row, category sub-header bands, cell
+// borders and wrapped text. Import still uses the lighter SheetJS reader
+// (`xlsx`), which is all we need to parse incoming files.
 
 import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import type { TaskStatus } from "@prisma/client";
 
 // Exact spelling the customer uses in their template. Header detection on
@@ -85,44 +88,141 @@ export type MakovetzkiTaskRow = {
   rawStatus: string;
 };
 
-// Builds a Makovetzki-format workbook in memory and returns base64.
-// title goes into A1 (merged A1:C1); headers occupy row 3; data starts row 4.
-export function buildMakovetzkiWorkbook(
+// --- Export styling (exceljs) ---------------------------------------------
+
+const CATEGORY_FALLBACK = "כללי";
+
+// ARGB fills. Excel wants 8-digit ARGB (alpha first).
+const COLOR_HEADER_FILL = "FFD9D9D9"; // light gray — header row
+const COLOR_CATEGORY_FILL = "FFB7DEE8"; // light teal/blue — category bands
+const COLOR_BORDER = "FF999999"; // mid gray borders
+
+const thinBorder: Partial<ExcelJS.Borders> = {
+  top: { style: "thin", color: { argb: COLOR_BORDER } },
+  left: { style: "thin", color: { argb: COLOR_BORDER } },
+  bottom: { style: "thin", color: { argb: COLOR_BORDER } },
+  right: { style: "thin", color: { argb: COLOR_BORDER } }
+};
+
+// Pull a leading "[tag]" off a task name and use it as the group category.
+// "[הג\"א] בדיקת אטימות" → { category: "הג\"א", cleanName: "בדיקת אטימות" }.
+// No tag → grouped under "כללי" with the name untouched.
+export function extractCategory(name: string): {
+  category: string;
+  cleanName: string;
+} {
+  const m = name.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+  if (m) {
+    const category = m[1].trim() || CATEGORY_FALLBACK;
+    const cleanName = m[2].trim() || name.trim();
+    return { category, cleanName };
+  }
+  return { category: CATEGORY_FALLBACK, cleanName: name.trim() };
+}
+
+// Groups rows by extracted category, preserving first-seen category order so
+// the sheet mirrors the on-screen task ordering.
+function groupByCategory(
+  rows: Array<{ requirement: string; detail: string; status: string }>
+): Map<string, Array<{ requirement: string; detail: string; status: string }>> {
+  const groups = new Map<
+    string,
+    Array<{ requirement: string; detail: string; status: string }>
+  >();
+  for (const r of rows) {
+    const { category, cleanName } = extractCategory(r.requirement);
+    const list = groups.get(category) ?? [];
+    list.push({ requirement: cleanName, detail: r.detail, status: r.status });
+    if (!groups.has(category)) groups.set(category, list);
+  }
+  return groups;
+}
+
+// Builds the fully-styled Makovetzki workbook and returns base64.
+// Layout: title merged A1:C1 → gap row 2 → headers row 3 → then, per category,
+// a merged sub-header band followed by that category's task rows.
+export async function buildMakovetzkiWorkbook(
   title: string,
   rows: Array<{ requirement: string; detail: string; status: string }>
-): string {
-  // Empty-cell row 2 leaves a visual gap between title and header — matches
-  // the customer's template.
-  const aoa: (string | null)[][] = [
-    [title, null, null],
-    [null, null, null],
-    [HEADER_REQUIREMENTS, HEADER_DETAIL, HEADER_STATUS]
-  ];
-  for (const r of rows) {
-    aoa.push([r.requirement, r.detail, r.status]);
+): Promise<string> {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("סטטוס", {
+    views: [{ rightToLeft: true }]
+  });
+
+  // Readable, fixed column widths: דרישות 50 · פירוט 60 · סטאטוס 20.
+  sheet.columns = [{ width: 50 }, { width: 60 }, { width: 20 }];
+
+  // Row 1 — title, merged across the three columns.
+  sheet.mergeCells("A1:C1");
+  const titleCell = sheet.getCell("A1");
+  titleCell.value = title;
+  titleCell.font = { bold: true, size: 16 };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  sheet.getRow(1).height = 28;
+
+  // Row 2 — intentional gap (matches the customer's template).
+
+  // Row 3 — column headers: shaded, bold, bordered, centered.
+  const headerRow = sheet.getRow(3);
+  const headerLabels = [HEADER_REQUIREMENTS, HEADER_DETAIL, HEADER_STATUS];
+  headerLabels.forEach((label, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = label;
+    cell.font = { bold: true, size: 12 };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: COLOR_HEADER_FILL }
+    };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = thinBorder;
+  });
+  headerRow.height = 20;
+
+  // Category groups: a merged band, then the rows beneath it.
+  let rowIdx = 4;
+  for (const [category, items] of groupByCategory(rows)) {
+    sheet.mergeCells(rowIdx, 1, rowIdx, 3);
+    const bandRow = sheet.getRow(rowIdx);
+    const bandCell = bandRow.getCell(1);
+    bandCell.value = category;
+    bandCell.font = { bold: true, size: 12 };
+    bandCell.alignment = { horizontal: "center", vertical: "middle" };
+    // Border + fill must be applied to every underlying cell of the merge so
+    // all four edges render (Excel only paints borders on real cells).
+    for (let c = 1; c <= 3; c++) {
+      const cell = bandRow.getCell(c);
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: COLOR_CATEGORY_FILL }
+      };
+      cell.border = thinBorder;
+    }
+    bandRow.height = 18;
+    rowIdx++;
+
+    for (const item of items) {
+      const dataRow = sheet.getRow(rowIdx);
+      const reqCell = dataRow.getCell(1);
+      const detailCell = dataRow.getCell(2);
+      const statusCell = dataRow.getCell(3);
+      reqCell.value = item.requirement;
+      detailCell.value = item.detail;
+      statusCell.value = item.status;
+      reqCell.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
+      detailCell.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
+      statusCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      reqCell.border = thinBorder;
+      detailCell.border = thinBorder;
+      statusCell.border = thinBorder;
+      rowIdx++;
+    }
   }
 
-  const sheet = XLSX.utils.aoa_to_sheet(aoa);
-  // Merge A1:C1 so the title visually spans the three data columns.
-  sheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
-  // Widths chosen so the שם המשימה / תיאור columns aren't truncated when
-  // opened cold in Excel. RTL is set at the worksheet view level below.
-  sheet["!cols"] = [{ wch: 38 }, { wch: 52 }, { wch: 18 }];
-  // SheetJS reads this property to write <sheetView rightToLeft="1"/>
-  // — Excel then opens the sheet with columns running R→L like the
-  // customer's template. Not in SheetJS' published types; cast through
-  // unknown to keep this contained.
-  (sheet as unknown as { "!views": { RTL: boolean }[] })["!views"] = [
-    { RTL: true }
-  ];
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, "סטטוס");
-
-  const buf = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-  // Node Buffer or Uint8Array depending on the runtime; both base64-encode
-  // via Buffer.from(...).toString.
-  return Buffer.from(buf).toString("base64");
+  const buf = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buf as ArrayBuffer).toString("base64");
 }
 
 // Locates the header row by searching for a cell containing exactly
