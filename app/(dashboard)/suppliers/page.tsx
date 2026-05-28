@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { SupplierPicker } from "@/components/global/supplier-picker";
+import { PageHeader } from "@/components/global/page-header";
 import {
   SUPPLIER_ASSIGNMENT_STATUS_LABEL,
   SUPPLIER_ASSIGNMENT_STATUS_VARIANT,
@@ -31,12 +32,11 @@ export default async function SuppliersGlobalPage({
 
   return (
     <section className="flex flex-col gap-3">
-      <header>
-        <h1 className="text-base font-semibold">ספקים — Bulk View</h1>
-        <p className="text-[11px] text-muted-foreground">
-          תצוגת "סבב ספק" — בחר ספק וראה את כל המשימות הפתוחות מולו חוצות-פרויקטים.
-        </p>
-      </header>
+      <PageHeader
+        title="ספקים"
+        accent="Bulk View"
+        description={'תצוגת "סבב ספק" — בחר ספק וראה את כל המשימות הפתוחות מולו חוצות-פרויקטים.'}
+      />
 
       <SupplierPicker suppliers={suppliers} currentSupplierId={supplierId} />
 

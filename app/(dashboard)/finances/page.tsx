@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Wallet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import type { MilestoneStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { FinancesFilterBar } from "@/components/global/finances-filter-bar";
+import { PageHeader } from "@/components/global/page-header";
 import { MILESTONE_STATUS_LABEL, MILESTONE_STATUS_VARIANT } from "@/lib/status-maps";
 import { cn, formatDate, formatILS } from "@/lib/utils";
 
@@ -80,17 +81,11 @@ export default async function FinancesGlobalPage({
 
   return (
     <section className="flex flex-col gap-3">
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-            <Wallet className="size-5 text-muted-foreground" />
-            כספים — אבני דרך לחיוב
-          </h1>
-          <p className="text-[11px] text-muted-foreground">
-            תצוגה חוצת-פרויקטים. סינון נשמר ב-URL — אפשר לסמן כסימנייה.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        title="כספים"
+        accent="אבני דרך לחיוב"
+        description="תצוגה חוצת-פרויקטים. סינון נשמר ב-URL — אפשר לסמן כסימנייה."
+      />
 
       <div className="grid grid-cols-3 gap-2">
         <SummaryCard

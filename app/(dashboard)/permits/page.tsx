@@ -3,6 +3,8 @@ import { FolderPlus } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/global/page-header";
 import { PermitMobileCard } from "@/components/permits/permit-mobile-card";
 import { PermitRowActions } from "@/components/permits/permit-row-actions";
 import { PERMIT_STATUS_LABEL, PERMIT_STATUS_VARIANT } from "@/lib/status-maps";
@@ -46,18 +48,21 @@ export default async function PermitsListPage() {
 
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-base font-semibold">היתרים ({permits.length})</h1>
-        {isAdmin && (
-          <Link
-            href="/permits/new"
-            className="inline-flex items-center gap-1.5 rounded border border-foreground bg-foreground px-3 py-1 text-[11px] font-medium text-background hover:opacity-90"
-          >
-            <FolderPlus className="size-3.5" />
-            פרויקט חדש
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="היתרים"
+        accent={`(${permits.length})`}
+        className="mb-3"
+        action={
+          isAdmin ? (
+            <Button asChild variant="cta" className="h-9">
+              <Link href="/permits/new">
+                <FolderPlus className="size-3.5" />
+                פרויקט חדש
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       <div className="md:hidden flex flex-col gap-2">
         {permits.length === 0 ? (

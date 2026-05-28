@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { NewProjectForm } from "@/components/projects/new-project-form";
+import { PageHeader } from "@/components/global/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +42,10 @@ export default async function NewProjectPage() {
 
   return (
     <section className="flex flex-col gap-3">
-      <header>
-        <h1 className="text-base font-semibold">פרויקט חדש</h1>
-        <p className="text-[11px] text-muted-foreground">
-          יצירת לקוח (אם חדש) + עסקה + היתר. משימות יווצרו אוטומטית מתבניות
-          לפי רשות + סוג בניין שתבחר.
-        </p>
-      </header>
+      <PageHeader
+        title="פרויקט חדש"
+        description="יצירת לקוח (אם חדש) + עסקה + היתר. משימות יווצרו אוטומטית מתבניות לפי רשות + סוג בניין שתבחר."
+      />
 
       <NewProjectForm
         clients={clients}

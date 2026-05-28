@@ -13,13 +13,18 @@ const buttonVariants = cva(
         outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline"
+        link: "text-primary underline-offset-4 hover:underline",
+        // Landing-page CTA: orange gradient pill with a soft glow. For primary
+        // page-level actions only — keep tables on `default`/`outline`.
+        cta: "rounded-full bg-gradient-to-l from-primary to-brand-orange-light font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:shadow-xl hover:shadow-primary/40 hover:brightness-[1.03]"
       },
       size: {
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-8",
-        icon: "h-9 w-9"
+        icon: "h-9 w-9",
+        // Roomier pill for hero CTAs (pairs with variant="cta").
+        pill: "h-11 rounded-full px-7 text-sm"
       }
     },
     defaultVariants: {

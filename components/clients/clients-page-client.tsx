@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { deleteClient } from "@/app/actions/clients";
 import { exportClientsCsv, importClientsCsv } from "@/app/actions/csv";
 import { CsvToolbar } from "@/components/global/csv-toolbar";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/global/page-header";
 import { ClientFormDialog, type ClientFormInitial } from "./client-form-dialog";
 
 export type ClientRow = {
@@ -64,30 +66,30 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
 
   return (
     <section className="flex flex-col gap-3">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-base font-semibold">לקוחות ({rows.length})</h1>
-          <p className="text-[11px] text-muted-foreground">
-            כל הלקוחות העסקיים — חברות, עסקאות והיתרים שלהן.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <CsvToolbar
-            entityLabel="לקוחות"
-            helpText="עמודות חובה: שם החברה, איש קשר, טלפון"
-            exportAction={exportClientsCsv}
-            importAction={importClientsCsv}
-          />
-          <button
-            type="button"
-            onClick={() => setMode({ kind: "create" })}
-            className="inline-flex items-center gap-1.5 rounded border border-foreground bg-foreground px-3 py-1 text-[11px] font-medium text-background hover:opacity-90"
-          >
-            <Plus className="size-3.5" />
-            לקוח חדש
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title="לקוחות"
+        accent={`(${rows.length})`}
+        description="כל הלקוחות העסקיים — חברות, עסקאות והיתרים שלהן."
+        action={
+          <>
+            <CsvToolbar
+              entityLabel="לקוחות"
+              helpText="עמודות חובה: שם החברה, איש קשר, טלפון"
+              exportAction={exportClientsCsv}
+              importAction={importClientsCsv}
+            />
+            <Button
+              type="button"
+              variant="cta"
+              className="h-9"
+              onClick={() => setMode({ kind: "create" })}
+            >
+              <Plus className="size-3.5" />
+              לקוח חדש
+            </Button>
+          </>
+        }
+      />
 
       <div className="relative">
         <Search className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />

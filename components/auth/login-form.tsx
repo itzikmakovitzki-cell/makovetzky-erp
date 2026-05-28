@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Loader2, LogIn } from "lucide-react";
 import { signInAction } from "@/app/actions/auth";
+import { Button } from "@/components/ui/button";
 
 export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [state, formAction, isPending] = useActionState(signInAction, { error: null });
@@ -42,14 +43,16 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
         </div>
       )}
 
-      <button
+      <Button
         type="submit"
+        variant="cta"
+        size="pill"
         disabled={isPending}
-        className="inline-flex w-full items-center justify-center gap-1.5 rounded border border-foreground bg-foreground px-3 py-1.5 text-[12px] font-medium text-background hover:opacity-90 disabled:opacity-50"
+        className="w-full"
       >
-        {isPending ? <Loader2 className="size-3 animate-spin" /> : <LogIn className="size-3" />}
+        {isPending ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
         התחבר
-      </button>
+      </Button>
     </form>
   );
 }

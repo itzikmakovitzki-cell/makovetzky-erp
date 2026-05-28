@@ -16,6 +16,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { ClientModeShield } from "@/components/global/client-mode-shield";
+import { PageHeader } from "@/components/global/page-header";
 import {
   PERMIT_STATUS_LABEL,
   PERMIT_STATUS_VARIANT
@@ -163,16 +164,15 @@ export default async function HomeDashboardPage() {
 
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-base font-semibold">
-          {isAdmin ? "מבט-על — מנהל" : "מבט-על"}
-        </h1>
-        <p className="text-[11px] text-muted-foreground">
-          {isAdmin
+      <PageHeader
+        title="מבט-על"
+        accent={isAdmin ? "מנהל" : undefined}
+        description={
+          isAdmin
             ? "תמונת מצב חוצת-לקוחות וצווארי בקבוק שדורשים טיפול."
-            : "סטטוס פרויקטים פעילים ופעילות אחרונה."}
-        </p>
-      </header>
+            : "סטטוס פרויקטים פעילים ופעילות אחרונה."
+        }
+      />
 
       {/* =====================================================================
          OPERATIONAL SECTION (top)
@@ -493,33 +493,32 @@ function StatCard({
   const inner = (
     <div
       className={cn(
-        "group relative h-full overflow-hidden rounded-lg border border-border/70 bg-card px-3.5 py-3 shadow-sm transition-all duration-200 md:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_1px_rgba(0,0,0,0.02)]",
+        "group relative h-full overflow-hidden rounded-xl border border-border/70 bg-card px-3.5 py-3 shadow-sm transition-all duration-200 md:shadow-[0_2px_8px_rgba(19,25,44,0.06),0_0_0_1px_rgba(0,0,0,0.02)]",
         accent === "warning" &&
           "border-amber-500/40 bg-amber-50/50 dark:bg-amber-500/5",
         accent === "info" && "border-sky-500/40 bg-sky-50/50 dark:bg-sky-500/5",
         href &&
-          "cursor-pointer hover:border-foreground/30 hover:shadow-md md:hover:-translate-y-0.5"
+          "cursor-pointer hover:border-primary/30 hover:shadow-lg md:hover:-translate-y-0.5"
       )}
     >
-      {/* Top accent rail surfaces only on hover for clickable cards — feels alive without being noisy at rest. */}
-      {href && (
-        <span
-          aria-hidden
-          className={cn(
-            "absolute inset-x-3.5 top-0 h-px scale-x-0 bg-gradient-to-r from-transparent via-foreground/30 to-transparent transition-transform duration-300 group-hover:scale-x-100",
-            accent === "warning" && "via-amber-600/40",
-            accent === "info" && "via-sky-600/40"
-          )}
-        />
-      )}
-      <div className="flex items-center justify-between gap-2">
+      {/* Soft peach/orange blob in the corner — the landing-page card motif. */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute -top-8 -start-8 size-20 rounded-full bg-primary/10 blur-xl transition-opacity duration-300",
+          accent === "warning" && "bg-amber-500/15",
+          accent === "info" && "bg-sky-500/15",
+          href && "group-hover:bg-primary/20"
+        )}
+      />
+      <div className="relative flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
         <span
           className={cn(
             "transition-colors duration-200",
-            href && "group-hover:text-foreground"
+            href && "group-hover:text-primary"
           )}
         >
           {icon}
@@ -527,13 +526,17 @@ function StatCard({
       </div>
       <div
         className={cn(
-          "mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums md:text-[1.4rem]",
-          accent === "warning" && "text-amber-800 dark:text-amber-300"
+          "relative mt-1.5 text-2xl font-extrabold leading-none tracking-tight tabular-nums md:text-[1.4rem]",
+          // Brand orange numbers by default (landing-card style); accent
+          // variants keep their semantic color.
+          !accent && "text-primary",
+          accent === "warning" && "text-amber-800 dark:text-amber-300",
+          accent === "info" && "text-sky-800 dark:text-sky-300"
         )}
       >
         {value}
       </div>
-      <div className="mt-1 text-[10.5px] leading-snug text-muted-foreground">
+      <div className="relative mt-1 text-[10.5px] leading-snug text-muted-foreground">
         {helper}
       </div>
     </div>

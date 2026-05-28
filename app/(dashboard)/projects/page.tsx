@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { FolderKanban, Plus, ArrowLeft } from "lucide-react";
+import { Plus, ArrowLeft } from "lucide-react";
 import type { PermitStatus, MasterDealStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ClientModeShield } from "@/components/global/client-mode-shield";
+import { PageHeader } from "@/components/global/page-header";
 import { MoneyCell } from "@/components/global/money-cell";
 import {
   MASTER_DEAL_STATUS_LABEL,
@@ -121,24 +123,19 @@ export default async function ProjectsListPage() {
 
   return (
     <section className="flex flex-col gap-3">
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-            <FolderKanban className="size-5 text-muted-foreground" />
-            פרויקטים — Master Deals
-          </h1>
-          <p className="text-[11px] text-muted-foreground">
-            תצוגה ברמת הפרויקט. כל פרויקט מכיל היתר אחד או יותר. לחץ על שורה כדי לראות את ההיתרים תחתיו.
-          </p>
-        </div>
-        <Link
-          href="/permits/new"
-          className="inline-flex items-center gap-1.5 rounded border border-foreground bg-foreground px-2.5 py-1 text-[12px] font-medium text-background hover:opacity-90"
-        >
-          <Plus className="size-3" />
-          פרויקט חדש
-        </Link>
-      </header>
+      <PageHeader
+        title="פרויקטים"
+        accent="Master Deals"
+        description="תצוגה ברמת הפרויקט. כל פרויקט מכיל היתר אחד או יותר. לחץ על שורה כדי לראות את ההיתרים תחתיו."
+        action={
+          <Button asChild variant="cta" className="h-9">
+            <Link href="/permits/new">
+              <Plus className="size-3.5" />
+              פרויקט חדש
+            </Link>
+          </Button>
+        }
+      />
 
       {isAdmin && grandTotals && (
         <ClientModeShield

@@ -17,17 +17,41 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="grid min-h-screen place-items-center p-4">
-      <div className="flex w-full max-w-sm flex-col items-center gap-4">
-        <Image
-          src="/logo.png"
-          alt="מקובצקי — ניהול פרויקטים"
-          width={640}
-          height={271}
-          priority
-          className="h-auto w-72 object-contain drop-shadow-sm"
-        />
-        <div className="w-full rounded-md border bg-card shadow-sm">
+    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-brand-navy p-4 text-brand-navy-foreground">
+      {/* Soft orange glow accents echoing the marketing hero */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-24 -start-24 size-72 rounded-full bg-primary/20 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-28 -end-20 size-80 rounded-full bg-primary/10 blur-3xl"
+      />
+
+      <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-6">
+        <div className="flex items-center justify-center rounded-xl bg-white/95 px-5 py-4 shadow-lg">
+          <Image
+            src="/logo.png"
+            alt="מקובצקי — ניהול פרויקטים"
+            width={640}
+            height={271}
+            priority
+            className="h-auto w-60 object-contain"
+          />
+        </div>
+
+        <div className="text-center">
+          <h1 className="text-3xl font-extrabold leading-tight tracking-tight">
+            ניהול בירוקרטי
+            <br />
+            <span className="text-primary">לפרויקטי נדל״ן</span>
+          </h1>
+          <p className="mt-2 text-sm text-white/70">
+            התחברו כדי להמשיך לניהול ההיתרים והפרויקטים שלכם.
+          </p>
+        </div>
+
+        <div className="w-full rounded-xl border border-white/10 bg-card text-card-foreground shadow-2xl">
           <LoginForm callbackUrl={callbackUrl} />
         </div>
       </div>
