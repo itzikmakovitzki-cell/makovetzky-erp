@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Truck, AlertCircle } from "lucide-react";
 import type { Prisma } from "@prisma/client";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { SupplierPicker } from "@/components/global/supplier-picker";
+import { AddSupplierButton } from "@/components/suppliers/add-supplier-button";
 import { PageHeader } from "@/components/global/page-header";
 import {
   SUPPLIER_ASSIGNMENT_STATUS_LABEL,
@@ -25,10 +27,14 @@ export default async function SuppliersGlobalPage({
     typeof params.supplier === "string" && params.supplier ? params.supplier : null;
   const showAll = params.all === "true";
 
-  const suppliers = await prisma.supplier.findMany({
-    select: { id: true, name: true, type: true },
-    orderBy: { name: "asc" }
-  });
+  const [session, suppliers] = await Promise.all([
+    auth(),
+    prisma.supplier.findMany({
+      select: { id: true, name: true, type: true },
+      orderBy: { name: "asc" }
+    })
+  ]);
+  const isAdmin = session?.user?.role === "ADMIN";
 
   return (
     <section className="flex flex-col gap-3">
@@ -36,6 +42,7 @@ export default async function SuppliersGlobalPage({
         title="ספקים"
         accent="Bulk View"
         description={'תצוגת "סבב ספק" — בחר ספק וראה את כל המשימות הפתוחות מולו חוצות-פרויקטים.'}
+        action={isAdmin ? <AddSupplierButton /> : undefined}
       />
 
       <SupplierPicker suppliers={suppliers} currentSupplierId={supplierId} />
