@@ -9,7 +9,7 @@ import { SpotlightToggle } from "@/components/permit/spotlight-toggle";
 import { DependencyOverride } from "@/components/permit/dependency-override";
 import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { MagicLinkButton } from "@/components/permit/magic-link-button";
-import { PermitTasksCsvToolbar } from "@/components/permit/permit-tasks-csv-toolbar";
+import { PermitTasksXlsxToolbar } from "@/components/permit/permit-tasks-xlsx-toolbar";
 import { TaskEditButton } from "@/components/permit/task-edit-dialog";
 import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
 import {
@@ -80,7 +80,7 @@ export async function TasksTable({ permitId }: { permitId: string }) {
               <Star className="size-3 fill-yellow-500 text-yellow-500" /> Managerial Spotlight
             </span>
           </div>
-          <PermitTasksCsvToolbar permitId={permitId} canImport={isAdmin} />
+          <PermitTasksXlsxToolbar permitId={permitId} canImport={isAdmin} />
         </div>
       </div>
 
