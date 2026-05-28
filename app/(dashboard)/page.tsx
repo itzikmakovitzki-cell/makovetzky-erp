@@ -145,10 +145,9 @@ export default async function HomeDashboardPage() {
       />
 
       {/* =====================================================================
-         OPERATIONAL SECTION (top)
-         Per Block 19: this entire block must stay free of monetary values so
-         the screen is safe to face a client. Anything money-coded lives in
-         the ClientModeShield-wrapped financial section at the bottom.
+         OPERATIONAL SECTION
+         Per Block 23 the dashboard is 100% money-free — every monetary value
+         lives only in /finances, reached via the discreet link below.
          ===================================================================== */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 border-b border-border/60 pb-2">
