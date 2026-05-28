@@ -48,10 +48,11 @@ export async function exportPermitTasksXlsx(
       status: TASK_STATUS_TO_MAKOVETZKI_HE[t.status]
     }));
     const title = `טופס 4 / תעודת גמר - ${permit.name}`;
+    const base64 = await buildMakovetzkiWorkbook(title, rows);
     return {
       ok: true,
       error: null,
-      base64: buildMakovetzkiWorkbook(title, rows),
+      base64,
       filename: `makovetzki_${safeFileSegment(permit.name)}_${todayStamp()}.xlsx`
     };
   } catch (e) {
