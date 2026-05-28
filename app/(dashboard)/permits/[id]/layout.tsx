@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
+import { Wallet, FileText } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PermitHeader } from "@/components/permit/permit-header";
 import { PermitTabs } from "@/components/permit/permit-tabs";
-import { SplitView } from "@/components/permit/split-view";
+import { SheetButton } from "@/components/global/sheet-button";
 import { FinanceSummary } from "@/components/permit/finance-summary";
 import { DocumentsSummary } from "@/components/permit/documents-summary";
 import { CompletionBanner } from "@/components/permit/completion-banner";
@@ -80,12 +81,29 @@ export default async function PermitLayout({
           notes: notesCount
         }}
       />
-      <SplitView
-        finance={<FinanceSummary permitId={id} />}
-        documents={<DocumentsSummary permitId={id} />}
-      >
-        {children}
-      </SplitView>
+      {/* Block 23: financial data is fully hidden by default — it only renders
+          inside the "ניהול פיננסי" side drawer, so the permit screen is safe to
+          present to a client at any time. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-end gap-1.5">
+          <SheetButton
+            label="ניהול פיננסי"
+            title={`ניהול פיננסי — ${permit.name}`}
+            tone="finance"
+            icon={<Wallet className="size-3.5" />}
+          >
+            <FinanceSummary permitId={id} />
+          </SheetButton>
+          <SheetButton
+            label="מסמכים"
+            title={`מסמכים — ${permit.name}`}
+            icon={<FileText className="size-3.5" />}
+          >
+            <DocumentsSummary permitId={id} />
+          </SheetButton>
+        </div>
+        <main className="min-w-0">{children}</main>
+      </div>
     </div>
   );
 }

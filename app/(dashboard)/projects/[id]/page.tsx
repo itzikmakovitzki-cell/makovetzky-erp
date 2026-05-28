@@ -4,19 +4,22 @@ import {
   ArrowRight,
   Building2,
   FolderKanban,
-  StickyNote
+  StickyNote,
+  Wallet
 } from "lucide-react";
 import type { PermitStatus, MasterDealStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { SheetButton } from "@/components/global/sheet-button";
+import { DealFinanceSummary } from "@/components/projects/deal-finance-summary";
 import {
   MASTER_DEAL_STATUS_LABEL,
   MASTER_DEAL_STATUS_VARIANT,
   PERMIT_STATUS_LABEL,
   PERMIT_STATUS_VARIANT
 } from "@/lib/status-maps";
-import { cn, formatDate, formatILS } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { AddPermitDialogTrigger } from "@/components/projects/add-permit-dialog";
 
 export const dynamic = "force-dynamic";
@@ -59,14 +62,7 @@ export default async function ProjectDetailPage({
               buildings: true,
               documents: { where: { deletedAt: null } }
             }
-          },
-          ...(isAdmin
-            ? {
-                milestones: {
-                  select: { status: true, amount: true }
-                }
-              }
-            : {})
+          }
         }
       }
     }
@@ -95,23 +91,6 @@ export default async function ProjectDetailPage({
   }
   const progressPercent =
     totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
-
-  // Admin-only financial aggregates across all permits' milestones.
-  let paidSum = 0;
-  let pendingSum = 0;
-  if (isAdmin) {
-    for (const p of deal.permits) {
-      const milestones = (p as unknown as { milestones?: { status: string; amount: unknown }[] }).milestones ?? [];
-      for (const m of milestones) {
-        const value = Number((m.amount as { toString(): string }).toString());
-        if (m.status === "PAID") paidSum += value;
-        else pendingSum += value;
-      }
-    }
-  }
-  const totalValue = deal.totalValue ? Number(deal.totalValue.toString()) : null;
-  const remaining =
-    isAdmin && totalValue !== null ? totalValue - paidSum : null;
 
   return (
     <section className="flex flex-col gap-3">
@@ -146,34 +125,28 @@ export default async function ProjectDetailPage({
               <span>· נוצר: {formatDate(deal.createdAt)}</span>
             </div>
           </div>
-          <Badge variant={MASTER_DEAL_STATUS_VARIANT[deal.status as MasterDealStatus]}>
-            {MASTER_DEAL_STATUS_LABEL[deal.status as MasterDealStatus]}
-          </Badge>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <Badge variant={MASTER_DEAL_STATUS_VARIANT[deal.status as MasterDealStatus]}>
+              {MASTER_DEAL_STATUS_LABEL[deal.status as MasterDealStatus]}
+            </Badge>
+            {/* Block 23: deal financials are hidden by default — admins open the
+                drawer to view value, billing milestones, and outstanding balance. */}
+            {isAdmin && (
+              <SheetButton
+                label="ניהול פיננסי"
+                title={`ניהול פיננסי — ${deal.name}`}
+                tone="finance"
+                icon={<Wallet className="size-3.5" />}
+              >
+                <DealFinanceSummary dealId={deal.id} />
+              </SheetButton>
+            )}
+          </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] md:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
           <Stat label="היתרים בפרויקט" value={`${activePermits} פעילים · ${totalPermits} סה"כ`} />
           <Stat label="משימות" value={`${completedTasks}/${totalTasks} (${progressPercent}%)`} />
-          {isAdmin && (
-            <Stat
-              label="ערך עסקה"
-              value={totalValue !== null ? formatILS(totalValue) : "—"}
-            />
-          )}
-          {isAdmin && (
-            <Stat
-              label="שולם / יתרה"
-              value={
-                <>
-                  <span className="text-emerald-700 dark:text-emerald-400">{formatILS(paidSum)}</span>
-                  {" · "}
-                  <span className={(remaining ?? 0) >= 0 ? "text-muted-foreground" : "text-red-600"}>
-                    {remaining !== null ? formatILS(remaining) : "—"}
-                  </span>
-                </>
-              }
-            />
-          )}
         </div>
 
         {totalTasks > 0 && (

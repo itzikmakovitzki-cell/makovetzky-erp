@@ -15,13 +15,12 @@ import {
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
-import { ClientModeShield } from "@/components/global/client-mode-shield";
 import { PageHeader } from "@/components/global/page-header";
 import {
   PERMIT_STATUS_LABEL,
   PERMIT_STATUS_VARIANT
 } from "@/lib/status-maps";
-import { cn, formatDateTime, formatILS } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { createSignedUrlsSafe, isStoragePath } from "@/lib/supabase-storage";
 
 export const dynamic = "force-dynamic";
@@ -48,9 +47,6 @@ export default async function HomeDashboardPage() {
     activePermitsCount,
     activeClientsCount,
     awaitingAuthorityCount,
-    pendingMilestoneSum,
-    dueMilestoneSum,
-    paidMilestoneSum,
     pendingDocs,
     stuckPermits,
     fieldUploads
@@ -81,24 +77,6 @@ export default async function HomeDashboardPage() {
         permit: { deletedAt: null }
       }
     }),
-    isAdmin
-      ? prisma.billingMilestone.aggregate({
-          _sum: { amount: true },
-          where: { status: "PENDING", permit: { deletedAt: null } }
-        })
-      : Promise.resolve({ _sum: { amount: null } }),
-    isAdmin
-      ? prisma.billingMilestone.aggregate({
-          _sum: { amount: true },
-          where: { status: "DUE", permit: { deletedAt: null } }
-        })
-      : Promise.resolve({ _sum: { amount: null } }),
-    isAdmin
-      ? prisma.billingMilestone.aggregate({
-          _sum: { amount: true },
-          where: { status: "PAID", permit: { deletedAt: null } }
-        })
-      : Promise.resolve({ _sum: { amount: null } }),
     isAdmin
       ? prisma.pendingDocument.findMany({
           where: { status: "PENDING" },
@@ -153,14 +131,6 @@ export default async function HomeDashboardPage() {
     if (isStoragePath(fileUrl)) return signedUrls.get(fileUrl) ?? null;
     return fileUrl;
   };
-
-  const pendingRevenue =
-    Number(pendingMilestoneSum._sum.amount ?? 0) +
-    Number(dueMilestoneSum._sum.amount ?? 0);
-  const collectedRevenue = Number(paidMilestoneSum._sum.amount ?? 0);
-  const totalRevenue = pendingRevenue + collectedRevenue;
-  const collectedPct =
-    totalRevenue > 0 ? Math.round((collectedRevenue / totalRevenue) * 100) : 0;
 
   return (
     <section className="flex flex-col gap-6">
@@ -403,53 +373,16 @@ export default async function HomeDashboardPage() {
       </div>
       {/* ===== end of OPERATIONAL section ===== */}
 
-      {/* =====================================================================
-         FINANCIAL SECTION (bottom)
-         Wrapped in <ClientModeShield> so the user can blur the entire block
-         with one click before showing the screen to a client. Only admins see
-         money in this app, but the wrapper renders for everyone so the toggle
-         is still discoverable on shared screens.
-         ===================================================================== */}
+      {/* Block 23: all monetary data lives ONLY in /finances now. The dashboard
+          is intentionally money-free so it's safe to present to a client. */}
       {isAdmin && (
-        <ClientModeShield>
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-            <StatCard
-              label="צפי הכנסה"
-              value={formatILS(pendingRevenue)}
-              icon={<Wallet className="size-4 text-muted-foreground" />}
-              helper={`נגבה: ${formatILS(collectedRevenue)} (${collectedPct}%)`}
-              href="/finances"
-              accent={pendingRevenue > 0 ? "info" : undefined}
-            />
-            <StatCard
-              label="סכום שנגבה"
-              value={formatILS(collectedRevenue)}
-              icon={<CheckCircle2 className="size-4 text-emerald-600" />}
-              helper={`מתוך ${formatILS(totalRevenue)} סך החיובים`}
-              href="/finances"
-            />
-          </div>
-
-          {totalRevenue > 0 && (
-            <div className="rounded-lg border border-border/70 bg-card px-3 py-2.5 shadow-sm">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-medium">סטטוס גבייה כולל</span>
-                <span className="tabular-nums text-muted-foreground">
-                  {formatILS(collectedRevenue)} / {formatILS(totalRevenue)}
-                </span>
-              </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-emerald-500 transition-all duration-300"
-                  style={{ width: `${collectedPct}%` }}
-                />
-              </div>
-              <div className="mt-1 text-[10px] tabular-nums text-muted-foreground">
-                {collectedPct}% נגבה
-              </div>
-            </div>
-          )}
-        </ClientModeShield>
+        <Link
+          href="/finances"
+          className="inline-flex w-fit items-center gap-1.5 rounded-md border border-input bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Wallet className="size-3.5" />
+          לניהול הכספים והגבייה
+        </Link>
       )}
     </section>
   );
