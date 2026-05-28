@@ -24,20 +24,20 @@ export function UserMenu({
   role: UserRole;
 }) {
   return (
-    <div className="mt-auto border-t pt-3">
+    <div className="mt-auto border-t border-white/10 pt-3">
       <div className="mb-1 px-2">
         <div className="flex items-center gap-1.5">
           <span className={`inline-block size-1.5 rounded-full ${ROLE_DOT[role]}`} />
-          <span className="text-xs font-medium">{name}</span>
+          <span className="text-xs font-medium text-white">{name}</span>
         </div>
-        <div className="text-[10px] text-muted-foreground" title={email}>
+        <div className="text-[10px] text-white/55" title={email}>
           {ROLE_LABEL[role]} · <span className="truncate">{email}</span>
         </div>
       </div>
       <form action={signOutAction}>
         <button
           type="submit"
-          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-foreground/80 hover:bg-accent hover:text-accent-foreground"
+          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white"
         >
           <LogOut className="size-3.5" />
           התנתק

@@ -55,7 +55,7 @@ export function DashboardNav({ role }: { role?: UserRole }) {
           return (
             <span
               key={item.href}
-              className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2.5 py-2 text-foreground/30"
+              className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2.5 py-2 text-white/30"
               title="אין הרשאה — מיועד למנהל"
             >
               <item.icon className="size-4 shrink-0" strokeWidth={1.75} />
@@ -72,21 +72,21 @@ export function DashboardNav({ role }: { role?: UserRole }) {
             className={cn(
               "group relative flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-all duration-150",
               isActive
-                ? "bg-foreground font-medium text-background shadow-sm"
-                : "text-foreground/75 hover:bg-accent hover:text-foreground"
+                ? "bg-primary font-medium text-primary-foreground shadow-sm"
+                : "text-white/75 hover:bg-white/10 hover:text-white"
             )}
             aria-current={isActive ? "page" : undefined}
           >
             {isActive && (
               <span
-                className="absolute inset-y-1 start-0 w-0.5 rounded-full bg-background/60"
+                className="absolute inset-y-1 start-0 w-0.5 rounded-full bg-primary-foreground/60"
                 aria-hidden
               />
             )}
             <item.icon
               className={cn(
                 "size-4 shrink-0 transition-transform duration-150",
-                isActive ? "scale-110" : "text-foreground/60 group-hover:text-foreground"
+                isActive ? "scale-110" : "text-white/60 group-hover:text-white"
               )}
               strokeWidth={isActive ? 2.25 : 1.75}
             />

@@ -106,13 +106,13 @@ export function MobileBottomNav({
                   href={slot.href}
                   className={cn(
                     "relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors active:bg-muted/50",
-                    active ? "text-foreground" : "text-muted-foreground"
+                    active ? "text-primary" : "text-muted-foreground"
                   )}
                   aria-current={active ? "page" : undefined}
                 >
                   {active && (
                     <span
-                      className="absolute top-0 h-0.5 w-8 rounded-full bg-foreground"
+                      className="absolute top-0 h-0.5 w-8 rounded-full bg-primary"
                       aria-hidden
                     />
                   )}
