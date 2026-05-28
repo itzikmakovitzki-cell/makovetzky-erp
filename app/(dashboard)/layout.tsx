@@ -11,15 +11,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-60 shrink-0 flex-col border-l border-border/60 bg-muted/30 px-3 py-4 md:flex md:sticky md:top-0 md:h-screen">
-        <div className="mb-4 flex items-center justify-center border-b border-border/60 pb-3">
+      <aside className="hidden w-60 shrink-0 flex-col border-l border-white/10 bg-brand-navy px-3 py-4 text-brand-navy-foreground md:flex md:sticky md:top-0 md:h-screen">
+        <div className="mb-4 flex items-center justify-center rounded-md bg-white/95 px-2 py-3">
           <Image
             src="/logo.png"
             alt="מקובצקי — ניהול פרויקטים"
             width={480}
             height={203}
             priority
-            className="h-auto w-full max-w-[200px] object-contain"
+            className="h-auto w-full max-w-[180px] object-contain"
           />
         </div>
         <DashboardNav role={user?.role} />
