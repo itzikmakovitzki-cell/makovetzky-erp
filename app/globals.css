@@ -163,4 +163,16 @@
       height: 3rem;
     }
   }
+
+  /* Block 25 — "dopamine" treatment for finished work: dim the whole row/card
+     and strike its text. Form controls reset text-decoration in most browsers,
+     so the inline status pill stays legible. Apply `.task-completed` to a <tr>
+     or a Kanban card root; `.task-name` marks the strikeable title on cards. */
+  .task-completed {
+    opacity: 0.6;
+  }
+  .task-completed td,
+  .task-completed .task-name {
+    text-decoration: line-through;
+  }
 }

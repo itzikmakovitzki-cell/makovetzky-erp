@@ -5,6 +5,10 @@ import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { ProjectTag } from "@/components/tasks/project-tag";
 import { InlineAssignee } from "@/components/tasks/inline-assignee";
 import { InlineDueDate } from "@/components/tasks/inline-due-date";
+import { SnoozeButton } from "@/components/tasks/snooze-button";
+import { SnoozeBadge } from "@/components/tasks/snooze-badge";
+import { TaskTitle } from "@/components/tasks/task-title";
+import { WhatsAppReminderButton } from "@/components/tasks/whatsapp-reminder-button";
 import { cn } from "@/lib/utils";
 import type { MyTask, AssigneeOption } from "@/components/tasks/my-tasks-types";
 
@@ -50,7 +54,7 @@ export function MyTasksTable({
                 key={t.id}
                 className={cn(
                   "group hover:bg-muted/50",
-                  isCompleted && "text-muted-foreground"
+                  isCompleted && "task-completed"
                 )}
               >
                 <td className="text-center">
@@ -62,8 +66,8 @@ export function MyTasksTable({
                   )}
                 </td>
                 <td>
-                  <div className={cn("font-medium", isCompleted && "line-through")}>
-                    {t.name}
+                  <div className="font-medium">
+                    <TaskTitle name={t.name} />
                   </div>
                 </td>
                 <td>
@@ -94,19 +98,32 @@ export function MyTasksTable({
                   </div>
                 </td>
                 <td>
-                  <InlineAssignee
-                    taskId={t.id}
-                    assigneeId={t.assigneeId}
-                    users={users}
-                  />
+                  <div className="flex items-center gap-0.5">
+                    <InlineAssignee
+                      taskId={t.id}
+                      assigneeId={t.assigneeId}
+                      users={users}
+                    />
+                    <WhatsAppReminderButton
+                      assigneeName={t.assigneeName}
+                      taskName={t.name}
+                      projectName={t.permitName}
+                    />
+                  </div>
                 </td>
                 <td>
-                  <InlineDueDate
-                    taskId={t.id}
-                    value={t.dueDate}
-                    isOverdue={t.dueState === "overdue"}
-                    frozen={t.frozen}
-                  />
+                  <div className="flex flex-col items-start gap-0.5">
+                    <div className="flex items-center gap-0.5">
+                      <InlineDueDate
+                        taskId={t.id}
+                        value={t.dueDate}
+                        isOverdue={t.dueState === "overdue"}
+                        frozen={t.frozen}
+                      />
+                      <SnoozeButton taskId={t.id} className="size-6" />
+                    </div>
+                    <SnoozeBadge count={t.snoozeCount} />
+                  </div>
                 </td>
                 <td>
                   {t.priority === "URGENT" ? (

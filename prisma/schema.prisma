@@ -387,6 +387,9 @@ model Task {
   isSpotlight Boolean             @default(false)
   // True while status = AWAITING_AUTHORITY. Freezes due date and suppresses overdue alerts.
   frozen      Boolean             @default(false)
+  // Block 25: how many times the due date was pushed via the Snooze action.
+  // Surfaces chronic delays — a high count flags a task that keeps slipping.
+  snoozeCount Int                 @default(0)
   // Free-text classification (e.g. "שלד", "אישורי רשויות"). Imported from Excel as-is.
   category    String?
   // Which party owns the task. Surfaced in portal so contractors see what's theirs.

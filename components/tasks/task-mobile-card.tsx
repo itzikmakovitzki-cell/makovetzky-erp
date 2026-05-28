@@ -3,6 +3,8 @@ import { Hourglass, Lock, Star, User } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { TaskTitle } from "@/components/tasks/task-title";
+import { SnoozeBadge } from "@/components/tasks/snooze-badge";
 import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT,
@@ -49,7 +51,7 @@ export function TaskMobileCard({ task, now }: { task: TaskMobileCardData; now: D
       className="block transition-colors active:bg-muted/40"
       aria-label={`${task.permit.name} — ${task.name}`}
     >
-      <Card className="relative overflow-hidden">
+      <Card className={cn("relative overflow-hidden", isCompleted && "opacity-60")}>
         <span
           className={cn("absolute inset-y-0 start-0 w-1", stripeColor)}
           aria-hidden
@@ -69,7 +71,7 @@ export function TaskMobileCard({ task, now }: { task: TaskMobileCardData; now: D
                   isCompleted && "line-through text-muted-foreground"
                 )}
               >
-                {task.name}
+                <TaskTitle name={task.name} />
               </h3>
             </div>
             <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
@@ -141,6 +143,7 @@ export function TaskMobileCard({ task, now }: { task: TaskMobileCardData; now: D
               <User className="size-3" />
               {task.assignee?.name ?? "לא משויך"}
             </span>
+            <SnoozeBadge count={task.snoozeCount} />
           </div>
           {task.priority === "URGENT" && (
             <Badge variant="destructive">דחוף</Badge>

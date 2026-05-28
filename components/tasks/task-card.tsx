@@ -1,6 +1,9 @@
 import { Star, Building2, Loader2 } from "lucide-react";
 import { ProjectTag } from "@/components/tasks/project-tag";
 import { DueBadge } from "@/components/tasks/due-badge";
+import { SnoozeBadge } from "@/components/tasks/snooze-badge";
+import { TaskTitle } from "@/components/tasks/task-title";
+import { WhatsAppReminderButton } from "@/components/tasks/whatsapp-reminder-button";
 import { AssigneeAvatar } from "@/components/tasks/assignee-avatar";
 import { projectColor } from "@/lib/project-color";
 import { cn } from "@/lib/utils";
@@ -18,12 +21,14 @@ export function TaskCard({
   className?: string;
 }) {
   const color = projectColor(task.permitId);
+  const isCompleted = task.status === "COMPLETED";
   return (
     <div
       className={cn(
         "select-none rounded-lg border border-s-4 bg-card p-2 shadow-sm transition hover:shadow-md",
         color.bar,
         pending && "opacity-50",
+        isCompleted && "task-completed",
         className
       )}
     >
@@ -37,8 +42,8 @@ export function TaskCard({
         </div>
       </div>
 
-      <div className="mb-1 line-clamp-2 text-[12px] font-medium leading-snug">
-        {task.name}
+      <div className="task-name mb-1 line-clamp-2 text-[12px] font-medium leading-snug">
+        <TaskTitle name={task.name} />
       </div>
 
       <div className="mb-2 flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -47,13 +52,21 @@ export function TaskCard({
       </div>
 
       <div className="flex items-center justify-between gap-1">
-        <DueBadge date={task.dueDate} state={task.dueState} />
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          <DueBadge date={task.dueDate} state={task.dueState} />
+          <SnoozeBadge count={task.snoozeCount} />
+        </div>
         <div className="flex items-center gap-1">
           {task.priority === "URGENT" && (
             <span className="rounded bg-red-500/10 px-1 py-0.5 text-[9px] font-semibold text-red-700">
               דחוף
             </span>
           )}
+          <WhatsAppReminderButton
+            assigneeName={task.assigneeName}
+            taskName={task.name}
+            projectName={task.permitName}
+          />
           <AssigneeAvatar name={task.assigneeName} />
         </div>
       </div>

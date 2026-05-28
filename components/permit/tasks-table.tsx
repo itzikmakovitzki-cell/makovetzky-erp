@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { InlineAssignee } from "@/components/tasks/inline-assignee";
 import { InlineDueDate } from "@/components/tasks/inline-due-date";
+import { SnoozeButton } from "@/components/tasks/snooze-button";
+import { SnoozeBadge } from "@/components/tasks/snooze-badge";
+import { TaskTitle } from "@/components/tasks/task-title";
+import { WhatsAppReminderButton } from "@/components/tasks/whatsapp-reminder-button";
 import { SpotlightToggle } from "@/components/permit/spotlight-toggle";
 import { DependencyOverride } from "@/components/permit/dependency-override";
 import { SoftDeleteButton } from "@/components/global/soft-delete-button";
@@ -35,6 +39,7 @@ export async function TasksTable({ permitId }: { permitId: string }) {
       include: {
         assignee: { select: { id: true, name: true } },
         template: { select: { name: true } },
+        permit: { select: { name: true } },
         dependsOn: {
           include: {
             dependsOn: { select: { id: true, name: true, status: true } }
@@ -134,7 +139,7 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                 key={t.id}
                 className={cn(
                   "group hover:bg-muted/30",
-                  isCompleted && "text-muted-foreground"
+                  isCompleted && "task-completed"
                 )}
               >
                 <td className="p-1 text-center">
@@ -145,7 +150,9 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                   <SpotlightToggle taskId={t.id} isSpotlight={t.isSpotlight} />
                 </td>
                 <td>
-                  <div className={cn("font-medium", isCompleted && "line-through")}>{t.name}</div>
+                  <div className="font-medium">
+                    <TaskTitle name={t.name} />
+                  </div>
                   {t.template && (
                     <div className="text-[10px] text-muted-foreground">
                       תבנית: {t.template.name}
@@ -178,19 +185,29 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                   )}
                 </td>
                 <td>
-                  <InlineAssignee
-                    taskId={t.id}
-                    assigneeId={t.assignee?.id ?? null}
-                    users={assignees}
-                  />
+                  <div className="flex items-center gap-0.5">
+                    <InlineAssignee
+                      taskId={t.id}
+                      assigneeId={t.assignee?.id ?? null}
+                      users={assignees}
+                    />
+                    <WhatsAppReminderButton
+                      assigneeName={t.assignee?.name ?? null}
+                      taskName={t.name}
+                      projectName={t.permit.name}
+                    />
+                  </div>
                 </td>
                 <td>
-                  <InlineDueDate
-                    taskId={t.id}
-                    value={t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null}
-                    isOverdue={isOverdue}
-                    frozen={t.frozen}
-                  />
+                  <div className="flex flex-col items-start gap-0.5">
+                    <InlineDueDate
+                      taskId={t.id}
+                      value={t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null}
+                      isOverdue={isOverdue}
+                      frozen={t.frozen}
+                    />
+                    <SnoozeBadge count={t.snoozeCount} />
+                  </div>
                 </td>
                 <td className="text-[11px] text-muted-foreground">
                   {isBlockedByDeps ? (
@@ -219,6 +236,7 @@ export async function TasksTable({ permitId }: { permitId: string }) {
                 </td>
                 <td className="p-0">
                   <div className="flex items-center justify-center gap-0.5">
+                    <SnoozeButton taskId={t.id} />
                     <TaskEditButton
                       task={{
                         id: t.id,

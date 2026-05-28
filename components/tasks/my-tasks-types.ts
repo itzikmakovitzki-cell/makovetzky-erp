@@ -15,6 +15,7 @@ export type MyTask = {
   /** ISO date part (YYYY-MM-DD) or null. */
   dueDate: string | null;
   dueState: DueState;
+  snoozeCount: number;
   assigneeId: string | null;
   assigneeName: string | null;
   permitId: string;

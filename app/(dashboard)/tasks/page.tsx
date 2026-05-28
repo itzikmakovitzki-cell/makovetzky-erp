@@ -8,6 +8,9 @@ import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { TasksFilterBar } from "@/components/global/tasks-filter-bar";
 import { TaskMobileCard } from "@/components/tasks/task-mobile-card";
 import { TaskRowActions } from "@/components/tasks/task-row-actions";
+import { TaskTitle } from "@/components/tasks/task-title";
+import { SnoozeBadge } from "@/components/tasks/snooze-badge";
+import { WhatsAppReminderButton } from "@/components/tasks/whatsapp-reminder-button";
 import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
 import { PageHeader } from "@/components/global/page-header";
 import {
@@ -253,7 +256,7 @@ export default async function TasksGlobalPage({
                   key={t.id}
                   className={cn(
                     "group hover:bg-muted/50",
-                    isCompleted && "text-muted-foreground"
+                    isCompleted && "task-completed"
                   )}
                 >
                   <td className="p-1 text-center">
@@ -278,8 +281,8 @@ export default async function TasksGlobalPage({
                     </Link>
                   </td>
                   <td>
-                    <div className={cn("font-medium", isCompleted && "line-through")}>
-                      {t.name}
+                    <div className="font-medium">
+                      <TaskTitle name={t.name} />
                     </div>
                   </td>
                   <td>
@@ -330,7 +333,20 @@ export default async function TasksGlobalPage({
                       <span className="text-[10px] text-muted-foreground">רגיל</span>
                     )}
                   </td>
-                  <td className="text-xs">{t.assignee?.name ?? <span className="text-muted-foreground">לא משויך</span>}</td>
+                  <td className="text-xs">
+                    <div className="flex items-center gap-0.5">
+                      <span>
+                        {t.assignee?.name ?? (
+                          <span className="text-muted-foreground">לא משויך</span>
+                        )}
+                      </span>
+                      <WhatsAppReminderButton
+                        assigneeName={t.assignee?.name ?? null}
+                        taskName={t.name}
+                        projectName={t.permit.name}
+                      />
+                    </div>
+                  </td>
                   <td
                     className={cn(
                       "text-xs tabular-nums",
@@ -338,8 +354,13 @@ export default async function TasksGlobalPage({
                       t.frozen && "text-amber-700"
                     )}
                   >
-                    {formatDate(t.dueDate)}
-                    {isOverdue && <span className="ms-1 text-[10px]">איחור</span>}
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span>
+                        {formatDate(t.dueDate)}
+                        {isOverdue && <span className="ms-1 text-[10px]">איחור</span>}
+                      </span>
+                      <SnoozeBadge count={t.snoozeCount} />
+                    </div>
                   </td>
                   <td className="text-[11px] text-muted-foreground">
                     {isBlockedByDeps && (

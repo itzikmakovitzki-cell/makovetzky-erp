@@ -2,18 +2,29 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Pencil, Star, StarOff, Trash2, Loader2 } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Star,
+  StarOff,
+  Trash2,
+  Loader2,
+  Sun,
+  CalendarPlus
+} from "lucide-react";
 import type { TaskPriority, TaskResponsibility } from "@prisma/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Sheet } from "@/components/ui/sheet";
 import {
   deleteTask,
+  snoozeTask,
   toggleTaskSpotlight,
   updateTaskMetadata
 } from "@/app/actions/tasks";
@@ -72,6 +83,28 @@ export function TaskRowActions({
             }}
           >
             {task.isSpotlight ? "הסר זרקור" : "סמן בזרקור"}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>דחיית המשימה</DropdownMenuLabel>
+          <DropdownMenuItem
+            icon={<Sun className="size-3.5" />}
+            onSelect={() => {
+              void snoozeTask(task.id, 1).then((res) => {
+                if (!res.ok && res.error) window.alert(res.error);
+              });
+            }}
+          >
+            דחה למחר
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            icon={<CalendarPlus className="size-3.5" />}
+            onSelect={() => {
+              void snoozeTask(task.id, 7).then((res) => {
+                if (!res.ok && res.error) window.alert(res.error);
+              });
+            }}
+          >
+            דחה לשבוע הבא
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

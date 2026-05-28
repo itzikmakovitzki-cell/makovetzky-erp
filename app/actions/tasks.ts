@@ -393,6 +393,74 @@ export async function updateTaskMetadata(
   }
 }
 
+// ----------------------------------------------------------------------------
+// Block 25: Snooze. Pushes the due date forward by 1 or 7 days and increments
+// snoozeCount so chronic slippage is visible. Base date is the later of "today"
+// and the current due date, so snoozing an already-overdue task moves it
+// forward from now rather than from a stale past date.
+// ----------------------------------------------------------------------------
+export type SnoozeResult = { ok: boolean; error: string | null };
+
+const SNOOZE_DAYS = new Set([1, 7]);
+const DAY_MS = 86_400_000;
+
+export async function snoozeTask(taskId: string, days: number): Promise<SnoozeResult> {
+  try {
+    if (!SNOOZE_DAYS.has(days)) {
+      return { ok: false, error: "טווח דחייה לא חוקי" };
+    }
+    const me = await requireRole(["ADMIN", "EMPLOYEE"]);
+    const task = await prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: { id: true, permitId: true, dueDate: true, snoozeCount: true }
+    });
+    if (!task) return { ok: false, error: "המשימה לא נמצאה" };
+    await assertPermitOpenForEdits(task.permitId);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const base =
+      task.dueDate && task.dueDate.getTime() > today.getTime()
+        ? new Date(task.dueDate)
+        : today;
+    base.setHours(0, 0, 0, 0);
+    const newDue = new Date(base.getTime() + days * DAY_MS);
+    const newCount = task.snoozeCount + 1;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.task.update({
+        where: { id: taskId },
+        data: { dueDate: newDue, snoozeCount: { increment: 1 } }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.TASK,
+        entityId: taskId,
+        action: AuditAction.UPDATE,
+        oldValue: {
+          dueDate: task.dueDate?.toISOString() ?? null,
+          snoozeCount: task.snoozeCount
+        },
+        newValue: {
+          dueDate: newDue.toISOString(),
+          snoozeCount: newCount,
+          snoozedDays: days
+        },
+        userId: me.id
+      });
+    });
+
+    revalidatePath(`/permits/${task.permitId}`, "layout");
+    revalidatePath("/tasks");
+    revalidatePath("/my-tasks");
+    return { ok: true, error: null };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "דחיית המשימה נכשלה"
+    };
+  }
+}
+
 export async function overrideTaskDependency(taskId: string, dependsOnTaskId: string) {
   const user = await getCurrentUser();
   const dep = await prisma.taskDependency.findUnique({

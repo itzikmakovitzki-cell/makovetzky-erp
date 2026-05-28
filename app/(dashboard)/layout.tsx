@@ -4,6 +4,12 @@ import { auth } from "@/auth";
 import { DashboardNav } from "@/components/global/dashboard-nav";
 import { MobileBottomNav } from "@/components/global/mobile-bottom-nav";
 import { UserMenu } from "@/components/global/user-menu";
+import { CommandPalette } from "@/components/global/command-palette";
+import {
+  CommandPaletteTrigger,
+  CommandPaletteIconButton
+} from "@/components/global/command-palette-trigger";
+import { Scratchpad } from "@/components/global/scratchpad";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Middleware enforces auth, but we still read the session here to display the user.
@@ -27,6 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             className="h-auto w-full max-w-[180px] object-contain"
           />
         </Link>
+        <CommandPaletteTrigger className="mb-3" />
         <DashboardNav role={user?.role} />
         {user && (
           <UserMenu
@@ -39,6 +46,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="flex flex-1 flex-col">
         {/* Mobile-only top bar: brand logo on navy, links home. Desktop uses the sidebar logo. */}
         <header className="sticky top-0 z-40 flex h-14 items-center justify-center border-b border-white/10 bg-brand-navy px-4 md:hidden">
+          <CommandPaletteIconButton className="absolute start-2 top-1/2 -translate-y-1/2" />
           <Link
             href="/"
             aria-label="מקובצקי — לדף הבית"
@@ -62,6 +70,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         role={user?.role}
         user={user ? { name: user.name, email: user.email } : null}
       />
+      <CommandPalette />
+      <Scratchpad />
     </div>
   );
 }

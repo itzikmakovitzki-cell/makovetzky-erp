@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/global/page-header";
 import { MyTasksFilterBar } from "@/components/tasks/my-tasks-filter-bar";
 import { MyTasksView } from "@/components/tasks/my-tasks-view";
+import { InboxGreeting } from "@/components/tasks/inbox-greeting";
 import type { DueState, MyTask } from "@/components/tasks/my-tasks-types";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,25 @@ function computeDueState(
   if (!frozen && due < startToday) return "overdue";
   if (due >= startToday && due <= endToday) return "today";
   return "future";
+}
+
+// Hour of day in Israel (0–23), independent of the server's UTC clock so the
+// greeting matches the PM's wall clock. Falls back to local hour if Intl misbehaves.
+function israelHour(now: Date): number {
+  const s = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit",
+    hour12: false
+  }).format(now);
+  const h = Number(s);
+  return Number.isFinite(h) ? h % 24 : now.getHours();
+}
+
+function greetingForHour(h: number): { greeting: string; emoji: string } {
+  if (h >= 5 && h < 12) return { greeting: "בוקר טוב", emoji: "☕" };
+  if (h >= 12 && h < 17) return { greeting: "צהריים טובים", emoji: "☀️" };
+  if (h >= 17 && h < 21) return { greeting: "ערב טוב", emoji: "🌆" };
+  return { greeting: "לילה טוב", emoji: "🌙" };
 }
 
 export default async function MyTasksPage({
@@ -105,7 +125,17 @@ export default async function MyTasksPage({
   if (stateParam === "overdue") dueFilter.lt = startToday;
   if (Object.keys(dueFilter).length > 0) where.dueDate = dueFilter;
 
-  const [rows, projectRows, users] = await Promise.all([
+  // Workload counts for the greeting — deliberately independent of the active
+  // filters so the banner always reflects the real picture: everything due by
+  // end of today (or earlier) that isn't done, and the overdue subset.
+  const followUpBase: Prisma.TaskWhereInput = {
+    assigneeId: userId,
+    deletedAt: null,
+    permit: { deletedAt: null },
+    status: { not: "COMPLETED" }
+  };
+
+  const [rows, projectRows, users, todayCount, overdueCount] = await Promise.all([
     prisma.task.findMany({
       where,
       include: {
@@ -139,8 +169,16 @@ export default async function MyTasksPage({
       where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE", "CONTRACTOR"] } },
       select: { id: true, name: true },
       orderBy: { name: "asc" }
+    }),
+    prisma.task.count({
+      where: { ...followUpBase, dueDate: { lte: endToday } }
+    }),
+    prisma.task.count({
+      where: { ...followUpBase, frozen: false, dueDate: { lt: startToday } }
     })
   ]);
+
+  const { greeting, emoji } = greetingForHour(israelHour(now));
 
   const tasks: MyTask[] = rows.map((t) => {
     const completed = t.status === "COMPLETED";
@@ -153,6 +191,7 @@ export default async function MyTasksPage({
       isSpotlight: t.isSpotlight,
       dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
       dueState: computeDueState(t.dueDate, t.frozen, completed, startToday, endToday),
+      snoozeCount: t.snoozeCount,
       assigneeId: t.assigneeId,
       assigneeName: t.assignee?.name ?? null,
       permitId: t.permit.id,
@@ -169,6 +208,14 @@ export default async function MyTasksPage({
 
   return (
     <section className="flex flex-col gap-3">
+      <InboxGreeting
+        greeting={greeting}
+        emoji={emoji}
+        name={session.user?.name ?? null}
+        todayCount={todayCount}
+        overdueCount={overdueCount}
+      />
+
       <PageHeader
         title="המשימות שלי"
         accent={`(${tasks.length})`}
