@@ -11,6 +11,7 @@ import {
   Inbox,
   LayoutDashboard,
   ListChecks,
+  ListTodo,
   LogOut,
   Menu,
   Settings as SettingsIcon,
@@ -40,6 +41,7 @@ const PRIMARY_SLOTS: Slot[] = [
 
 // Everything not in PRIMARY_SLOTS — surfaced via the "More" sheet.
 const OVERFLOW_SLOTS: Slot[] = [
+  { href: "/my-tasks", label: "המשימות שלי", icon: ListTodo, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/tasks", label: "משימות", icon: ListChecks, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/clients", label: "לקוחות", icon: Building2, allowed: ["ADMIN"] },
   { href: "/inbox", label: "תיבת WhatsApp", icon: Inbox, allowed: ["ADMIN", "EMPLOYEE"] },

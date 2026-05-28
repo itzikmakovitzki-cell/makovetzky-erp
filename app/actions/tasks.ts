@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { recalcPermitProgress } from "@/lib/milestone-recalc";
 import { assertPermitOpenForEdits } from "./permits";
 
 const VALID_TASK_STATUSES = new Set<TaskStatus>([
@@ -137,10 +138,17 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
         }
       }
     }
+
+    // Block 22: recompute permit completion % and sync percentage-triggered
+    // billing milestones (70%/80%) whenever a task crosses the COMPLETED line.
+    if (cameToCompleted || leftCompleted) {
+      await recalcPermitProgress(tx, task.permitId, user.id);
+    }
   });
 
   revalidatePath(`/permits/${task.permitId}`, "layout");
   revalidatePath("/tasks");
+  revalidatePath("/my-tasks");
 }
 
 export async function toggleTaskSpotlight(taskId: string) {
@@ -375,6 +383,7 @@ export async function updateTaskMetadata(
 
     revalidatePath(`/permits/${task.permitId}`, "layout");
     revalidatePath("/tasks");
+    revalidatePath("/my-tasks");
     return { ok: true, error: null };
   } catch (e) {
     return {
@@ -511,6 +520,7 @@ export async function bulkUpdateTaskAssignee(
 
     for (const p of permitIds) revalidatePath(`/permits/${p}`, "layout");
     revalidatePath("/tasks");
+    revalidatePath("/my-tasks");
     return { ok: true, error: null, affected: result.count };
   } catch (e) {
     return {
@@ -570,6 +580,7 @@ export async function bulkUpdateTaskStatus(
 
     for (const p of permitIds) revalidatePath(`/permits/${p}`, "layout");
     revalidatePath("/tasks");
+    revalidatePath("/my-tasks");
     return { ok: true, error: null, affected: result.count };
   } catch (e) {
     return {
@@ -637,6 +648,7 @@ export async function bulkDeleteTasks(
 
     for (const p of permitIds) revalidatePath(`/permits/${p}`, "layout");
     revalidatePath("/tasks");
+    revalidatePath("/my-tasks");
     revalidatePath("/settings/recycle-bin");
     return { ok: true, error: null, affected: result.count };
   } catch (e) {
