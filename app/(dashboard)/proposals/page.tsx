@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FileText, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Prisma, ProposalStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/global/page-header";
 import { ProposalMobileCard } from "@/components/proposals/proposal-mobile-card";
 import { ProposalRowActions } from "@/components/proposals/proposal-row-actions";
 import {
@@ -68,24 +70,18 @@ export default async function ProposalsListPage({
 
   return (
     <section className="flex flex-col gap-3">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-base font-semibold">
-            <FileText className="size-4" />
-            הצעות מחיר
-          </h1>
-          <p className="text-[11px] text-muted-foreground">
-            הצעות עצמאיות לליד — לא תופסות מקום ב"לקוחות" עד שנחתמות והומרו לפרויקט.
-          </p>
-        </div>
-        <Link
-          href="/proposals/new"
-          className="inline-flex items-center gap-1 rounded border border-foreground bg-foreground px-3 py-1 text-[11px] font-medium text-background hover:opacity-90"
-        >
-          <Plus className="size-3" />
-          הצעה חדשה
-        </Link>
-      </header>
+      <PageHeader
+        title="הצעות מחיר"
+        description={'הצעות עצמאיות לליד — לא תופסות מקום ב"לקוחות" עד שנחתמות והומרו לפרויקט.'}
+        action={
+          <Button asChild variant="cta" className="h-9">
+            <Link href="/proposals/new">
+              <Plus className="size-3.5" />
+              הצעה חדשה
+            </Link>
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-3 py-2">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

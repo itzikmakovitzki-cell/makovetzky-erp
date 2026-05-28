@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRight, Pencil } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ProposalForm } from "@/components/proposals/proposal-form";
+import { PageHeader } from "@/components/global/page-header";
 import type { ProposalMilestoneJson } from "@/app/actions/proposals";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export default async function EditProposalPage({
 
   return (
     <section className="flex flex-col gap-3">
-      <header>
+      <div>
         <Link
           href={`/proposals/${id}`}
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
@@ -40,11 +41,8 @@ export default async function EditProposalPage({
           <ArrowRight className="size-3" />
           חזרה להצעה
         </Link>
-        <h1 className="mt-1 flex items-center gap-2 text-base font-semibold">
-          <Pencil className="size-4" />
-          עריכת הצעת מחיר
-        </h1>
-      </header>
+        <PageHeader title="עריכת הצעת מחיר" className="mt-2" />
+      </div>
 
       <ProposalForm
         mode="update"

@@ -9,6 +9,7 @@ import { TasksFilterBar } from "@/components/global/tasks-filter-bar";
 import { TaskMobileCard } from "@/components/tasks/task-mobile-card";
 import { TaskRowActions } from "@/components/tasks/task-row-actions";
 import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
+import { PageHeader } from "@/components/global/page-header";
 import {
   TaskBulkCheckbox,
   TaskBulkSelectAll
@@ -161,12 +162,11 @@ export default async function TasksGlobalPage({
   return (
     <BulkSelectionProvider>
       <section className="flex flex-col gap-3">
-      <header>
-        <h1 className="text-base font-semibold">משימות — מבט-על</h1>
-        <p className="text-[11px] text-muted-foreground">
-          תצוגה חוצת-פרויקטים. סינון נשמר ב-URL — אפשר לסמן כסימנייה.
-        </p>
-      </header>
+      <PageHeader
+        title="משימות"
+        accent="מבט-על"
+        description="תצוגה חוצת-פרויקטים. סינון נשמר ב-URL — אפשר לסמן כסימנייה."
+      />
 
       <BulkTaskActionBar users={users} canDelete={isAdmin} />
 

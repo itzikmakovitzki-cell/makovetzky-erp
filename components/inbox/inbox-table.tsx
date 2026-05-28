@@ -10,11 +10,12 @@ import {
   Send,
   Upload,
   XCircle,
-  ExternalLink,
-  Inbox as InboxIcon
+  ExternalLink
 } from "lucide-react";
 import type { PendingDocumentStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/global/page-header";
 import { cn, formatDateTime } from "@/lib/utils";
 import { rejectPendingDocument } from "@/app/actions/inbox";
 import {
@@ -105,36 +106,33 @@ export function InboxTable({
 
   return (
     <section className="flex flex-col gap-3">
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-            <InboxIcon className="size-5 text-muted-foreground" />
-            תיבת WhatsApp — מסמכים נכנסים
-          </h1>
-          <p className="text-[11px] text-muted-foreground">
-            תיקיית כניסה ל-Triage. שייך מסמך לתיק/משימה או דחה עם סיבה.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px]">
-            <input
-              type="checkbox"
-              checked={showAll}
-              onChange={(e) => onToggleShowAll(e.target.checked)}
-              className="size-3.5"
-            />
-            הצג גם מסמכים שטופלו (שויכו / נדחו)
-          </label>
-          <button
-            type="button"
-            onClick={() => setManualUploadOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded border border-foreground bg-foreground px-2.5 py-1 text-[12px] font-medium text-background hover:opacity-90"
-          >
-            <Upload className="size-3" />
-            העלה מסמך
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title="תיבת WhatsApp"
+        accent="מסמכים נכנסים"
+        description="תיקיית כניסה ל-Triage. שייך מסמך לתיק/משימה או דחה עם סיבה."
+        action={
+          <>
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px]">
+              <input
+                type="checkbox"
+                checked={showAll}
+                onChange={(e) => onToggleShowAll(e.target.checked)}
+                className="size-3.5"
+              />
+              הצג גם מסמכים שטופלו (שויכו / נדחו)
+            </label>
+            <Button
+              type="button"
+              variant="cta"
+              className="h-9"
+              onClick={() => setManualUploadOpen(true)}
+            >
+              <Upload className="size-3.5" />
+              העלה מסמך
+            </Button>
+          </>
+        }
+      />
 
       <div className="rounded-md border bg-card">
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">

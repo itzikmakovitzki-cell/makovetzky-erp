@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, FileText } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { ProposalForm } from "@/components/proposals/proposal-form";
+import { PageHeader } from "@/components/global/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function NewProposalPage() {
 
   return (
     <section className="flex flex-col gap-3">
-      <header>
+      <div>
         <Link
           href="/proposals"
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
@@ -20,14 +21,12 @@ export default async function NewProposalPage() {
           <ArrowRight className="size-3" />
           חזרה להצעות מחיר
         </Link>
-        <h1 className="mt-1 flex items-center gap-2 text-base font-semibold">
-          <FileText className="size-4" />
-          הצעת מחיר חדשה
-        </h1>
-        <p className="text-[11px] text-muted-foreground">
-          ההצעה לא תיצור לקוח/פרויקט במערכת. רק לאחר חתימת הלקוח תוכל להמיר אותה לפרויקט פעיל בלחיצה אחת.
-        </p>
-      </header>
+        <PageHeader
+          title="הצעת מחיר חדשה"
+          description="ההצעה לא תיצור לקוח/פרויקט במערכת. רק לאחר חתימת הלקוח תוכל להמיר אותה לפרויקט פעיל בלחיצה אחת."
+          className="mt-2"
+        />
+      </div>
 
       <ProposalForm mode="create" />
     </section>
