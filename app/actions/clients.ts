@@ -5,6 +5,11 @@ import { AuditAction, ClientNotificationPreference } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import {
+  isGreenApiConfigured,
+  sendWhatsAppMessage
+} from "@/lib/green-api";
+import { buildWaMeUrl } from "@/lib/wa-link";
 
 type FormState = { error: string | null; ok: boolean };
 
@@ -238,28 +243,98 @@ export async function setClientNotificationPreference(args: {
   }
 }
 
-// Records that an admin opened a WhatsApp window for the client with a
-// specific message. We DO NOT send anything — the wa.me deeplink is
-// returned to the caller for the client to open. The audit row is the
-// system's record that an attempt was made.
-export async function recordClientWhatsAppSend(args: {
+// Sends a WhatsApp message to a client. Tries Green API first if it's
+// configured (env vars present). On success, audits the send with the
+// returned idMessage. If Green API is NOT configured, or the call fails,
+// falls back to returning a wa.me deeplink for the admin to open
+// manually — same behaviour as PR #52, never auto-send.
+//
+// Returns one of three shapes the caller can render:
+//   { ok: true, via: "green-api", idMessage }   → success, message is gone
+//   { ok: true, via: "wa-me", waUrl }           → open this in a new tab
+//   { ok: false, error }                        → show error
+export type SendClientWhatsAppResult =
+  | { ok: true; via: "green-api"; idMessage: string }
+  | { ok: true; via: "wa-me"; waUrl: string }
+  | { ok: false; error: string };
+
+export async function sendClientWhatsAppMessage(args: {
   clientId: string;
   message: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<SendClientWhatsAppResult> {
   try {
     const me = await requireRole(["ADMIN"]);
     const client = await prisma.client.findFirst({
       where: { id: args.clientId, deletedAt: null },
-      select: { id: true, companyName: true, notificationPreference: true }
+      select: {
+        id: true,
+        companyName: true,
+        phone: true,
+        notificationPreference: true
+      }
     });
     if (!client) return { ok: false, error: "הלקוח לא נמצא" };
-    // Safety net: if the admin somehow reached this action with prefs OFF
-    // (UI shouldn't allow it), reject so the audit log can't be misused.
+    // Safety net: prefs OFF must never reach a send. The UI should not
+    // even render the button in that state.
     if (client.notificationPreference === "OFF") {
       return {
         ok: false,
-        error: "התראות הלקוח כבויות — לא ניתן לתעד שליחה"
+        error: "התראות הלקוח כבויות — לא ניתן לשלוח"
       };
+    }
+    if (!client.phone) {
+      return { ok: false, error: "אין טלפון ללקוח" };
+    }
+    const trimmed = args.message.trim();
+    if (!trimmed) return { ok: false, error: "ההודעה ריקה" };
+
+    // Try Green API first. If unconfigured, fall back to wa.me.
+    if (isGreenApiConfigured()) {
+      const res = await sendWhatsAppMessage({
+        phone: client.phone,
+        message: trimmed
+      });
+      if (res.ok) {
+        await prisma.$transaction(async (tx) => {
+          await logAudit(tx, {
+            entityType: AuditEntity.CLIENT,
+            entityId: args.clientId,
+            action: AuditAction.UPDATE,
+            newValue: {
+              event: "whatsapp_sent",
+              transport: "green-api",
+              idMessage: res.idMessage,
+              message: trimmed,
+              clientName: client.companyName
+            },
+            userId: me.id
+          });
+        });
+        return { ok: true, via: "green-api", idMessage: res.idMessage };
+      }
+      // Green API failed — record the attempt, then fall through to wa.me.
+      await prisma.$transaction(async (tx) => {
+        await logAudit(tx, {
+          entityType: AuditEntity.CLIENT,
+          entityId: args.clientId,
+          action: AuditAction.UPDATE,
+          newValue: {
+            event: "whatsapp_send_failed",
+            transport: "green-api",
+            error: res.error,
+            message: trimmed,
+            clientName: client.companyName
+          },
+          userId: me.id
+        });
+      });
+    }
+
+    // Either Green API is unconfigured or it just failed — build a wa.me
+    // URL so the admin can still send manually from WhatsApp Web/App.
+    const waUrl = buildWaMeUrl(client.phone, trimmed);
+    if (!waUrl) {
+      return { ok: false, error: "טלפון לא תקין ל-wa.me" };
     }
     await prisma.$transaction(async (tx) => {
       await logAudit(tx, {
@@ -268,17 +343,25 @@ export async function recordClientWhatsAppSend(args: {
         action: AuditAction.UPDATE,
         newValue: {
           event: "whatsapp_opened",
-          message: args.message,
+          transport: "wa-me",
+          message: trimmed,
           clientName: client.companyName
         },
         userId: me.id
       });
     });
-    return { ok: true };
+    return { ok: true, via: "wa-me", waUrl };
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "תיעוד השליחה נכשל"
+      error: e instanceof Error ? e.message : "השליחה נכשלה"
     };
   }
+}
+
+// Returns whether Green API is configured server-side. Drives the UI label
+// on the compose dialog ("שלח עכשיו" vs "פתח WhatsApp"). Called from the
+// client component via a server action so the env vars stay on the server.
+export async function checkGreenApiConfigured(): Promise<{ configured: boolean }> {
+  return { configured: isGreenApiConfigured() };
 }
