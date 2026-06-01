@@ -115,9 +115,27 @@ export async function transitionAuthoritySubmission(formData: FormData): Promise
           });
       submissionId = submission.id;
 
-      // Side-effect: on SUBMITTED, push the work-in-progress tasks of this
-      // category into "waiting on the authority". Leaves COMPLETED + BLOCKED
-      // alone — they reflect explicit decisions by the admin.
+      // Side-effects on submission transitions, kept symmetric so the
+      // category-task state never drifts from the visible pill:
+      //
+      //   PREPARING → SUBMITTED  : push OPEN/IN_PROGRESS tasks into
+      //                            AWAITING_AUTHORITY + frozen=true
+      //
+      //   * → PREPARING          : ROLLBACK. The admin clicked "back to
+      //     (regardless of where      collecting" which means "we're not
+      //      we came from)            waiting on the authority anymore"
+      //                            — unfreeze every AWAITING_AUTHORITY task
+      //                              in the category, back to OPEN. COMPLETED
+      //                              tasks left untouched.
+      //
+      //   * → REJECTED           : the authority sent us back with comments.
+      //                            Tasks need to be workable again so the
+      //                            team can fix and resubmit — same unfreeze.
+      //
+      //   * → APPROVED           : tasks stay frozen until the admin marks
+      //                            each COMPLETED explicitly (deliberate —
+      //                            "approved" doesn't auto-close per-task
+      //                            workitems).
       if (nextStatus === "SUBMITTED") {
         const updated = await tx.task.updateMany({
           where: {
@@ -129,6 +147,20 @@ export async function transitionAuthoritySubmission(formData: FormData): Promise
           data: {
             status: TaskStatus.AWAITING_AUTHORITY,
             frozen: true
+          }
+        });
+        taskUpdates = updated.count;
+      } else if (nextStatus === "PREPARING" || nextStatus === "REJECTED") {
+        const updated = await tx.task.updateMany({
+          where: {
+            permitId,
+            category,
+            deletedAt: null,
+            status: TaskStatus.AWAITING_AUTHORITY
+          },
+          data: {
+            status: TaskStatus.OPEN,
+            frozen: false
           }
         });
         taskUpdates = updated.count;
