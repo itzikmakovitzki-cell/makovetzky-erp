@@ -563,8 +563,21 @@ model SupplierTaskAssignment {
   id          String                   @id @default(cuid())
   supplierId  String
   taskId      String
+  // Legacy field — was the only "money" capture before phase 2. Kept for
+  // backwards compatibility / freeform "deal size" notes; commission is
+  // now computed from (commissionType, commissionValue) below, falling
+  // back to the supplier's defaults when null on the assignment.
   amount      Decimal?                 @db.Decimal(14, 2)
   status      SupplierAssignmentStatus @default(OPEN)
+  // Phase-2 fields. Null on either commission field = "inherit from
+  // Supplier.defaultCommissionType / defaultCommissionValue". paymentTerms
+  // null = "inherit Supplier.defaultPaymentTerms".
+  commissionType  SupplierCommissionType?
+  commissionValue Decimal?                @db.Decimal(10, 2)
+  paymentTerms    String?
+  // When the supplier paid us the commission. Drives the phase-4
+  // "מה מגיע לי" dashboard at /finances/supplier-commissions.
+  commissionPaidAt DateTime?
   dueDate     DateTime?
   completedAt DateTime?
   notes       String?
@@ -576,6 +589,7 @@ model SupplierTaskAssignment {
 
   @@index([supplierId, status])
   @@index([taskId])
+  @@index([commissionPaidAt])
 }
 
 model SupplierCommissionReport {

@@ -7,6 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { SupplierPicker } from "@/components/global/supplier-picker";
 import { AddSupplierButton } from "@/components/suppliers/add-supplier-button";
 import { EditSupplierButton } from "@/components/suppliers/edit-supplier-button";
+import {
+  AddAssignmentButton,
+  AssignmentRowActions
+} from "@/components/suppliers/assignment-buttons";
+import type { TaskOption } from "@/components/suppliers/assignment-form-dialog";
 import { PageHeader } from "@/components/global/page-header";
 import {
   SUPPLIER_ASSIGNMENT_STATUS_LABEL,
@@ -230,6 +235,39 @@ async function SupplierDetail({
     orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "asc" }]
   });
 
+  // Tasks that *don't* already have an assignment for this supplier — fed to
+  // the create-assignment dialog so the admin can only attach to fresh tasks.
+  const taskOptions: TaskOption[] = isAdmin
+    ? await prisma.task
+        .findMany({
+          where: {
+            deletedAt: null,
+            permit: { deletedAt: null },
+            supplierAssignments: { none: { supplierId } }
+          },
+          select: {
+            id: true,
+            name: true,
+            permit: { select: { name: true, permitNumber: true } }
+          },
+          orderBy: [{ permit: { name: "asc" } }, { name: "asc" }]
+        })
+        .then((rows) =>
+          rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            permitName: r.permit.name,
+            permitNumber: r.permit.permitNumber
+          }))
+        )
+    : [];
+
+  const supplierDefaults = {
+    commissionType: supplier.defaultCommissionType,
+    commissionValue: supplier.defaultCommissionValue?.toString() ?? null,
+    paymentTerms: supplier.defaultPaymentTerms
+  };
+
   const openAmount = assignments
     .filter((a) => a.status === "OPEN" || a.status === "IN_PROGRESS")
     .reduce((s, a) => s + (a.amount ? Number(a.amount.toString()) : 0), 0);
@@ -335,13 +373,23 @@ async function SupplierDetail({
 
       <div className="rounded-md border bg-card">
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            משימות מול {supplier.name} ({assignments.length})
-          </h2>
-          {!showAll && (
-            <span className="text-[10px] text-muted-foreground">
-              מוצגות רק משימות פתוחות
-            </span>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              משימות מול {supplier.name} ({assignments.length})
+            </h2>
+            {!showAll && (
+              <span className="text-[10px] text-muted-foreground">
+                מוצגות רק משימות פתוחות
+              </span>
+            )}
+          </div>
+          {isAdmin && (
+            <AddAssignmentButton
+              supplierId={supplier.id}
+              supplierName={supplier.name}
+              taskOptions={taskOptions}
+              supplierDefaults={supplierDefaults}
+            />
           )}
         </div>
 
@@ -350,16 +398,19 @@ async function SupplierDetail({
             <tr>
               <th>היתר</th>
               <th>משימה</th>
-              <th className="w-32">סטטוס משימה</th>
-              <th className="w-28">סכום</th>
+              <th className="w-28">סטטוס משימה</th>
+              <th className="w-28">עמלה</th>
+              <th className="w-28">תנאי תשלום</th>
+              <th className="w-24">שולם?</th>
               <th className="w-28">סטטוס שיוך</th>
               <th className="w-24">תאריך יעד</th>
+              {isAdmin && <th className="w-24"></th>}
             </tr>
           </thead>
           <tbody>
             {assignments.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
+                <td colSpan={isAdmin ? 9 : 8} className="py-6 text-center text-xs text-muted-foreground">
                   {showAll
                     ? "אין משימות לספק הזה"
                     : 'אין משימות פתוחות לספק הזה. סמן "הצג גם סגורות" לתצוגה מלאה.'}
@@ -368,6 +419,19 @@ async function SupplierDetail({
             )}
             {assignments.map((a) => {
               const isClosed = a.status === "COMPLETED" || a.status === "CANCELLED";
+              // Resolve commission: per-assignment override → supplier default → null.
+              const resolvedCommissionType =
+                a.commissionType ?? supplier.defaultCommissionType ?? null;
+              const resolvedCommissionValue =
+                a.commissionValue ?? supplier.defaultCommissionValue ?? null;
+              const commissionLabel = resolvedCommissionValue
+                ? resolvedCommissionType === "FIXED"
+                  ? formatILS(Number(resolvedCommissionValue.toString()))
+                  : `${resolvedCommissionValue.toString()}%`
+                : "—";
+              const isInheritedCommission = !a.commissionType && !!supplier.defaultCommissionType;
+              const resolvedPaymentTerms =
+                a.paymentTerms ?? supplier.defaultPaymentTerms ?? null;
               return (
                 <tr
                   key={a.id}
@@ -398,7 +462,24 @@ async function SupplierDetail({
                     </Badge>
                   </td>
                   <td className="text-xs tabular-nums">
-                    {a.amount ? formatILS(Number(a.amount.toString())) : "—"}
+                    {commissionLabel}
+                    {isInheritedCommission && commissionLabel !== "—" && (
+                      <span className="ms-1 text-[9px] text-muted-foreground">
+                        (ברירת מחדל)
+                      </span>
+                    )}
+                  </td>
+                  <td className="text-xs text-muted-foreground">
+                    {resolvedPaymentTerms ?? "—"}
+                  </td>
+                  <td className="text-xs">
+                    {a.commissionPaidAt ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+                        ✓ {formatDate(a.commissionPaidAt)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td>
                     <Badge variant={SUPPLIER_ASSIGNMENT_STATUS_VARIANT[a.status]}>
@@ -406,6 +487,27 @@ async function SupplierDetail({
                     </Badge>
                   </td>
                   <td className="text-xs tabular-nums">{formatDate(a.dueDate)}</td>
+                  {isAdmin && (
+                    <td className="p-1 text-center">
+                      <AssignmentRowActions
+                        assignment={{
+                          id: a.id,
+                          supplierId: a.supplierId,
+                          taskId: a.taskId,
+                          status: a.status,
+                          amount: a.amount?.toString() ?? null,
+                          commissionType: a.commissionType,
+                          commissionValue: a.commissionValue?.toString() ?? null,
+                          paymentTerms: a.paymentTerms,
+                          dueDate: a.dueDate?.toISOString() ?? null,
+                          notes: a.notes,
+                          commissionPaidAt: a.commissionPaidAt?.toISOString() ?? null
+                        }}
+                        supplierName={supplier.name}
+                        supplierDefaults={supplierDefaults}
+                      />
+                    </td>
+                  )}
                 </tr>
               );
             })}
