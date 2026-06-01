@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FolderPlus } from "lucide-react";
+import type { PermitStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
@@ -7,29 +8,56 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/global/page-header";
 import { PermitMobileCard } from "@/components/permits/permit-mobile-card";
 import { PermitRowActions } from "@/components/permits/permit-row-actions";
+import { PermitsArchiveToggle } from "@/components/permits/permits-archive-toggle";
 import { PERMIT_STATUS_LABEL, PERMIT_STATUS_VARIANT } from "@/lib/status-maps";
 import { cn, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function PermitsListPage() {
+// Active permit statuses — what the default view shows. COMPLETED and
+// CANCELLED move into the "הושלמו" archive tab so the main list stays
+// focused on permits the team is actually working on.
+const ACTIVE_STATUSES: PermitStatus[] = [
+  "DRAFT",
+  "IN_PROGRESS",
+  "AWAITING_AUTHORITY"
+];
+const ARCHIVED_STATUSES: PermitStatus[] = ["COMPLETED", "CANCELLED"];
+
+export default async function PermitsListPage({
+  searchParams
+}: {
+  searchParams: Promise<{ archived?: string }>;
+}) {
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";
+  const { archived } = await searchParams;
+  const showArchived = archived === "1";
+  const statusFilter = showArchived ? ARCHIVED_STATUSES : ACTIVE_STATUSES;
 
-  const permits = await prisma.permit.findMany({
-    where: { deletedAt: null },
-    orderBy: { createdAt: "desc" },
-    include: {
-      authority: { select: { name: true } },
-      masterDeal: { include: { client: { select: { companyName: true } } } },
-      _count: {
-        select: {
-          tasks: { where: { deletedAt: null } },
-          buildings: true
+  // Two counts so the toggle can show both numbers at once — cheap aggregate.
+  const [activeCount, archivedCount, permits] = await Promise.all([
+    prisma.permit.count({
+      where: { deletedAt: null, status: { in: ACTIVE_STATUSES } }
+    }),
+    prisma.permit.count({
+      where: { deletedAt: null, status: { in: ARCHIVED_STATUSES } }
+    }),
+    prisma.permit.findMany({
+      where: { deletedAt: null, status: { in: statusFilter } },
+      orderBy: { createdAt: "desc" },
+      include: {
+        authority: { select: { name: true } },
+        masterDeal: { include: { client: { select: { companyName: true } } } },
+        _count: {
+          select: {
+            tasks: { where: { deletedAt: null } },
+            buildings: true
+          }
         }
       }
-    }
-  });
+    })
+  ]);
 
   // Compute completion % per permit
   const completionByPermit = new Map<string, number>();
@@ -64,10 +92,18 @@ export default async function PermitsListPage() {
         }
       />
 
+      <div className="mb-3">
+        <PermitsArchiveToggle
+          active={showArchived ? "archived" : "active"}
+          activeCount={activeCount}
+          archivedCount={archivedCount}
+        />
+      </div>
+
       <div className="md:hidden flex flex-col gap-2">
         {permits.length === 0 ? (
           <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
-            אין היתרים עדיין
+            {showArchived ? "אין היתרים שהושלמו" : "אין היתרים פעילים"}
           </div>
         ) : (
           permits.map((p) => (
@@ -100,7 +136,7 @@ export default async function PermitsListPage() {
             {permits.length === 0 && (
               <tr>
                 <td colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
-                  אין היתרים עדיין
+                  {showArchived ? "אין היתרים שהושלמו" : "אין היתרים פעילים"}
                 </td>
               </tr>
             )}
