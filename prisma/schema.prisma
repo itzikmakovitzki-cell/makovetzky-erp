@@ -141,6 +141,16 @@ enum ClientNotificationPreference {
   MANUAL_ONLY
 }
 
+// Per-MasterDeal default route for the "send update" button (spec PR-2).
+// GROUP = button targets the connected ProjectWhatsAppGroup. CLIENT_DIRECT =
+// targets the client's personal number (legacy / no group yet). NONE = button
+// hidden, mirrors ClientNotificationPreference.OFF at the project level.
+enum WhatsAppDefaultRoute {
+  GROUP
+  CLIENT_DIRECT
+  NONE
+}
+
 // =============================================================
 // USERS & PORTAL ACCESS
 // =============================================================
@@ -173,6 +183,8 @@ model User {
   createdProposals         Proposal[]           @relation("ProposalCreator")
   // Submissions this user marked as sent to the authority.
   authoritySubmissions     AuthoritySubmission[]
+  // ProjectWhatsAppGroup rows this user wired to a project (spec PR-2).
+  connectedWhatsappGroups  ProjectWhatsAppGroup[]
 
   @@index([role])
 }
@@ -252,6 +264,11 @@ model MasterDeal {
   totalValue   Decimal?         @db.Decimal(14, 2)
   status       MasterDealStatus @default(ACTIVE)
   notes        String?
+  // Default WhatsApp send route for the "send update" button on this
+  // project. GROUP (default) routes to the connected ProjectWhatsAppGroup;
+  // CLIENT_DIRECT falls back to the legacy client-direct path; NONE hides
+  // the button. See spec docs/spec-whatsapp-groups.md §3.2.
+  whatsappDefaultRoute WhatsAppDefaultRoute @default(GROUP)
   deletedAt    DateTime?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -260,6 +277,7 @@ model MasterDeal {
   permits        Permit[]
   dealMilestones DealMilestone[]
   proposals      Proposal[]
+  whatsappGroup  ProjectWhatsAppGroup?
 
   @@index([clientId])
   @@index([status])
@@ -705,6 +723,32 @@ model PendingDocument {
   assignedPermit Permit? @relation(fields: [assignedPermitId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+}
+
+// One row per WhatsApp group that the system knows about (spec PR-2).
+// masterDealId nullable so an inbound group can land here BEFORE the admin
+// connects it to a project — "orphan" rows surface on /inbox until linked.
+// Postgres allows many NULLs in a unique constraint, so @unique on the
+// nullable column still enforces 1:1 between an actual project and its
+// group. groupChatId @unique catches accidental double-connect (same group
+// being attached to two projects). groupName is a cache from the inbound
+// webhook — refreshed on every incoming message so the display name stays
+// in sync without an extra Green-API call.
+model ProjectWhatsAppGroup {
+  id            String   @id @default(cuid())
+  masterDealId  String?  @unique
+  groupChatId   String   @unique
+  groupName     String?
+  connectedAt   DateTime @default(now())
+  connectedById String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  masterDeal  MasterDeal? @relation(fields: [masterDealId], references: [id], onDelete: Cascade)
+  connectedBy User?       @relation(fields: [connectedById], references: [id], onDelete: SetNull)
+
+  @@index([isActive])
 }
 
 model WeeklySummaryDraft {

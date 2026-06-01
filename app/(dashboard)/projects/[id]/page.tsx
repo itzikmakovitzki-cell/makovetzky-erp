@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Building2,
   FolderKanban,
+  MessageCircle,
   StickyNote,
   Wallet
 } from "lucide-react";
@@ -140,6 +141,16 @@ export default async function ProjectDetailPage({
               <Printer className="size-3" />
               סיכום להדפסה
             </Link>
+            {isAdmin && (
+              <Link
+                href={`/projects/${deal.id}/whatsapp`}
+                className="inline-flex items-center gap-1 rounded-md border border-input bg-card px-2 py-1 text-[11px] hover:bg-accent"
+                title="חיבור קבוצת WhatsApp + שליחת עדכון"
+              >
+                <MessageCircle className="size-3 text-emerald-600" />
+                WhatsApp
+              </Link>
+            )}
             {/* Block 23: deal financials are hidden by default — admins open the
                 drawer to view value, billing milestones, and outstanding balance. */}
             {isAdmin && (
