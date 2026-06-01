@@ -1,6 +1,8 @@
+import { prisma } from "@/lib/prisma";
 import { TasksTable } from "@/components/permit/tasks-table";
 import { TimelineView } from "@/components/permit/timeline-view";
 import { TasksViewToggle } from "@/components/permit/tasks-view-toggle";
+import { AuthoritySubmissionsStrip } from "@/components/permit/authority-submissions-strip";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +17,42 @@ export default async function PermitTasksTabPage({
   const active = view === "timeline" ? "timeline" : "table";
   const categoryFilter = category && category.trim() ? category.trim() : null;
 
+  // Submissions live per (permit, category). Categories present on this
+  // permit drive the strip — missing rows = implicit PREPARING.
+  const [permitCategoryRows, submissions] = await Promise.all([
+    prisma.task.findMany({
+      where: { permitId: id, deletedAt: null, category: { not: null } },
+      select: { category: true },
+      distinct: ["category"],
+      orderBy: { category: "asc" }
+    }),
+    prisma.authoritySubmission.findMany({
+      where: { permitId: id },
+      select: {
+        category: true,
+        status: true,
+        submittedAt: true,
+        decidedAt: true,
+        decisionNotes: true
+      }
+    })
+  ]);
+  const permitCategories = permitCategoryRows
+    .map((r) => r.category)
+    .filter((c): c is string => !!c);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <TasksViewToggle active={active} />
       </div>
+      {active === "table" && permitCategories.length > 0 && (
+        <AuthoritySubmissionsStrip
+          permitId={id}
+          categories={permitCategories}
+          submissions={submissions}
+        />
+      )}
       {active === "timeline" ? (
         <TimelineView permitId={id} />
       ) : (

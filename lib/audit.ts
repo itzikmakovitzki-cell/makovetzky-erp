@@ -26,7 +26,8 @@ export const AuditEntity = {
   MAGIC_LINK: "MAGIC_LINK",
   PORTAL_ACCESS: "PORTAL_ACCESS",
   PROPOSAL: "PROPOSAL",
-  DEAL_MILESTONE: "DEAL_MILESTONE"
+  DEAL_MILESTONE: "DEAL_MILESTONE",
+  AUTHORITY_SUBMISSION: "AUTHORITY_SUBMISSION"
 } as const;
 
 export type AuditEntityValue = (typeof AuditEntity)[keyof typeof AuditEntity] | (string & {});
