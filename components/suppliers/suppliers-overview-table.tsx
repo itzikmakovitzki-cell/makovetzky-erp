@@ -112,7 +112,7 @@ export function SuppliersOverviewTable({ rows }: { rows: SupplierOverviewRow[] }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="חיפוש: שם / סוג / איש קשר / טלפון…"
-              className="w-64 rounded border border-input bg-background px-2 py-1 pe-7 text-[12px] focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full md:w-64 rounded border border-input bg-background px-2 py-1 pe-7 text-[12px] focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </label>
           <button
@@ -139,7 +139,78 @@ export function SuppliersOverviewTable({ rows }: { rows: SupplierOverviewRow[] }
         </div>
       )}
 
-      <table>
+      {/* Mobile: stacked cards. The desktop table below is hidden under
+          the md breakpoint — same dual-render approach Block 16 used for
+          /tasks and /permits so the data shape stays single-sourced. */}
+      <div className="flex flex-col divide-y md:hidden">
+        {filtered.length === 0 ? (
+          <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+            אין ספקים שתואמים לחיפוש &quot;{query}&quot;
+          </div>
+        ) : (
+          filtered.map((s) => (
+            <Link
+              key={s.id}
+              href={`/suppliers?supplier=${s.id}`}
+              className="flex flex-col gap-1 px-3 py-2.5 transition-colors active:bg-muted/40"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-1.5 font-medium">
+                  <Truck className="size-3 text-muted-foreground" />
+                  <span>{s.name}</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {s.type ?? ""}
+                </span>
+              </div>
+              {s.services && (
+                <p className="line-clamp-2 text-[11px] text-muted-foreground">
+                  {s.services}
+                </p>
+              )}
+              {(s.contactName || s.phone || s.email) && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                  {s.contactName && <span>{s.contactName}</span>}
+                  {s.phone && (
+                    <a
+                      href={`tel:${s.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                    >
+                      <Phone className="size-3" />
+                      {s.phone}
+                    </a>
+                  )}
+                  {s.email && (
+                    <a
+                      href={`mailto:${s.email}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                    >
+                      <Mail className="size-3" />
+                      {s.email}
+                    </a>
+                  )}
+                </div>
+              )}
+              <div className="mt-0.5 flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground">
+                  {s.openTaskCount > 0
+                    ? `${s.openTaskCount} משימות פתוחות`
+                    : "ללא משימות פתוחות"}
+                </span>
+                {s.openAmount > 0 && (
+                  <span className="font-semibold tabular-nums">
+                    {formatILS(s.openAmount)}
+                  </span>
+                )}
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
+
+      <table className="hidden md:table">
         <thead>
           <tr>
             <th>ספק</th>
