@@ -8,6 +8,7 @@ import {
   Wallet
 } from "lucide-react";
 import type { PermitStatus, MasterDealStatus } from "@prisma/client";
+import { Printer } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { deleteMasterDeal } from "@/app/actions/permits";
@@ -131,6 +132,14 @@ export default async function ProjectDetailPage({
             <Badge variant={MASTER_DEAL_STATUS_VARIANT[deal.status as MasterDealStatus]}>
               {MASTER_DEAL_STATUS_LABEL[deal.status as MasterDealStatus]}
             </Badge>
+            <Link
+              href={`/projects/${deal.id}/print`}
+              className="inline-flex items-center gap-1 rounded-md border border-input bg-card px-2 py-1 text-[11px] hover:bg-accent"
+              title="סיכום פרויקט להדפסה / שמירה כ-PDF"
+            >
+              <Printer className="size-3" />
+              סיכום להדפסה
+            </Link>
             {/* Block 23: deal financials are hidden by default — admins open the
                 drawer to view value, billing milestones, and outstanding balance. */}
             {isAdmin && (

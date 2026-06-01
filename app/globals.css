@@ -176,3 +176,40 @@
     text-decoration: line-through;
   }
 }
+
+/* Print rules (PR-B). When the user prints from /projects/[id]/print (or any
+   page that opts into `data-print-document="true"` on a wrapper), strip every
+   piece of dashboard chrome so the rendered output is the document body only.
+   We don't override colour or font globally — Tailwind utilities on the page
+   already produce a readable greyscale-friendly look. */
+@media print {
+  /* Hide everything that isn't the print document by default. */
+  body[data-printing="true"] aside,
+  body[data-printing="true"] header,
+  body[data-printing="true"] nav,
+  body[data-printing="true"] [data-print-hide],
+  body[data-printing="true"] [data-print-hide="true"] {
+    display: none !important;
+  }
+  body[data-printing="true"] {
+    background: white !important;
+  }
+  body[data-printing="true"] main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  /* Allow long tables to break naturally across pages. */
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  @page {
+    margin: 1.5cm 1.2cm;
+  }
+}
