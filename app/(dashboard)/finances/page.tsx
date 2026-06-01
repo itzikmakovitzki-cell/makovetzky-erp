@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Coins } from "lucide-react";
 import type { MilestoneStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
@@ -85,6 +85,15 @@ export default async function FinancesGlobalPage({
         title="כספים"
         accent="אבני דרך לחיוב"
         description="תצוגה חוצת-פרויקטים. סינון נשמר ב-URL — אפשר לסמן כסימנייה."
+        action={
+          <Link
+            href="/finances/supplier-commissions"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground shadow-sm transition hover:brightness-110"
+          >
+            <Coins className="size-3.5" />
+            עמלות מספקים
+          </Link>
+        }
       />
 
       <div className="grid grid-cols-3 gap-2">
