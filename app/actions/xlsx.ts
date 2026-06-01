@@ -37,12 +37,19 @@ export async function exportPermitTasksXlsx(
     const tasks = await prisma.task.findMany({
       where: { permitId, deletedAt: null },
       orderBy: [
+        // Group by category first so the Block-24 banded export stays in a
+        // sensible order; within a category, fall back to the on-screen sort.
+        { category: "asc" },
         { isSpotlight: "desc" },
         { priority: "desc" },
         { dueDate: "asc" }
       ]
     });
     const rows = tasks.map((t) => ({
+      // Pass category as a structured field — buildMakovetzkiWorkbook used to
+      // extract it from a "[xxx] name" prefix; since the migration that
+      // moved category into its own column we use the column directly.
+      category: t.category ?? null,
       requirement: t.name,
       detail: t.description ?? "",
       status: TASK_STATUS_TO_MAKOVETZKI_HE[t.status]
@@ -104,6 +111,7 @@ export async function importPermitTasksXlsx(
       description: string | null;
       status: TaskStatus;
       frozen: boolean;
+      category: string | null;
     };
     const toCreate: TaskRow[] = [];
 
@@ -128,18 +136,18 @@ export async function importPermitTasksXlsx(
           description = description ? `${description}\n${note}` : note;
         }
       }
-      // Apply the parsed category as a [prefix] on the task name — this is
-      // the same convention Block 24's export uses, so a round-trip export
-      // → edit → re-import stays grouped under the right band.
-      const displayName = r.category ? `[${r.category}] ${r.name}` : r.name;
+      // The parsed category goes into Task.category (its own column) so the
+      // "סיווג" column on the permit tasks table renders it; the task name
+      // stays clean. The export uses the column directly to rebuild bands.
       toCreate.push({
         permitId,
-        name: displayName,
+        name: r.name,
         description,
         status,
         // Same rule used by CSV import + task creation runtime: a task
         // marked AWAITING_AUTHORITY is treated as frozen.
-        frozen: status === "AWAITING_AUTHORITY"
+        frozen: status === "AWAITING_AUTHORITY",
+        category: r.category || null
       });
     }
 
