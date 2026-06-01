@@ -131,7 +131,8 @@ async function main() {
       contactName: "אבי שטרן",
       phone: "03-5555111",
       email: "lab@iltestlab.co.il",
-      defaultCommission: 850
+      defaultCommissionType: "FIXED",
+      defaultCommissionValue: 850
     }
   });
   const surveyorSupplier = await prisma.supplier.create({
@@ -141,7 +142,8 @@ async function main() {
       contactName: "אבי בן-דוד",
       phone: "050-1234567",
       email: "avi@survey.co.il",
-      defaultCommission: 1200
+      defaultCommissionType: "FIXED",
+      defaultCommissionValue: 1200
     }
   });
   const electricianSupplier = await prisma.supplier.create({
@@ -151,7 +153,8 @@ async function main() {
       contactName: "רונן אברהמי",
       phone: "052-9876543",
       email: "ronen@electrocheck.co.il",
-      defaultCommission: 950
+      defaultCommissionType: "FIXED",
+      defaultCommissionValue: 950
     }
   });
 
