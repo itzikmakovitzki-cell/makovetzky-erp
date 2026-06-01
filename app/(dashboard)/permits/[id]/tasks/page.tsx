@@ -18,8 +18,10 @@ export default async function PermitTasksTabPage({
   const categoryFilter = category && category.trim() ? category.trim() : null;
 
   // Submissions live per (permit, category). Categories present on this
-  // permit drive the strip — missing rows = implicit PREPARING.
-  const [permitCategoryRows, submissions] = await Promise.all([
+  // permit drive the strip — missing rows = implicit PREPARING. The completion
+  // counts come from a groupBy aggregated by both category + status so the
+  // strip can show n/m and gate SUBMITTED with a confirm when n<m.
+  const [permitCategoryRows, submissions, completionRows] = await Promise.all([
     prisma.task.findMany({
       where: { permitId: id, deletedAt: null, category: { not: null } },
       select: { category: true },
@@ -35,11 +37,30 @@ export default async function PermitTasksTabPage({
         decidedAt: true,
         decisionNotes: true
       }
+    }),
+    prisma.task.groupBy({
+      by: ["category", "status"],
+      where: { permitId: id, deletedAt: null, category: { not: null } },
+      _count: { _all: true }
     })
   ]);
   const permitCategories = permitCategoryRows
     .map((r) => r.category)
     .filter((c): c is string => !!c);
+
+  // Roll the per-(category,status) counts into per-category totals.
+  const completionByCategory: Record<
+    string,
+    { total: number; completed: number }
+  > = {};
+  for (const r of completionRows) {
+    if (!r.category) continue;
+    const entry =
+      completionByCategory[r.category] ??
+      (completionByCategory[r.category] = { total: 0, completed: 0 });
+    entry.total += r._count._all;
+    if (r.status === "COMPLETED") entry.completed += r._count._all;
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -51,6 +72,7 @@ export default async function PermitTasksTabPage({
           permitId={id}
           categories={permitCategories}
           submissions={submissions}
+          completionByCategory={completionByCategory}
         />
       )}
       {active === "timeline" ? (
