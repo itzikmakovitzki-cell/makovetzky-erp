@@ -18,19 +18,25 @@ const STATES = [
 ] as const;
 
 export function MyTasksFilterBar({
-  projects
+  projects,
+  categories
 }: {
   projects: { id: string; name: string }[];
+  // Distinct Task.category values across the user's tasks. Empty means no
+  // categorised tasks → the dropdown hides itself.
+  categories: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const project = searchParams.get("project") ?? "";
+  const category = searchParams.get("category") ?? "";
   const timeframe = searchParams.get("timeframe") ?? "";
   const state = searchParams.get("state") ?? "";
 
-  const hasAny = project !== "" || timeframe !== "" || state !== "";
+  const hasAny =
+    project !== "" || category !== "" || timeframe !== "" || state !== "";
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -67,6 +73,23 @@ export function MyTasksFilterBar({
             />
           )}
         </FilterGroup>
+
+        {categories.length > 0 && (
+          <FilterGroup label="סיווג">
+            <select
+              value={category}
+              onChange={(e) => setParam("category", e.target.value || null)}
+              className="max-w-[12rem] truncate rounded border border-input bg-background px-2 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">כל הסיווגים</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </FilterGroup>
+        )}
 
         <FilterGroup label="טווח זמן">
           <div className="flex items-center gap-1">

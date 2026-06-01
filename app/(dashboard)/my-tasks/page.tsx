@@ -87,6 +87,10 @@ export default async function MyTasksPage({
   const params = await searchParams;
   const projectParam =
     typeof params.project === "string" && params.project ? params.project : undefined;
+  const categoryParam =
+    typeof params.category === "string" && params.category.trim()
+      ? params.category.trim()
+      : undefined;
   const timeframeParam =
     typeof params.timeframe === "string" &&
     VALID_TIMEFRAMES.has(params.timeframe as Timeframe)
@@ -107,6 +111,7 @@ export default async function MyTasksPage({
     permit: { deletedAt: null }
   };
   if (projectParam) where.permitId = projectParam;
+  if (categoryParam) where.category = categoryParam;
 
   if (stateParam === "active") {
     where.status = { in: ["OPEN", "IN_PROGRESS"] };
@@ -135,7 +140,7 @@ export default async function MyTasksPage({
     status: { not: "COMPLETED" }
   };
 
-  const [rows, projectRows, users, todayCount, overdueCount] = await Promise.all([
+  const [rows, projectRows, categoryRows, users, todayCount, overdueCount] = await Promise.all([
     prisma.task.findMany({
       where,
       include: {
@@ -164,6 +169,19 @@ export default async function MyTasksPage({
       where: { assigneeId: userId, deletedAt: null, permit: { deletedAt: null } },
       select: { permitId: true, permit: { select: { name: true } } },
       distinct: ["permitId"]
+    }),
+    // Distinct categories the user has tasks in — feeds the filter dropdown.
+    // Same "independent of current filters" rule as projects above.
+    prisma.task.findMany({
+      where: {
+        assigneeId: userId,
+        deletedAt: null,
+        permit: { deletedAt: null },
+        category: { not: null }
+      },
+      select: { category: true },
+      distinct: ["category"],
+      orderBy: { category: "asc" }
     }),
     prisma.user.findMany({
       where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE", "CONTRACTOR"] } },
@@ -205,6 +223,9 @@ export default async function MyTasksPage({
   const projects = projectRows
     .map((r) => ({ id: r.permitId, name: r.permit.name }))
     .sort((a, b) => a.name.localeCompare(b.name, "he"));
+  const categories = categoryRows
+    .map((r) => r.category)
+    .filter((c): c is string => !!c && c.trim() !== "");
 
   return (
     <section className="flex flex-col gap-3">
@@ -222,7 +243,7 @@ export default async function MyTasksPage({
         description="תיבת המשימות האישית שלך — סינון לפי פרויקט, טווח זמן ומצב. עריכה מהירה בטבלה או גרירה בלוח הקנבן."
       />
 
-      <MyTasksFilterBar projects={projects} />
+      <MyTasksFilterBar projects={projects} categories={categories} />
 
       <MyTasksView tasks={tasks} users={users} />
     </section>
