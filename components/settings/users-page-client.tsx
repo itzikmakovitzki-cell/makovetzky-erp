@@ -12,6 +12,7 @@ export type UserRow = {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
   role: UserRole;
   isActive: boolean;
   createdAt: string;
@@ -38,7 +39,11 @@ export function UsersPageClient({
 }) {
   const [mode, setMode] = useState<
     | { kind: "create" }
-    | { kind: "update"; userId: string; initial: { name: string; email: string; role: UserRole } }
+    | {
+        kind: "update";
+        userId: string;
+        initial: { name: string; email: string; phone: string | null; role: UserRole };
+      }
     | null
   >(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -125,7 +130,12 @@ export function UsersPageClient({
                         setMode({
                           kind: "update",
                           userId: u.id,
-                          initial: { name: u.name, email: u.email, role: u.role }
+                          initial: {
+                            name: u.name,
+                            email: u.email,
+                            phone: u.phone,
+                            role: u.role
+                          }
                         })
                       }
                       className="inline-flex items-center gap-1 rounded border border-input px-1.5 py-0.5 text-[10px] hover:bg-accent"

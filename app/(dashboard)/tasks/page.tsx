@@ -110,7 +110,7 @@ export default async function TasksGlobalPage({
     prisma.task.findMany({
       where,
       include: {
-        assignee: { select: { id: true, name: true } },
+        assignee: { select: { id: true, name: true, phone: true } },
         permit: { select: { id: true, name: true, permitNumber: true } },
         dependsOn: {
           select: {
@@ -342,6 +342,7 @@ export default async function TasksGlobalPage({
                       </span>
                       <WhatsAppReminderButton
                         assigneeName={t.assignee?.name ?? null}
+                        phone={t.assignee?.phone ?? null}
                         taskName={t.name}
                         projectName={t.permit.name}
                       />

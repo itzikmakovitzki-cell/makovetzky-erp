@@ -13,6 +13,7 @@ export default async function SettingsUsersPage() {
       id: true,
       name: true,
       email: true,
+      phone: true,
       role: true,
       isActive: true,
       createdAt: true
@@ -24,6 +25,7 @@ export default async function SettingsUsersPage() {
     id: u.id,
     name: u.name,
     email: u.email,
+    phone: u.phone,
     role: u.role,
     isActive: u.isActive,
     createdAt: u.createdAt.toISOString()

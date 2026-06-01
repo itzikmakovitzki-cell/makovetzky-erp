@@ -10,7 +10,12 @@ type Mode =
   | {
       kind: "update";
       userId: string;
-      initial: { name: string; email: string; role: UserRole };
+      initial: {
+        name: string;
+        email: string;
+        role: UserRole;
+        phone: string | null;
+      };
     };
 
 export function UserFormDialog({
@@ -42,7 +47,9 @@ export function UserFormDialog({
   }, [state.ok]);
 
   const isEdit = mode.kind === "update";
-  const initial = isEdit ? mode.initial : { name: "", email: "", role: "EMPLOYEE" as UserRole };
+  const initial = isEdit
+    ? mode.initial
+    : { name: "", email: "", role: "EMPLOYEE" as UserRole, phone: null as string | null };
 
   return (
     <dialog
@@ -87,6 +94,16 @@ export function UserFormDialog({
               name="email"
               defaultValue={initial.email}
               required
+              className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </Field>
+          <Field label='טלפון (לתזכורות וואצפ — אופציונלי, פורמט "0501234567")'>
+            <input
+              type="tel"
+              name="phone"
+              defaultValue={initial.phone ?? ""}
+              maxLength={40}
+              placeholder="0501234567 / +972501234567"
               className="w-full rounded border border-input bg-background px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </Field>

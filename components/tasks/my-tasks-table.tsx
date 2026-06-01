@@ -106,6 +106,7 @@ export function MyTasksTable({
                     />
                     <WhatsAppReminderButton
                       assigneeName={t.assigneeName}
+                      phone={t.assigneePhone}
                       taskName={t.name}
                       projectName={t.permitName}
                     />

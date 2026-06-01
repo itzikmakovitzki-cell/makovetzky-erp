@@ -126,7 +126,7 @@ export default async function MyTasksPage({
     prisma.task.findMany({
       where,
       include: {
-        assignee: { select: { id: true, name: true } },
+        assignee: { select: { id: true, name: true, phone: true } },
         permit: {
           select: {
             id: true,
@@ -194,6 +194,7 @@ export default async function MyTasksPage({
       snoozeCount: t.snoozeCount,
       assigneeId: t.assigneeId,
       assigneeName: t.assignee?.name ?? null,
+      assigneePhone: t.assignee?.phone ?? null,
       permitId: t.permit.id,
       permitName: t.permit.name,
       permitNumber: t.permit.permitNumber,
