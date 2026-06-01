@@ -117,6 +117,16 @@ enum AuditAction {
   REJECT
 }
 
+// Lifecycle of an AuthoritySubmission (Block 26). Tracks the PM's flow of
+// "I gathered all docs in this category → I sent the bundle to the authority
+// → I'm waiting → the authority responded". Per (permit, category) pair.
+enum AuthoritySubmissionStatus {
+  PREPARING
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 // =============================================================
 // USERS & PORTAL ACCESS
 // =============================================================
@@ -141,6 +151,8 @@ model User {
   auditLogs                AuditLog[]
   portalAccesses           PortalAccess[]
   createdProposals         Proposal[]           @relation("ProposalCreator")
+  // Submissions this user marked as sent to the authority.
+  authoritySubmissions     AuthoritySubmission[]
 
   @@index([role])
 }
@@ -258,12 +270,40 @@ model Permit {
   magicLinks       MagicLink[]
   weeklySummaries  WeeklySummaryDraft[]
   pendingDocuments PendingDocument[]
+  authoritySubmissions AuthoritySubmission[]
 
   @@index([masterDealId])
   @@index([authorityId])
   @@index([status])
   @@index([expectedCloseDate])
   @@index([deletedAt])
+}
+
+// Block 26: one row per (permit, category) — tracks the authority-side
+// lifecycle. Category is the same free-text value as Task.category; we
+// intentionally keep them as plain strings (rather than introducing a
+// Category table) to match how the PM thinks about them.
+model AuthoritySubmission {
+  id            String                    @id @default(cuid())
+  permitId      String
+  category      String
+  status        AuthoritySubmissionStatus @default(PREPARING)
+  // Set when status transitions to SUBMITTED.
+  submittedAt   DateTime?
+  // Set when status transitions to APPROVED or REJECTED.
+  decidedAt     DateTime?
+  // Free-text capture of the authority's note (e.g. "missing form X").
+  decisionNotes String?
+  submittedById String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  permit      Permit @relation(fields: [permitId], references: [id], onDelete: Cascade)
+  submittedBy User?  @relation(fields: [submittedById], references: [id], onDelete: SetNull)
+
+  @@unique([permitId, category])
+  @@index([permitId])
+  @@index([status])
 }
 
 model Building {
