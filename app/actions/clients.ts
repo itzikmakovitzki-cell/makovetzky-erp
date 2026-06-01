@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AuditAction } from "@prisma/client";
+import { AuditAction, ClientNotificationPreference } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
@@ -179,6 +179,106 @@ export async function deleteClient(id: string): Promise<DeleteResult> {
     return {
       ok: false,
       error: e instanceof Error ? e.message : "מחיקת הלקוח נכשלה"
+    };
+  }
+}
+
+// =============================================================
+// WhatsApp notification preference + manual-send (PR-W).
+// =============================================================
+//
+// The system NEVER auto-sends WhatsApp messages to clients. These actions:
+//   - Let the admin flip a client between "MANUAL_ONLY" (button visible)
+//     and "OFF" (button hidden — even an accidental click can't reach the
+//     client).
+//   - Log every time the admin opens a WhatsApp window for a client so we
+//     have a chronological record of what was attempted/sent. The act of
+//     pressing Send still happens inside WhatsApp itself — the system
+//     just opens the deeplink.
+
+export async function setClientNotificationPreference(args: {
+  clientId: string;
+  preference: ClientNotificationPreference;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const client = await prisma.client.findFirst({
+      where: { id: args.clientId, deletedAt: null },
+      select: {
+        id: true,
+        companyName: true,
+        notificationPreference: true
+      }
+    });
+    if (!client) return { ok: false, error: "הלקוח לא נמצא" };
+    if (client.notificationPreference === args.preference) return { ok: true };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.client.update({
+        where: { id: args.clientId },
+        data: { notificationPreference: args.preference }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.CLIENT,
+        entityId: args.clientId,
+        action: AuditAction.UPDATE,
+        oldValue: { notificationPreference: client.notificationPreference },
+        newValue: { notificationPreference: args.preference },
+        userId: me.id
+      });
+    });
+    revalidatePath(`/clients/${args.clientId}`);
+    revalidatePath("/clients");
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "שמירת העדפת ההתראות נכשלה"
+    };
+  }
+}
+
+// Records that an admin opened a WhatsApp window for the client with a
+// specific message. We DO NOT send anything — the wa.me deeplink is
+// returned to the caller for the client to open. The audit row is the
+// system's record that an attempt was made.
+export async function recordClientWhatsAppSend(args: {
+  clientId: string;
+  message: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const client = await prisma.client.findFirst({
+      where: { id: args.clientId, deletedAt: null },
+      select: { id: true, companyName: true, notificationPreference: true }
+    });
+    if (!client) return { ok: false, error: "הלקוח לא נמצא" };
+    // Safety net: if the admin somehow reached this action with prefs OFF
+    // (UI shouldn't allow it), reject so the audit log can't be misused.
+    if (client.notificationPreference === "OFF") {
+      return {
+        ok: false,
+        error: "התראות הלקוח כבויות — לא ניתן לתעד שליחה"
+      };
+    }
+    await prisma.$transaction(async (tx) => {
+      await logAudit(tx, {
+        entityType: AuditEntity.CLIENT,
+        entityId: args.clientId,
+        action: AuditAction.UPDATE,
+        newValue: {
+          event: "whatsapp_opened",
+          message: args.message,
+          clientName: client.companyName
+        },
+        userId: me.id
+      });
+    });
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "תיעוד השליחה נכשל"
     };
   }
 }

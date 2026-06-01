@@ -18,6 +18,10 @@ export type MyTask = {
   snoozeCount: number;
   assigneeId: string | null;
   assigneeName: string | null;
+  /** Phone in whatever format the admin entered. Used by buildWaMeUrl
+   *  to populate the wa.me deeplink — null = WhatsApp button copies the
+   *  message to clipboard only. */
+  assigneePhone: string | null;
   permitId: string;
   permitName: string;
   permitNumber: string | null;

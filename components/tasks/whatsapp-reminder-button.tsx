@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { MessageCircle, Check } from "lucide-react";
+import { buildWaMeUrl } from "@/lib/wa-link";
 import { cn } from "@/lib/utils";
 
-// Block 25: one-click WhatsApp reminder for a task's assignee. Always copies a
-// pre-filled Hebrew message to the clipboard; if a phone number is known it also
-// opens wa.me with the text. Assignee Users carry no phone today, so the phone
-// path is dormant until one is supplied — the copy path is the working default.
+// Block 25 + PR-W: one-click WhatsApp reminder for a task's assignee. Always
+// copies a pre-filled Hebrew message to the clipboard; if the assignee's
+// User.phone is populated, ALSO opens wa.me with the text — the user still
+// presses Send in WhatsApp itself. Until PR-W (migration 014), User.phone
+// didn't exist and the wa.me path was dormant.
 export function WhatsAppReminderButton({
   assigneeName,
   taskName,
@@ -34,17 +36,8 @@ export function WhatsAppReminderButton({
     } catch {
       window.prompt("העתק את התזכורת:", message);
     }
-    if (phone) {
-      const digits = phone.replace(/\D/g, "");
-      const intl = digits.startsWith("0") ? `972${digits.slice(1)}` : digits;
-      if (intl) {
-        window.open(
-          `https://wa.me/${intl}?text=${encodeURIComponent(message)}`,
-          "_blank",
-          "noopener,noreferrer"
-        );
-      }
-    }
+    const waUrl = buildWaMeUrl(phone, message);
+    if (waUrl) window.open(waUrl, "_blank", "noopener,noreferrer");
   };
 
   return (

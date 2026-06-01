@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { ClientProfileActions } from "@/components/clients/client-profile-actions";
+import { ClientWhatsAppPanel } from "@/components/clients/client-whatsapp-panel";
 import { PortalAccessSection } from "@/components/clients/portal-access-section";
 import {
   MASTER_DEAL_STATUS_LABEL,
@@ -168,6 +169,13 @@ export default async function ClientProfilePage({
           <div className="mt-0.5 whitespace-pre-wrap">{client.notes}</div>
         </div>
       )}
+
+      <ClientWhatsAppPanel
+        clientId={client.id}
+        clientName={client.companyName}
+        clientPhone={client.phone}
+        initialPreference={client.notificationPreference}
+      />
 
       <PortalAccessSection
         clientId={client.id}

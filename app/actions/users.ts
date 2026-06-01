@@ -20,6 +20,7 @@ export async function submitUser(
     const kind = String(formData.get("kind") || "");
     const name = String(formData.get("name") || "").trim();
     const email = String(formData.get("email") || "").trim().toLowerCase();
+    const phone = String(formData.get("phone") || "").trim() || null;
     const role = String(formData.get("role") || "") as UserRole;
     const password = String(formData.get("password") || "");
 
@@ -36,13 +37,13 @@ export async function submitUser(
       try {
         await prisma.$transaction(async (tx) => {
           const user = await tx.user.create({
-            data: { name, email, role, passwordHash, isActive: true }
+            data: { name, email, phone, role, passwordHash, isActive: true }
           });
           await logAudit(tx, {
             entityType: AuditEntity.USER,
             entityId: user.id,
             action: AuditAction.CREATE,
-            newValue: { name, email, role },
+            newValue: { name, email, phone, role },
             userId: me.id
           });
         });
@@ -63,7 +64,7 @@ export async function submitUser(
 
       const existing = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, name: true, email: true, role: true }
+        select: { id: true, name: true, email: true, phone: true, role: true }
       });
       if (!existing) return { error: "משתמש לא נמצא", ok: false };
 
@@ -72,7 +73,7 @@ export async function submitUser(
         return { error: "אינך יכול לשנות את התפקיד שלך מאדמין", ok: false };
       }
 
-      const data: Prisma.UserUpdateInput = { name, email, role };
+      const data: Prisma.UserUpdateInput = { name, email, phone, role };
       let passwordChanged = false;
       if (password) {
         if (password.length < 6) {
@@ -92,9 +93,10 @@ export async function submitUser(
             oldValue: {
               name: existing.name,
               email: existing.email,
+              phone: existing.phone,
               role: existing.role
             },
-            newValue: { name, email, role, passwordChanged },
+            newValue: { name, email, phone, role, passwordChanged },
             userId: me.id
           });
         });

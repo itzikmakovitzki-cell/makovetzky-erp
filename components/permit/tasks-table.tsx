@@ -54,7 +54,7 @@ export async function TasksTable({
     prisma.task.findMany({
       where: taskWhere,
       include: {
-        assignee: { select: { id: true, name: true } },
+        assignee: { select: { id: true, name: true, phone: true } },
         template: { select: { name: true } },
         permit: { select: { name: true } },
         dependsOn: {
@@ -245,6 +245,7 @@ export async function TasksTable({
                     />
                     <WhatsAppReminderButton
                       assigneeName={t.assignee?.name ?? null}
+                      phone={t.assignee?.phone ?? null}
                       taskName={t.name}
                       projectName={t.permit.name}
                     />

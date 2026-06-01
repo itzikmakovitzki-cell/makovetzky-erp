@@ -129,6 +129,18 @@ enum AuthoritySubmissionStatus {
   REJECTED
 }
 
+// Whether a Client may receive any WhatsApp notification from the system.
+// Default `MANUAL_ONLY` = admin sees the "send update" button on the client
+// profile but must click it each time (wa.me deeplink — admin still presses
+// Send in WhatsApp itself; the system never auto-sends). `OFF` = the button
+// is hidden entirely so a misclick can't reach a sensitive client. Some of
+// the customer's clients are public figures and must never receive an
+// uncontrolled message.
+enum ClientNotificationPreference {
+  OFF
+  MANUAL_ONLY
+}
+
 // =============================================================
 // USERS & PORTAL ACCESS
 // =============================================================
@@ -137,6 +149,12 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
+  // Free-text phone (Israeli 0XX-XXXXXXX or international +972…). Used by
+  // the Block-25 WhatsAppReminderButton to populate the wa.me deeplink for
+  // an assignee; normalization to E.164 happens in lib/wa-link.ts at call
+  // time. Optional — until populated, the button copies the message text
+  // to the clipboard and skips opening WhatsApp.
+  phone        String?
   passwordHash String
   role         UserRole @default(EMPLOYEE)
   isActive     Boolean  @default(true)
@@ -209,6 +227,11 @@ model Client {
   email       String?
   address     String?
   notes       String?
+  // Whether WhatsApp UI shows up on this client's profile at all. Default
+  // MANUAL_ONLY = button visible, admin clicks per send. OFF = button hidden.
+  // Strict: even the *suggestion* of a send is gated on this. See enum doc
+  // and components/clients/client-notification-preference-toggle.tsx.
+  notificationPreference ClientNotificationPreference @default(MANUAL_ONLY)
   deletedAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

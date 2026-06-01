@@ -64,6 +64,7 @@ export function TaskCard({
           )}
           <WhatsAppReminderButton
             assigneeName={task.assigneeName}
+            phone={task.assigneePhone}
             taskName={task.name}
             projectName={task.permitName}
           />
