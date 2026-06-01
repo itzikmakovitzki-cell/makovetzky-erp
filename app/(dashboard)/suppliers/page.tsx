@@ -18,6 +18,7 @@ import {
   SuppliersOverviewTable,
   type SupplierOverviewRow
 } from "@/components/suppliers/suppliers-overview-table";
+import { AssignmentMobileList } from "@/components/suppliers/assignment-mobile-list";
 import { PageHeader } from "@/components/global/page-header";
 import {
   SUPPLIER_ASSIGNMENT_STATUS_LABEL,
@@ -368,7 +369,33 @@ async function SupplierDetail({
           )}
         </div>
 
-        <table>
+        {/* Mobile: stacked cards. The 9-column desktop table below is hidden
+            under the md breakpoint — same dual-render pattern as
+            SuppliersOverviewTable. */}
+        <div className="md:hidden">
+          <AssignmentMobileList
+            assignments={assignments.map((a) => ({
+              id: a.id,
+              supplierId: a.supplierId,
+              taskId: a.taskId,
+              status: a.status,
+              amount: a.amount?.toString() ?? null,
+              commissionType: a.commissionType,
+              commissionValue: a.commissionValue?.toString() ?? null,
+              paymentTerms: a.paymentTerms,
+              dueDate: a.dueDate,
+              notes: a.notes,
+              commissionPaidAt: a.commissionPaidAt,
+              task: a.task
+            }))}
+            supplierName={supplier.name}
+            supplierDefaults={supplierDefaults}
+            showAll={showAll}
+            isAdmin={isAdmin}
+          />
+        </div>
+
+        <table className="hidden md:table">
           <thead>
             <tr>
               <th>היתר</th>
