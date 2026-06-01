@@ -81,7 +81,7 @@ export function PermitTasksXlsxToolbar({
             onClick={() => fileInputRef.current?.click()}
             disabled={importPending}
             className={btnClass}
-            title='ייבוא משימות מקובץ אקסל בפורמט מקובצקי ("דרישות / פירוט / סטאטוס")'
+            title='ייבוא משימות מקובץ אקסל או CSV בפורמט מקובצקי ("דרישות / פירוט / סטאטוס")'
           >
             {importPending ? (
               <Loader2 className="size-3 animate-spin" />
@@ -108,7 +108,7 @@ export function PermitTasksXlsxToolbar({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -156,7 +156,7 @@ function ImportSummary({
       </div>
     );
   }
-  const { created, skipped, errors } = result;
+  const { created, skipped, skippedReasons, errors } = result;
   const tone =
     errors.length > 0
       ? "text-amber-700"
@@ -184,6 +184,21 @@ function ImportSummary({
           סגור
         </button>
       </span>
+      {skippedReasons.length > 0 && (
+        <details className="text-muted-foreground">
+          <summary className="cursor-pointer">פירוט שורות שדולגו</summary>
+          <ul className="ms-3 mt-0.5 list-disc">
+            {skippedReasons.slice(0, 20).map((s, i) => (
+              <li key={i}>
+                שורה {s.row}: {s.reason}
+              </li>
+            ))}
+            {skippedReasons.length > 20 && (
+              <li>…ועוד {skippedReasons.length - 20} שורות</li>
+            )}
+          </ul>
+        </details>
+      )}
       {errors.length > 0 && (
         <details className="text-amber-700">
           <summary className="cursor-pointer">פירוט שגיאות</summary>

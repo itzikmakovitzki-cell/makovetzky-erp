@@ -68,6 +68,9 @@ export type XlsxImportResult = {
   error: string | null;
   created: number;
   skipped: number;
+  // Why rows were skipped (e.g. status "ירד בדרישות"). Distinct from errors
+  // which represent real problems the user needs to act on.
+  skippedReasons: { row: number; reason: string }[];
   errors: { row: number; message: string }[];
 };
 
@@ -76,6 +79,7 @@ export const EMPTY_XLSX_IMPORT_RESULT: XlsxImportResult = {
   error: null,
   created: 0,
   skipped: 0,
+  skippedReasons: [],
   errors: []
 };
 
@@ -83,10 +87,19 @@ export type MakovetzkiTaskRow = {
   // The 1-based source row number in the user's file — used in error
   // messages so they can locate problem rows in Excel directly.
   sourceRow: number;
+  // Category band the row belongs to (from a merged sub-header band or a
+  // pre-header standalone row). Empty string when no category is detected;
+  // the importer will then leave the task name untouched.
+  category: string;
   name: string;
   description: string | null;
   rawStatus: string;
 };
+
+// Status text that means "the authority dropped this requirement — it is no
+// longer needed". Rows with this status should be silently skipped rather
+// than imported as OPEN tasks.
+const SKIP_STATUS_DROPPED = "ירד בדרישות";
 
 // --- Export styling (exceljs) ---------------------------------------------
 
@@ -264,14 +277,56 @@ function findHeaderRow(
   return null;
 }
 
-// Parses .xlsx bytes into Makovetzki rows. Edge case from the spec:
-// if `דרישות` is blank but `פירוט` has text (e.g. a sub-stage of a
-// building), the פירוט text becomes the task name and description is
-// left null. If both are present, name = `דרישות` and description = `פירוט`.
-// Rows where both columns are blank are skipped silently.
+// Returns true if this row is the start of a merged range spanning all three
+// data columns — that's the signature of a category sub-header band emitted
+// by `buildMakovetzkiWorkbook`. We use it (rather than "single-col text") to
+// distinguish a category from a task that happens to have an empty פירוט/
+// status, because structurally those look identical in flat data.
+function rowIsCategoryBand(
+  sheet: XLSX.WorkSheet,
+  rowIdx: number,
+  reqCol: number,
+  detailCol: number,
+  statusCol: number
+): boolean {
+  const merges = sheet["!merges"];
+  if (!merges) return false;
+  const minCol = Math.min(reqCol, detailCol, statusCol);
+  const maxCol = Math.max(reqCol, detailCol, statusCol);
+  for (const m of merges) {
+    if (
+      m.s.r === rowIdx &&
+      m.e.r === rowIdx &&
+      m.s.c <= minCol &&
+      m.e.c >= maxCol
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Parses .xlsx (or CSV — SheetJS auto-detects) bytes into Makovetzki rows.
+//
+// Three quirks the customer's templates have that this handles:
+//   - A duplicate "דרישות / פירוט / סטאטוס" header row in the middle of the
+//     data is recognised and ignored.
+//   - Rows with status "ירד בדרישות" (dropped from authority requirements)
+//     are reported as `skipped`, not imported.
+//   - Category sub-header bands written by our own export (`buildMakovetzki-
+//     Workbook` — merged across the three columns) are picked up and applied
+//     as a `[category]` prefix on every task that follows, so round-trips
+//     stay grouped. A scan above the header row catches the customer's
+//     initial category (e.g. "טפסים") which sits before the header.
+//
+// Edge case from the original spec: if `דרישות` is blank but `פירוט` has
+// text (a sub-stage line), `פירוט` becomes the task name and description
+// stays null. Rows where both columns are blank are dropped silently.
 export function parseMakovetzkiWorkbook(
   bytes: Uint8Array
-): { ok: true; rows: MakovetzkiTaskRow[] } | { ok: false; error: string } {
+):
+  | { ok: true; rows: MakovetzkiTaskRow[]; skipped: { row: number; reason: string }[] }
+  | { ok: false; error: string } {
   let workbook: XLSX.WorkBook;
   try {
     workbook = XLSX.read(bytes, { type: "array" });
@@ -298,6 +353,23 @@ export function parseMakovetzkiWorkbook(
   }
   const range = XLSX.utils.decode_range(sheet["!ref"]);
   const rows: MakovetzkiTaskRow[] = [];
+  const skipped: { row: number; reason: string }[] = [];
+
+  // Scan above the header for an initial category band (the customer's
+  // template puts the first category — "טפסים" in their files — on the row
+  // *before* the column headers).
+  let currentCategory = "";
+  for (let r = range.s.r; r < header.headerRow; r++) {
+    if (
+      rowIsCategoryBand(sheet, r, header.reqCol, header.detailCol, header.statusCol)
+    ) {
+      const v = String(
+        sheet[XLSX.utils.encode_cell({ r, c: header.reqCol })]?.v ?? ""
+      ).trim();
+      if (v) currentCategory = v;
+    }
+  }
+
   for (let r = header.headerRow + 1; r <= range.e.r; r++) {
     const reqCell = sheet[XLSX.utils.encode_cell({ r, c: header.reqCol })];
     const detailCell = sheet[XLSX.utils.encode_cell({ r, c: header.detailCol })];
@@ -305,6 +377,36 @@ export function parseMakovetzkiWorkbook(
     const req = String(reqCell?.v ?? "").trim();
     const detail = String(detailCell?.v ?? "").trim();
     const status = String(statusCell?.v ?? "").trim();
+    if (!req && !detail && !status) continue;
+
+    // Duplicate header row mid-data → ignore. Customer templates sometimes
+    // repeat the header above each section.
+    if (
+      req === HEADER_REQUIREMENTS &&
+      detail === HEADER_DETAIL &&
+      (status === HEADER_STATUS || status === "סטטוס")
+    ) {
+      continue;
+    }
+
+    // Category sub-header band: switch context for following rows.
+    if (
+      rowIsCategoryBand(sheet, r, header.reqCol, header.detailCol, header.statusCol) &&
+      req
+    ) {
+      currentCategory = req;
+      continue;
+    }
+
+    // Authority dropped this requirement — skip with an explanation.
+    if (status === SKIP_STATUS_DROPPED) {
+      skipped.push({
+        row: r + 1,
+        reason: `סטאטוס "${SKIP_STATUS_DROPPED}" — לא יובא`
+      });
+      continue;
+    }
+
     if (!req && !detail) continue;
 
     let name: string;
@@ -322,10 +424,11 @@ export function parseMakovetzkiWorkbook(
     }
     rows.push({
       sourceRow: r + 1, // 1-based for the user
+      category: currentCategory,
       name,
       description,
       rawStatus: status
     });
   }
-  return { ok: true, rows };
+  return { ok: true, rows, skipped };
 }

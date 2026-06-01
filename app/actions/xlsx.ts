@@ -128,9 +128,13 @@ export async function importPermitTasksXlsx(
           description = description ? `${description}\n${note}` : note;
         }
       }
+      // Apply the parsed category as a [prefix] on the task name — this is
+      // the same convention Block 24's export uses, so a round-trip export
+      // → edit → re-import stays grouped under the right band.
+      const displayName = r.category ? `[${r.category}] ${r.name}` : r.name;
       toCreate.push({
         permitId,
-        name: r.name,
+        name: displayName,
         description,
         status,
         // Same rule used by CSV import + task creation runtime: a task
@@ -153,6 +157,7 @@ export async function importPermitTasksXlsx(
             format: "makovetzki",
             created,
             errorCount: errors.length,
+            skippedCount: parsed.skipped.length,
             sampleNames: toCreate.slice(0, 5).map((t) => t.name)
           },
           userId: me.id
@@ -162,7 +167,14 @@ export async function importPermitTasksXlsx(
       revalidatePath("/tasks");
     }
 
-    return { ok: true, error: null, created, skipped: 0, errors };
+    return {
+      ok: true,
+      error: null,
+      created,
+      skipped: parsed.skipped.length,
+      skippedReasons: parsed.skipped,
+      errors
+    };
   } catch (e) {
     return {
       ...EMPTY_XLSX_IMPORT_RESULT,
