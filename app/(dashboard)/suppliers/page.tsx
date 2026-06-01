@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Truck, AlertCircle, Globe, Mail, Phone } from "lucide-react";
+import { AlertCircle, Globe, Mail, Phone } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +12,10 @@ import {
   AssignmentRowActions
 } from "@/components/suppliers/assignment-buttons";
 import type { TaskOption } from "@/components/suppliers/assignment-form-dialog";
+import {
+  SuppliersOverviewTable,
+  type SupplierOverviewRow
+} from "@/components/suppliers/suppliers-overview-table";
 import { PageHeader } from "@/components/global/page-header";
 import {
   SUPPLIER_ASSIGNMENT_STATUS_LABEL,
@@ -84,7 +88,9 @@ export default async function SuppliersGlobalPage({
 }
 
 async function SuppliersOverview() {
-  // Aggregate per supplier — used as a "pick me" overview when no supplier is selected.
+  // Aggregate per supplier — fed to the client overview table which handles
+  // the search + xlsx export. We compute openTaskCount + openAmount on the
+  // server so the client component stays lightweight.
   const suppliers = await prisma.supplier.findMany({
     include: {
       taskAssignments: {
@@ -98,70 +104,23 @@ async function SuppliersOverview() {
     orderBy: { name: "asc" }
   });
 
-  if (suppliers.length === 0) {
-    return (
-      <div className="rounded-md border bg-card px-3 py-6 text-center text-xs text-muted-foreground">
-        אין ספקים מוגדרים
-      </div>
-    );
-  }
+  const rows: SupplierOverviewRow[] = suppliers.map((s) => ({
+    id: s.id,
+    name: s.name,
+    type: s.type,
+    services: s.services,
+    contactName: s.contactName,
+    phone: s.phone,
+    email: s.email,
+    website: s.website,
+    openTaskCount: s.taskAssignments.length,
+    openAmount: s.taskAssignments.reduce(
+      (sum, a) => sum + (a.amount ? Number(a.amount.toString()) : 0),
+      0
+    )
+  }));
 
-  return (
-    <div className="rounded-md border bg-card">
-      <div className="border-b bg-muted/30 px-3 py-1.5">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          סקירת ספקים — לחץ על שורה לפתיחה
-        </h2>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>ספק</th>
-            <th>סוג</th>
-            <th className="w-32 text-center">משימות פתוחות</th>
-            <th className="w-32">סכום פתוח</th>
-          </tr>
-        </thead>
-        <tbody>
-          {suppliers.map((s) => {
-            const openCount = s.taskAssignments.length;
-            const openAmount = s.taskAssignments.reduce(
-              (sum, a) => sum + (a.amount ? Number(a.amount.toString()) : 0),
-              0
-            );
-            return (
-              <tr key={s.id} className="hover:bg-muted/30">
-                <td>
-                  <Link
-                    href={`/suppliers?supplier=${s.id}`}
-                    className="inline-flex items-center gap-1.5 font-medium underline-offset-2 hover:underline"
-                  >
-                    <Truck className="size-3 text-muted-foreground" />
-                    {s.name}
-                  </Link>
-                </td>
-                <td className="text-xs text-muted-foreground">{s.type ?? "—"}</td>
-                <td className="text-center text-xs tabular-nums">
-                  {openCount > 0 ? (
-                    <span className="font-semibold">{openCount}</span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="text-xs tabular-nums">
-                  {openAmount > 0 ? (
-                    <span className="font-semibold">{formatILS(openAmount)}</span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <SuppliersOverviewTable rows={rows} />;
 }
 
 async function SupplierDetail({
