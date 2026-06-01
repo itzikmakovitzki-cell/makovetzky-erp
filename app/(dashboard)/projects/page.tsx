@@ -4,6 +4,7 @@ import type { PermitStatus, MasterDealStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ArchiveToggle } from "@/components/global/archive-toggle";
 import { PageHeader } from "@/components/global/page-header";
 import {
   MASTER_DEAL_STATUS_LABEL,
@@ -22,28 +23,50 @@ const ACTIVE_PERMIT_STATUSES: PermitStatus[] = [
   "AWAITING_AUTHORITY"
 ];
 
-export default async function ProjectsListPage() {
-  // Block 23: the projects overview is intentionally money-free — financial
-  // roll-ups live only in /finances. Per permit we pull just task.status for
-  // the progress bars.
-  const deals = await prisma.masterDeal.findMany({
-    where: { deletedAt: null },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    include: {
-      client: { select: { id: true, companyName: true } },
-      permits: {
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          status: true,
-          tasks: {
-            where: { deletedAt: null },
-            select: { status: true }
+// Active vs archived for the master deal itself — drives the
+// /projects archive toggle (mirrors the /permits version from PR #38).
+const ACTIVE_DEAL_STATUSES: MasterDealStatus[] = ["ACTIVE", "ON_HOLD"];
+const ARCHIVED_DEAL_STATUSES: MasterDealStatus[] = ["COMPLETED", "CANCELLED"];
+
+export default async function ProjectsListPage({
+  searchParams
+}: {
+  searchParams: Promise<{ archived?: string }>;
+}) {
+  const { archived } = await searchParams;
+  const showArchived = archived === "1";
+  const statusFilter = showArchived ? ARCHIVED_DEAL_STATUSES : ACTIVE_DEAL_STATUSES;
+
+  // Two counts so the toggle can show both numbers at once.
+  const [activeCount, archivedCount, deals] = await Promise.all([
+    prisma.masterDeal.count({
+      where: { deletedAt: null, status: { in: ACTIVE_DEAL_STATUSES } }
+    }),
+    prisma.masterDeal.count({
+      where: { deletedAt: null, status: { in: ARCHIVED_DEAL_STATUSES } }
+    }),
+    // Block 23: the projects overview is intentionally money-free — financial
+    // roll-ups live only in /finances. Per permit we pull just task.status for
+    // the progress bars.
+    prisma.masterDeal.findMany({
+      where: { deletedAt: null, status: { in: statusFilter } },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      include: {
+        client: { select: { id: true, companyName: true } },
+        permits: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            status: true,
+            tasks: {
+              where: { deletedAt: null },
+              select: { status: true }
+            }
           }
         }
       }
-    }
-  });
+    })
+  ]);
 
   // Roll up per deal in JS. Cheap — at most a few thousand task rows.
   const rows = deals.map((d) => {
@@ -94,10 +117,18 @@ export default async function ProjectsListPage() {
         }
       />
 
+      <div>
+        <ArchiveToggle
+          active={showArchived ? "archived" : "active"}
+          activeCount={activeCount}
+          archivedCount={archivedCount}
+        />
+      </div>
+
       <div className="rounded-md border bg-card">
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            כל הפרויקטים ({rows.length})
+            {showArchived ? "פרויקטים שהושלמו" : "פרויקטים פעילים"} ({rows.length})
           </h2>
         </div>
 
@@ -120,7 +151,9 @@ export default async function ProjectsListPage() {
                   colSpan={7}
                   className="py-6 text-center text-xs text-muted-foreground"
                 >
-                  אין פרויקטים — לחץ &quot;פרויקט חדש&quot; כדי להוסיף אחד.
+                  {showArchived
+                    ? "אין פרויקטים שהושלמו"
+                    : 'אין פרויקטים — לחץ "פרויקט חדש" כדי להוסיף אחד.'}
                 </td>
               </tr>
             )}

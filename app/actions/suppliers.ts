@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 
 export type SupplierFormState = { error: string | null; ok: boolean };
+type DeleteResult = { ok: true } | { ok: false; error: string };
 
 // Parse the (type, value) commission pair from a form. PERCENT values are
 // validated to live in [0, 100]; FIXED values must be non-negative; either
@@ -179,5 +180,56 @@ export async function updateSupplier(
     return { error: null, ok: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "שגיאה לא צפויה", ok: false };
+  }
+}
+
+// Hard-delete a supplier (Supplier has no soft-delete column today). The
+// schema's FK is Restrict from SupplierTaskAssignment → so we delete every
+// assignment in the same transaction as a deliberate cascade. Audit captures
+// the counts. ADMIN-only.
+//
+// NOTE: this hard-deletes assignment rows too — there's no recycle-bin
+// recovery for assignments (the schema never had one). The confirm dialog
+// surfaces the count so the admin sees what they're about to lose.
+export async function deleteSupplier(supplierId: string): Promise<DeleteResult> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const supplier = await prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { taskAssignments: true } }
+      }
+    });
+    if (!supplier) return { ok: false, error: "הספק לא נמצא" };
+
+    const assignmentCount = supplier._count.taskAssignments;
+    await prisma.$transaction(async (tx) => {
+      if (assignmentCount > 0) {
+        await tx.supplierTaskAssignment.deleteMany({ where: { supplierId } });
+      }
+      await tx.supplier.delete({ where: { id: supplierId } });
+      await logAudit(tx, {
+        entityType: AuditEntity.SUPPLIER,
+        entityId: supplierId,
+        action: AuditAction.DELETE,
+        oldValue: { name: supplier.name },
+        newValue: {
+          hardDeletedAt: new Date().toISOString(),
+          cascadedAssignments: assignmentCount
+        },
+        userId: me.id
+      });
+    });
+
+    revalidatePath("/suppliers");
+    revalidatePath("/finances/supplier-commissions");
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "מחיקת הספק נכשלה"
+    };
   }
 }

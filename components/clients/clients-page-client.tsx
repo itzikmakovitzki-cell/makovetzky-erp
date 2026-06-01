@@ -46,16 +46,16 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
   }, [rows, search]);
 
   const handleDelete = (row: ClientRow) => {
-    if (
-      !window.confirm(
-        `למחוק את "${row.companyName}"?\nהפעולה לא ניתנת לביטול.`
-      )
-    )
-      return;
+    const message =
+      row.dealCount === 0
+        ? `למחוק את "${row.companyName}"?\nהלקוח יעבור לסל המחזור.`
+        : `למחוק את "${row.companyName}"?\n\nזה ימחק גם את ${row.dealCount} העסקאות שלו (וכל ההיתרים והמשימות תחתיהן).\nהכל יעבור לסל המחזור.`;
+    if (!window.confirm(message)) return;
     setDeletingId(row.id);
     startTransition(async () => {
       try {
-        await deleteClient(row.id);
+        const r = await deleteClient(row.id);
+        if (!r.ok) window.alert(r.error);
       } catch (e) {
         window.alert(e instanceof Error ? e.message : "שגיאה");
       } finally {
@@ -128,7 +128,9 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
             )}
             {filtered.map((row) => {
               const isDeleting = deletingId === row.id && pending;
-              const canDelete = row.dealCount === 0;
+              // The action now cascades into active deals/permits; the gate
+              // is gone, but the per-row confirm copy lists what's about to
+              // be removed (see handleDelete above).
               return (
                 <tr key={row.id} className="hover:bg-muted/30">
                   <td className="font-medium">
@@ -185,11 +187,15 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
                       <button
                         type="button"
                         onClick={() => handleDelete(row)}
-                        disabled={!canDelete || isDeleting}
-                        title={canDelete ? "מחק" : "לא ניתן למחוק — יש עסקאות פעילות"}
+                        disabled={isDeleting}
+                        title={
+                          row.dealCount > 0
+                            ? `מחק לקוח (יסיר גם את ${row.dealCount} העסקאות)`
+                            : "מחק לקוח"
+                        }
                         className={cn(
                           "inline-flex items-center gap-1 rounded border border-red-500/50 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-800 hover:bg-red-500/20 dark:text-red-300",
-                          (!canDelete || isDeleting) && "cursor-not-allowed opacity-50"
+                          isDeleting && "cursor-not-allowed opacity-50"
                         )}
                       >
                         {isDeleting ? (

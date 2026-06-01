@@ -5,19 +5,27 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Archive, CircleDot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Segmented pill that flips /permits between "active" (default) and "completed".
-// Mirrors the TasksViewToggle pattern (Block 18): URL-encoded as `?archived=1`
-// so the choice survives reload and is shareable. Counts are passed in from
-// the server so users see what's hiding behind each tab.
+// Generic segmented pill that flips a list view between "active" (default) and
+// "completed/archived". URL-encoded as `?archived=1` so the choice survives
+// reload and is shareable. Used on /permits and /projects (and reusable
+// anywhere a list has a terminal state worth hiding by default).
+//
+// First shipped as components/permits/permits-archive-toggle.tsx in PR #38;
+// promoted to global in PR-A of the post-suppliers polish sweep so /projects
+// can use the same UI without copy-paste.
 
-export function PermitsArchiveToggle({
+export function ArchiveToggle({
   active,
   activeCount,
-  archivedCount
+  archivedCount,
+  activeLabel = "פעילים",
+  archivedLabel = "הושלמו"
 }: {
   active: "active" | "archived";
   activeCount: number;
   archivedCount: number;
+  activeLabel?: string;
+  archivedLabel?: string;
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -40,14 +48,14 @@ export function PermitsArchiveToggle({
         href={hrefFor("active")}
         active={active === "active"}
         icon={<CircleDot className="size-3.5" />}
-        label="פעילים"
+        label={activeLabel}
         count={activeCount}
       />
       <ToggleLink
         href={hrefFor("archived")}
         active={active === "archived"}
         icon={<Archive className="size-3.5" />}
-        label="הושלמו"
+        label={archivedLabel}
         count={archivedCount}
       />
     </div>
