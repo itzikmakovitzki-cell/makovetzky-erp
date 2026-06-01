@@ -48,8 +48,15 @@ export type GreenApiWebhook = {
 export type NormalizedIncoming = {
   kind: "text" | "media" | "unsupported";
   idMessage: string | null;
-  fromPhone: string; // E.164-ish, no '+'
-  senderName: string | null;
+  fromPhone: string; // E.164-ish, no '+'. For groups: the SENDER's phone (not the group).
+  senderName: string | null; // For groups: the group MEMBER name (not the group display name).
+  // Raw chatId from Green API — "972…@c.us" for private chats,
+  // "972…-1638…@g.us" for groups. Used by the webhook to branch on
+  // isGroupChatId() and to upsert ProjectWhatsAppGroup rows (spec PR-3).
+  chatId: string | null;
+  // Group display name (chatName from the webhook). Null when not a group
+  // or when WhatsApp didn't supply it. Cached on ProjectWhatsAppGroup.groupName.
+  chatName: string | null;
   text: string | null;
   media: { downloadUrl: string; fileName: string | null; mimeType: string | null; caption: string | null } | null;
   reason?: string; // for unsupported
@@ -71,7 +78,17 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
   const sender = payload.senderData ?? {};
   const fromPhone = phoneFromWid(sender.sender || sender.chatId);
   const idMessage = (payload.idMessage ?? "").trim() || null;
-  const senderName = (sender.senderName ?? "").trim() || (sender.chatName ?? "").trim() || null;
+  // For private chats Green API omits sender.sender and chatName is the
+  // contact's name — so the existing fallback (senderName → chatName) still
+  // works. For groups, senderName = member display, chatName = group display
+  // — keep them separate so the webhook can populate both ProjectWhatsAppGroup
+  // .groupName and PendingDocument.authorName correctly.
+  const isGroup = !!sender.chatId && sender.chatId.endsWith("@g.us");
+  const senderName = isGroup
+    ? ((sender.senderName ?? "").trim() || null)
+    : ((sender.senderName ?? "").trim() || (sender.chatName ?? "").trim() || null);
+  const chatName = isGroup ? ((sender.chatName ?? "").trim() || null) : null;
+  const chatId = (sender.chatId ?? "").trim() || null;
 
   const msg = payload.messageData ?? {};
   const type = msg.typeMessage;
@@ -83,6 +100,8 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
       idMessage,
       fromPhone,
       senderName,
+      chatId,
+      chatName,
       text: text || null,
       media: null
     };
@@ -94,6 +113,8 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
       idMessage,
       fromPhone,
       senderName,
+      chatId,
+      chatName,
       text: text || null,
       media: null
     };
@@ -116,6 +137,8 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
         idMessage,
         fromPhone,
         senderName,
+        chatId,
+        chatName,
         text: null,
         media: null,
         reason: `${type} ללא downloadUrl`
@@ -126,6 +149,8 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
       idMessage,
       fromPhone,
       senderName,
+      chatId,
+      chatName,
       text: null,
       media: {
         downloadUrl: f.downloadUrl,
@@ -143,6 +168,8 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
     idMessage,
     fromPhone,
     senderName,
+    chatId,
+    chatName,
     text: null,
     media: null,
     reason: `סוג הודעה לא נתמך: ${type ?? "unknown"}`
