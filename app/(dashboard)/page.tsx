@@ -10,17 +10,22 @@ import {
   CheckCircle2,
   FolderClock,
   ExternalLink,
-  Activity
+  Activity,
+  CalendarClock,
+  Send,
+  History
 } from "lucide-react";
+import type { AuditAction } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { greetingForHour, israelHour } from "@/lib/greeting";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/global/page-header";
 import {
   PERMIT_STATUS_LABEL,
   PERMIT_STATUS_VARIANT
 } from "@/lib/status-maps";
-import { cn, formatDateTime } from "@/lib/utils";
+import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { createSignedUrlsSafe, isStoragePath } from "@/lib/supabase-storage";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +39,21 @@ const STUCK_THRESHOLD_DAYS = 14;
 // the dashboard — the audit log remains authoritative for history.
 const RECENT_WINDOW_DAYS = 30;
 
+// Forward-looking window for "deadlines this week" — tasks due in the next
+// 7 days (today inclusive) make the panel.
+const UPCOMING_WINDOW_DAYS = 7;
+
+const ACTION_LABEL: Record<AuditAction, string> = {
+  CREATE: "יצירה",
+  UPDATE: "עדכון",
+  DELETE: "מחיקה",
+  STATUS_CHANGE: "שינוי סטטוס",
+  ASSIGN: "שיוך",
+  DEPENDENCY_OVERRIDE: "ביטול תלות",
+  APPROVE: "אישור",
+  REJECT: "דחייה"
+};
+
 export default async function HomeDashboardPage() {
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";
@@ -41,6 +61,12 @@ export default async function HomeDashboardPage() {
   const now = new Date();
   const stuckThreshold = new Date(now.getTime() - STUCK_THRESHOLD_DAYS * 86_400_000);
   const recentSince = new Date(now.getTime() - RECENT_WINDOW_DAYS * 86_400_000);
+  // End-of-day so a task due today still falls inside the upcoming window.
+  const upcomingStart = new Date(now);
+  upcomingStart.setHours(0, 0, 0, 0);
+  const upcomingEnd = new Date(now);
+  upcomingEnd.setDate(upcomingEnd.getDate() + UPCOMING_WINDOW_DAYS);
+  upcomingEnd.setHours(23, 59, 59, 999);
 
   // Fire all the read queries in parallel — the dashboard renders one frame.
   const [
@@ -49,7 +75,11 @@ export default async function HomeDashboardPage() {
     awaitingAuthorityCount,
     pendingDocs,
     stuckPermits,
-    fieldUploads
+    fieldUploads,
+    upcomingTasks,
+    submissions,
+    categoryStatusRows,
+    recentAudit
   ] = await Promise.all([
     prisma.permit.count({
       where: { deletedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } }
@@ -114,8 +144,175 @@ export default async function HomeDashboardPage() {
       },
       orderBy: { createdAt: "desc" },
       take: 6
-    })
+    }),
+    // Upcoming deadlines — every assignee sees their own; admin sees all.
+    // Excludes COMPLETED + frozen tasks (the latter aren't burning anymore).
+    prisma.task.findMany({
+      where: {
+        deletedAt: null,
+        permit: { deletedAt: null },
+        status: { notIn: ["COMPLETED"] },
+        frozen: false,
+        dueDate: { gte: upcomingStart, lte: upcomingEnd },
+        ...(isAdmin ? {} : { assigneeId: session?.user?.id })
+      },
+      include: {
+        permit: {
+          select: {
+            id: true,
+            name: true,
+            masterDeal: {
+              select: { client: { select: { companyName: true } } }
+            }
+          }
+        },
+        assignee: { select: { name: true } }
+      },
+      orderBy: [{ dueDate: "asc" }, { isSpotlight: "desc" }],
+      take: 10
+    }),
+    // Submissions across all active permits — drives the "ready to submit"
+    // panel below (admin-only). We pair with categoryStatusRows to compute
+    // which categories are at 100% completion but still PREPARING.
+    isAdmin
+      ? prisma.authoritySubmission.findMany({
+          where: { permit: { deletedAt: null } },
+          select: {
+            permitId: true,
+            category: true,
+            status: true,
+            permit: {
+              select: {
+                id: true,
+                name: true,
+                masterDeal: {
+                  select: { client: { select: { companyName: true } } }
+                }
+              }
+            }
+          }
+        })
+      : Promise.resolve([]),
+    isAdmin
+      ? prisma.task.groupBy({
+          by: ["permitId", "category", "status"],
+          where: {
+            deletedAt: null,
+            permit: { deletedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } },
+            category: { not: null }
+          },
+          _count: { _all: true }
+        })
+      : Promise.resolve([]),
+    // Recent audit-log entries — short list with a "more" link to the
+    // full viewer at /settings/audit-log.
+    isAdmin
+      ? prisma.auditLog.findMany({
+          orderBy: { timestamp: "desc" },
+          take: 6,
+          include: { user: { select: { name: true } } }
+        })
+      : Promise.resolve([])
   ]);
+
+  // Compute "ready to submit" — per (permit, category) pairs where every
+  // task is COMPLETED but the submission row (if any) isn't SUBMITTED.
+  // Implicit PREPARING (no submission row) counts as needing action.
+  type ReadyEntry = {
+    permitId: string;
+    permitName: string;
+    clientName: string;
+    category: string;
+    total: number;
+  };
+  const readyToSubmit: ReadyEntry[] = (() => {
+    if (!isAdmin) return [];
+    // Roll counts → per-(permit,category) totals + completed.
+    type Bucket = {
+      total: number;
+      completed: number;
+      permitName: string;
+      clientName: string;
+    };
+    const buckets = new Map<string, Bucket>();
+    for (const r of categoryStatusRows) {
+      if (!r.category) continue;
+      const key = `${r.permitId}::${r.category}`;
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.total += r._count._all;
+        if (r.status === "COMPLETED") existing.completed += r._count._all;
+      } else {
+        buckets.set(key, {
+          total: r._count._all,
+          completed: r.status === "COMPLETED" ? r._count._all : 0,
+          permitName: "",
+          clientName: ""
+        });
+      }
+    }
+    // Index submission status by (permitId, category) so we can look up
+    // whether a row already moved past PREPARING.
+    const submissionStatus = new Map<string, string>();
+    const permitMeta = new Map<string, { name: string; client: string }>();
+    for (const s of submissions) {
+      submissionStatus.set(`${s.permitId}::${s.category}`, s.status);
+      permitMeta.set(s.permitId, {
+        name: s.permit.name,
+        client: s.permit.masterDeal.client.companyName
+      });
+    }
+    // Fallback for permits without any submission row yet — we need their
+    // name/client. Pull from the bucket's permitId via a second pass.
+    const out: ReadyEntry[] = [];
+    for (const [key, b] of buckets) {
+      if (b.total === 0 || b.completed < b.total) continue;
+      const subStatus = submissionStatus.get(key);
+      if (subStatus === "SUBMITTED" || subStatus === "APPROVED") continue;
+      // Skip REJECTED — admin already saw it and chose not to resubmit yet.
+      if (subStatus === "REJECTED") continue;
+      const [permitId, category] = key.split("::");
+      out.push({
+        permitId,
+        permitName: permitMeta.get(permitId)?.name ?? "",
+        clientName: permitMeta.get(permitId)?.client ?? "",
+        category,
+        total: b.total
+      });
+    }
+    return out;
+  })();
+
+  // For ready-to-submit rows whose permit doesn't have any submission row
+  // yet, fill in the permit name/client via a tiny second lookup.
+  const missingPermitIds = readyToSubmit
+    .filter((r) => !r.permitName)
+    .map((r) => r.permitId);
+  if (missingPermitIds.length > 0) {
+    const extra = await prisma.permit.findMany({
+      where: { id: { in: missingPermitIds } },
+      select: {
+        id: true,
+        name: true,
+        masterDeal: {
+          select: { client: { select: { companyName: true } } }
+        }
+      }
+    });
+    const byId = new Map(extra.map((p) => [p.id, p]));
+    for (const r of readyToSubmit) {
+      if (r.permitName) continue;
+      const p = byId.get(r.permitId);
+      if (p) {
+        r.permitName = p.name;
+        r.clientName = p.masterDeal.client.companyName;
+      }
+    }
+  }
+  readyToSubmit.sort((a, b) => a.permitName.localeCompare(b.permitName, "he"));
+
+  const { greeting, emoji } = greetingForHour(israelHour(now));
+  const firstName = session?.user?.name?.split(" ")[0] ?? "";
 
   // Resolve clickable preview URLs for any storage-backed files surfaced in
   // the panels below. External URLs (legacy data) pass through verbatim; the
@@ -134,6 +331,19 @@ export default async function HomeDashboardPage() {
 
   return (
     <section className="flex flex-col gap-6">
+      <div className="rounded-md border bg-card px-3 py-2 text-[13px]">
+        <span className="me-1">{emoji}</span>
+        <span className="font-medium">{greeting}</span>
+        {firstName && <span>, {firstName}</span>}
+        <span className="ms-1 text-muted-foreground">
+          — {new Date(now).toLocaleDateString("he-IL", {
+            weekday: "long",
+            day: "2-digit",
+            month: "long"
+          })}
+        </span>
+      </div>
+
       <PageHeader
         title="מבט-על"
         accent={isAdmin ? "מנהל" : undefined}
@@ -308,6 +518,153 @@ export default async function HomeDashboardPage() {
         </Panel>
       </div>
 
+      {/* Phase 4 of the polish sweep — surface the two windows that drive
+          Bat-Or's daily action: categories that are ready to be sent to the
+          authority (i.e. internal work is done, just needs the click), and
+          tasks coming due this week. */}
+      <div
+        className={cn(
+          "grid gap-3",
+          isAdmin && readyToSubmit.length > 0 ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"
+        )}
+      >
+        {isAdmin && readyToSubmit.length > 0 && (
+          <Panel
+            title="מוכן להגשה לרשות"
+            icon={<Send className="size-4 text-emerald-600" />}
+            count={readyToSubmit.length}
+            hint="כל המשימות בקטגוריה הושלמו — אבל עדיין לא סומן 'ממתין לרשות'"
+          >
+            <table>
+              <thead>
+                <tr>
+                  <th>היתר</th>
+                  <th>לקוח</th>
+                  <th>קטגוריה</th>
+                  <th className="w-20 text-center">משימות</th>
+                  <th className="w-24"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {readyToSubmit.map((r) => (
+                  <tr
+                    key={`${r.permitId}-${r.category}`}
+                    className="hover:bg-muted/30"
+                  >
+                    <td>
+                      <Link
+                        href={`/permits/${r.permitId}/tasks?category=${encodeURIComponent(r.category)}`}
+                        className="font-medium underline-offset-2 hover:underline"
+                      >
+                        {r.permitName}
+                      </Link>
+                    </td>
+                    <td className="text-xs text-muted-foreground">
+                      {r.clientName}
+                    </td>
+                    <td className="text-xs">{r.category}</td>
+                    <td className="text-center text-xs tabular-nums">
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                        {r.total}/{r.total}
+                      </span>
+                    </td>
+                    <td>
+                      <Link
+                        href={`/permits/${r.permitId}/tasks?category=${encodeURIComponent(r.category)}`}
+                        className="text-[11px] text-primary underline-offset-2 hover:underline"
+                      >
+                        שלח לרשות →
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Panel>
+        )}
+
+        <Panel
+          title={isAdmin ? "דדליינים השבוע" : "המשימות שלי השבוע"}
+          icon={<CalendarClock className="size-4 text-muted-foreground" />}
+          count={upcomingTasks.length}
+          hint={`עד ${UPCOMING_WINDOW_DAYS} ימים קדימה · לא כולל הושלם/מוקפא`}
+          href="/my-tasks"
+          hrefLabel="כל המשימות שלי"
+        >
+          {upcomingTasks.length === 0 ? (
+            <EmptyRow icon={<CheckCircle2 className="size-3 text-emerald-600" />}>
+              אין דדליינים בטווח של שבוע — קח אוויר
+            </EmptyRow>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>משימה</th>
+                  <th>פרויקט</th>
+                  {isAdmin && <th className="w-32">אחראי</th>}
+                  <th className="w-28">תאריך יעד</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingTasks.map((t) => {
+                  const dayMs = 86_400_000;
+                  const due = t.dueDate ? new Date(t.dueDate) : null;
+                  const startToday = new Date(now);
+                  startToday.setHours(0, 0, 0, 0);
+                  const daysAway = due
+                    ? Math.floor((due.getTime() - startToday.getTime()) / dayMs)
+                    : null;
+                  const tone =
+                    daysAway === null
+                      ? "text-muted-foreground"
+                      : daysAway <= 1
+                        ? "font-semibold text-red-600"
+                        : daysAway <= 3
+                          ? "text-amber-700"
+                          : "text-muted-foreground";
+                  const dayLabel =
+                    daysAway === 0
+                      ? "היום"
+                      : daysAway === 1
+                        ? "מחר"
+                        : daysAway !== null
+                          ? `בעוד ${daysAway} ימים`
+                          : "—";
+                  return (
+                    <tr key={t.id} className="hover:bg-muted/30">
+                      <td>
+                        <Link
+                          href={`/permits/${t.permit.id}/tasks`}
+                          className="font-medium underline-offset-2 hover:underline"
+                        >
+                          {t.name}
+                        </Link>
+                      </td>
+                      <td className="text-xs text-muted-foreground">
+                        {t.permit.masterDeal.client.companyName} · {t.permit.name}
+                      </td>
+                      {isAdmin && (
+                        <td className="text-xs text-muted-foreground">
+                          {t.assignee?.name ?? "—"}
+                        </td>
+                      )}
+                      <td className={cn("text-[11px] tabular-nums", tone)}>
+                        {dayLabel}
+                        {due && (
+                          <span className="ms-1 text-muted-foreground">
+                            ({formatDate(due)})
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+      </div>
+
       <Panel
         title="העלאות מהשטח — דורש סקירה"
         icon={<Upload className="size-4 text-muted-foreground" />}
@@ -371,6 +728,39 @@ export default async function HomeDashboardPage() {
       </Panel>
       </div>
       {/* ===== end of OPERATIONAL section ===== */}
+
+      {isAdmin && recentAudit.length > 0 && (
+        <Panel
+          title="פעילות אחרונה במערכת"
+          icon={<History className="size-4 text-muted-foreground" />}
+          count={recentAudit.length}
+          href="/settings/audit-log"
+          hrefLabel="כל היומן"
+          hint="6 הפעולות האחרונות"
+        >
+          <ul className="divide-y">
+            {recentAudit.map((row) => (
+              <li
+                key={row.id}
+                className="flex items-center gap-2 px-3 py-1.5 text-[11px]"
+              >
+                <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                  {ACTION_LABEL[row.action]}
+                </span>
+                <span className="font-mono text-muted-foreground">
+                  {row.entityType}
+                </span>
+                <span className="truncate text-muted-foreground">
+                  · {row.user?.name ?? "מערכת"}
+                </span>
+                <span className="ms-auto shrink-0 tabular-nums text-muted-foreground">
+                  {formatDateTime(row.timestamp)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
       {/* Block 23: all monetary data lives ONLY in /finances now. The dashboard
           is intentionally money-free so it's safe to present to a client. */}
