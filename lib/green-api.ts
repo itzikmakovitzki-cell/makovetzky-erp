@@ -1,4 +1,12 @@
-// Green API (green-api.com) webhook payload types + a small normalizer.
+// Green API (green-api.com) — two halves:
+//
+//   (1) inbound: webhook payload types + a small normalizer. Used by the
+//       Block 8c WhatsApp webhook receiver to ingest incoming messages.
+//   (2) outbound: sendWhatsAppMessage() + isGreenApiConfigured() at the
+//       bottom of this file (PR-G). Drives the admin-initiated client send
+//       flow. NEVER triggered by a scheduler — every call traces back to
+//       an admin clicking a button.
+//
 // Reference: https://green-api.com/en/docs/api/receiving/notifications-format/
 
 export type GreenApiSenderData = {
@@ -159,4 +167,92 @@ export function deriveGreenApiFileName(typeMessage: string, mimeType: string | n
   const ext = (mimeType ?? "application/octet-stream").split("/")[1]?.split(";")[0] || "bin";
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   return `green-${typeMessage}-${ts}.${ext}`;
+}
+
+// =============================================================
+// Outbound send (PR-G).
+// =============================================================
+//
+// Required env vars on Vercel:
+//   GREEN_API_ID_INSTANCE     — instance id from the Green API console
+//   GREEN_API_TOKEN_INSTANCE  — API token for that instance
+//
+// When either is missing, isGreenApiConfigured() returns false and the
+// caller is expected to fall back to a wa.me deeplink (the PR #52
+// behaviour). This is by design: a fresh deploy without credentials
+// should still be usable, just without server-side sends.
+
+const SEND_URL_TEMPLATE =
+  "https://api.green-api.com/waInstance{idInstance}/sendMessage/{apiTokenInstance}";
+
+export function isGreenApiConfigured(): boolean {
+  return (
+    !!process.env.GREEN_API_ID_INSTANCE &&
+    !!process.env.GREEN_API_TOKEN_INSTANCE
+  );
+}
+
+// Normalize a phone string to the chatId format Green API expects.
+//   "+972-50-1234567" → "972501234567@c.us"
+//   "0501234567"      → "972501234567@c.us"
+export function phoneToChatId(phone: string): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return null;
+  const intl = digits.startsWith("0") ? `972${digits.slice(1)}` : digits;
+  return `${intl}@c.us`;
+}
+
+export type GreenApiSendResult =
+  | { ok: true; idMessage: string }
+  | { ok: false; error: string };
+
+export async function sendWhatsAppMessage(args: {
+  phone: string;
+  message: string;
+}): Promise<GreenApiSendResult> {
+  const idInstance = process.env.GREEN_API_ID_INSTANCE;
+  const apiTokenInstance = process.env.GREEN_API_TOKEN_INSTANCE;
+  if (!idInstance || !apiTokenInstance) {
+    return { ok: false, error: "Green API לא מוגדר במערכת" };
+  }
+  const chatId = phoneToChatId(args.phone);
+  if (!chatId) {
+    return { ok: false, error: "מספר טלפון לא תקין" };
+  }
+
+  const url = SEND_URL_TEMPLATE
+    .replace("{idInstance}", idInstance)
+    .replace("{apiTokenInstance}", apiTokenInstance);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId, message: args.message }),
+      // 15s upper bound — Green API normally responds in well under 2s.
+      // Without this a hanging connection would freeze the server action.
+      signal: AbortSignal.timeout(15_000)
+    });
+    if (!res.ok) {
+      let bodyText = "";
+      try {
+        bodyText = await res.text();
+      } catch {
+        // ignore — error already surfaces via status
+      }
+      return {
+        ok: false,
+        error: `Green API החזיר ${res.status}${bodyText ? ` — ${bodyText.slice(0, 200)}` : ""}`
+      };
+    }
+    const body = (await res.json()) as { idMessage?: string };
+    if (!body.idMessage) {
+      return { ok: false, error: "Green API החזיר תגובה ללא idMessage" };
+    }
+    return { ok: true, idMessage: body.idMessage };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `שגיאת רשת מול Green API: ${msg}` };
+  }
 }

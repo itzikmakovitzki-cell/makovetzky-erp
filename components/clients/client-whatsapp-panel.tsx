@@ -1,13 +1,20 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { AlertTriangle, Loader2, MessageCircle, Phone, ShieldOff } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  MessageCircle,
+  Phone,
+  ShieldOff
+} from "lucide-react";
 import type { ClientNotificationPreference } from "@prisma/client";
 import {
-  recordClientWhatsAppSend,
+  checkGreenApiConfigured,
+  sendClientWhatsAppMessage,
   setClientNotificationPreference
 } from "@/app/actions/clients";
-import { buildWaMeUrl } from "@/lib/wa-link";
 import { cn } from "@/lib/utils";
 
 // Client-side WhatsApp control panel for a single Client profile.
@@ -41,6 +48,18 @@ export function ClientWhatsAppPanel({
   const [savingPref, startPrefSave] = useTransition();
   const [prefError, setPrefError] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  // Green-API config status is fetched once on mount so the compose button
+  // can label itself "שלח עכשיו" (real send) vs "פתח WhatsApp" (wa.me).
+  const [greenApiConfigured, setGreenApiConfigured] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void checkGreenApiConfigured().then((r) => {
+      if (alive) setGreenApiConfigured(r.configured);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const togglePreference = (next: ClientNotificationPreference) => {
     if (next === preference) return;
@@ -106,8 +125,9 @@ export function ClientWhatsAppPanel({
         ) : (
           <>
             <p className="text-[10.5px] text-muted-foreground">
-              המערכת לעולם לא שולחת באופן אוטומטי. לחיצה רק פותחת את WhatsApp עם
-              הטקסט מוכן — ה<strong>שליחה הסופית</strong> בידיים שלך.
+              {greenApiConfigured
+                ? "השליחה מתבצעת דרך Green API ברגע שאתה לוחץ 'שלח'. המערכת לא שולחת מיוזמתה — כל שליחה היא בלחיצה ידנית שלך."
+                : "המערכת לעולם לא שולחת באופן אוטומטי. לחיצה רק פותחת את WhatsApp עם הטקסט מוכן — ה‎שליחה הסופית בידיים שלך."}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -135,6 +155,24 @@ export function ClientWhatsAppPanel({
                 </span>
               )}
             </div>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
+                greenApiConfigured === true &&
+                  "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300",
+                greenApiConfigured === false &&
+                  "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300",
+                greenApiConfigured === null && "border-input text-muted-foreground"
+              )}
+            >
+              {greenApiConfigured === true && <CheckCircle2 className="size-3" />}
+              {greenApiConfigured === false && <AlertTriangle className="size-3" />}
+              {greenApiConfigured === true
+                ? "Green API: מוגדר — שליחה ישירה דרך השרת"
+                : greenApiConfigured === false
+                  ? "Green API: לא מוגדר — שליחה דרך WhatsApp Web (wa.me)"
+                  : "בודק תצורת Green API…"}
+            </span>
           </>
         )}
       </div>
@@ -143,6 +181,7 @@ export function ClientWhatsAppPanel({
           clientId={clientId}
           clientName={clientName}
           clientPhone={clientPhone}
+          greenApiConfigured={greenApiConfigured === true}
           onClose={() => setComposeOpen(false)}
         />
       )}
@@ -185,11 +224,13 @@ function ComposeDialog({
   clientId,
   clientName,
   clientPhone,
+  greenApiConfigured,
   onClose
 }: {
   clientId: string;
   clientName: string;
   clientPhone: string | null;
+  greenApiConfigured: boolean;
   onClose: () => void;
 }) {
   const [text, setText] = useState(
@@ -197,26 +238,39 @@ function ComposeDialog({
   );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [sentVia, setSentVia] = useState<"green-api" | null>(null);
 
   const send = () => {
     setError(null);
+    setSentVia(null);
     const trimmed = text.trim();
     if (!trimmed) {
       setError("ההודעה ריקה");
       return;
     }
-    const waUrl = buildWaMeUrl(clientPhone, trimmed);
-    if (!waUrl) {
-      setError("טלפון לא תקין");
-      return;
+    // Extra checkpoint when sending server-side via Green API — wa.me has
+    // its own preview in WhatsApp itself before Send is pressed, but the
+    // Green API path is immediate, so confirm() acts as the last gate.
+    if (greenApiConfigured) {
+      const proceed = window.confirm(
+        `לשלוח את ההודעה הזו ל-${clientName}?\n\nההודעה תצא מהמערכת מיד דרך Green API.`
+      );
+      if (!proceed) return;
     }
     startTransition(async () => {
-      const r = await recordClientWhatsAppSend({ clientId, message: trimmed });
+      const r = await sendClientWhatsAppMessage({ clientId, message: trimmed });
       if (!r.ok) {
         setError(r.error);
         return;
       }
-      window.open(waUrl, "_blank", "noopener,noreferrer");
+      if (r.via === "green-api") {
+        // Real send completed server-side. Show success briefly, then close.
+        setSentVia("green-api");
+        setTimeout(onClose, 1200);
+        return;
+      }
+      // Fallback path: server returned a wa.me URL for the admin to open.
+      window.open(r.waUrl, "_blank", "noopener,noreferrer");
       onClose();
     });
   };
@@ -236,8 +290,9 @@ function ComposeDialog({
         </div>
         <div className="space-y-2 px-3 py-3">
           <p className="text-[10.5px] text-muted-foreground">
-            ההודעה תיפתח ב-WhatsApp Web/App עם המספר {clientPhone}. עליך ללחוץ
-            Send בעצמך — המערכת לא שולחת כלום.
+            {greenApiConfigured
+              ? `ההודעה תישלח דרך Green API ל-${clientPhone} ברגע שתאשר.`
+              : `ההודעה תיפתח ב-WhatsApp Web/App עם המספר ${clientPhone}. עליך ללחוץ Send בעצמך — המערכת לא שולחת כלום.`}
           </p>
           <textarea
             value={text}
@@ -253,6 +308,12 @@ function ComposeDialog({
               {error}
             </p>
           )}
+          {sentVia === "green-api" && (
+            <p className="inline-flex items-center gap-1 text-[11px] text-emerald-700">
+              <CheckCircle2 className="size-3" />
+              ההודעה נשלחה דרך Green API
+            </p>
+          )}
         </div>
         <div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-3 py-2">
           <button
@@ -266,15 +327,17 @@ function ComposeDialog({
           <button
             type="button"
             onClick={send}
-            disabled={pending}
+            disabled={pending || sentVia !== null}
             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
           >
             {pending ? (
               <Loader2 className="size-3 animate-spin" />
+            ) : sentVia === "green-api" ? (
+              <CheckCircle2 className="size-3" />
             ) : (
               <MessageCircle className="size-3" />
             )}
-            פתח WhatsApp
+            {greenApiConfigured ? "📤 שלח עכשיו" : "פתח WhatsApp"}
           </button>
         </div>
       </div>
