@@ -18,7 +18,6 @@ async function clean() {
   await prisma.auditLog.deleteMany();
   await prisma.note.deleteMany();
   await prisma.document.deleteMany();
-  await prisma.supplierCommissionReport.deleteMany();
   await prisma.supplierTaskAssignment.deleteMany();
   await prisma.billingMilestone.deleteMany();
   await prisma.taskDependency.deleteMany();

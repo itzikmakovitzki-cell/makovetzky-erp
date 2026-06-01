@@ -86,12 +86,6 @@ enum SupplierCommissionType {
   PERCENT
 }
 
-enum CommissionReportStatus {
-  DRAFT
-  SENT
-  PAID
-}
-
 enum PendingDocumentStatus {
   PENDING
   ASSIGNED
@@ -552,8 +546,7 @@ model Supplier {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  taskAssignments   SupplierTaskAssignment[]
-  commissionReports SupplierCommissionReport[]
+  taskAssignments SupplierTaskAssignment[]
 
   @@index([name])
 }
@@ -590,24 +583,6 @@ model SupplierTaskAssignment {
   @@index([supplierId, status])
   @@index([taskId])
   @@index([commissionPaidAt])
-}
-
-model SupplierCommissionReport {
-  id          String                 @id @default(cuid())
-  supplierId  String
-  periodYear  Int
-  periodMonth Int
-  totalDue    Decimal                @db.Decimal(14, 2)
-  status      CommissionReportStatus @default(DRAFT)
-  generatedAt DateTime               @default(now())
-  sentAt      DateTime?
-  paidAt      DateTime?
-  notes       String?
-
-  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-
-  @@unique([supplierId, periodYear, periodMonth])
-  @@index([periodYear, periodMonth])
 }
 
 // =============================================================
