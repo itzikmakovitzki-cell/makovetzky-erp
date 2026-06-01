@@ -717,12 +717,24 @@ model PendingDocument {
   assignedPermitId String?
   rejectionReason  String?
   processedAt      DateTime?
-  createdAt        DateTime              @default(now())
+  // Group-origin fields (spec PR-3 §3.3). Populated by the green-api webhook
+  // when the inbound message is from a `*@g.us` group chat. NULL on all
+  // legacy WhatsApp / email / portal / manual rows.
+  //   groupChatId       = links back to ProjectWhatsAppGroup.groupChatId
+  //   authorName        = senderName from the webhook (group member display)
+  //   authorPhone       = author's number, complements the existing senderInfo
+  //   suggestedTaskName = parsed from the caption — admin pre-fills task name
+  groupChatId       String?
+  authorName        String?
+  authorPhone       String?
+  suggestedTaskName String?
+  createdAt         DateTime              @default(now())
 
   assignedTask   Task?   @relation(fields: [assignedTaskId], references: [id], onDelete: SetNull)
   assignedPermit Permit? @relation(fields: [assignedPermitId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+  @@index([groupChatId])
 }
 
 // One row per WhatsApp group that the system knows about (spec PR-2).
