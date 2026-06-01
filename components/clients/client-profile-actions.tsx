@@ -1,10 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Pencil, Plus } from "lucide-react";
 import { deleteClient } from "@/app/actions/clients";
+import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { ClientFormDialog, type ClientFormInitial } from "./client-form-dialog";
 import Link from "next/link";
 
@@ -13,29 +12,12 @@ export function ClientProfileActions({
   dealCount
 }: {
   client: { id: string } & ClientFormInitial;
+  // Active master-deals belonging to this client. Drives the cascade warning
+  // copy on the delete button — the action itself cascades into deals →
+  // permits → tasks/docs in a single transaction.
   dealCount: number;
 }) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const canDelete = dealCount === 0;
-
-  const handleDelete = () => {
-    if (
-      !window.confirm(
-        `למחוק את "${client.companyName}"?\nהפעולה לא ניתנת לביטול.`
-      )
-    )
-      return;
-    startTransition(async () => {
-      try {
-        await deleteClient(client.id);
-        router.push("/clients");
-      } catch (e) {
-        window.alert(e instanceof Error ? e.message : "שגיאה");
-      }
-    });
-  };
 
   return (
     <div className="flex items-center gap-1.5">
@@ -54,19 +36,18 @@ export function ClientProfileActions({
         <Pencil className="size-3" />
         ערוך
       </button>
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={!canDelete || pending}
-        title={canDelete ? "מחק לקוח" : `לא ניתן למחוק — ${dealCount} עסקאות שייכות ללקוח`}
-        className={cn(
-          "inline-flex items-center gap-1 rounded border border-red-500/50 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-800 hover:bg-red-500/20 dark:text-red-300",
-          (!canDelete || pending) && "cursor-not-allowed opacity-50"
-        )}
-      >
-        {pending ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-        מחק
-      </button>
+      <SoftDeleteButton
+        action={deleteClient}
+        id={client.id}
+        label={client.companyName}
+        buttonLabel="מחק לקוח"
+        redirectTo="/clients"
+        confirmMessage={
+          dealCount === 0
+            ? `למחוק את "${client.companyName}"?\n\nהלקוח יעבור לסל המחזור.`
+            : `למחוק את "${client.companyName}"?\n\nזה ימחק גם את ${dealCount} העסקאות שלו (וכל ההיתרים והמשימות תחתיהן).\nהכל יעבור לסל המחזור — ניתן לשחזר מ-הגדרות → סל המחזור.`
+        }
+      />
 
       {editing && (
         <ClientFormDialog

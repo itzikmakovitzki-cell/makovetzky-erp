@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/global/page-header";
 import { PermitMobileCard } from "@/components/permits/permit-mobile-card";
 import { PermitRowActions } from "@/components/permits/permit-row-actions";
-import { PermitsArchiveToggle } from "@/components/permits/permits-archive-toggle";
+import { ArchiveToggle } from "@/components/global/archive-toggle";
 import { PERMIT_STATUS_LABEL, PERMIT_STATUS_VARIANT } from "@/lib/status-maps";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -93,7 +93,7 @@ export default async function PermitsListPage({
       />
 
       <div className="mb-3">
-        <PermitsArchiveToggle
+        <ArchiveToggle
           active={showArchived ? "archived" : "active"}
           activeCount={activeCount}
           archivedCount={archivedCount}

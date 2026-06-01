@@ -101,38 +101,84 @@ export async function submitClient(
   }
 }
 
-// Soft-delete: blocked if the client still has any non-deleted MasterDeals.
-// Restoration + permanent purge happen from /settings/recycle-bin.
-export async function deleteClient(id: string): Promise<void> {
-  const me = await requireRole(["ADMIN"]);
-  const c = await prisma.client.findFirst({
-    where: { id, deletedAt: null },
-    select: {
-      id: true,
-      companyName: true,
-      _count: { select: { masterDeals: { where: { deletedAt: null } } } }
-    }
-  });
-  if (!c) throw new Error("הלקוח לא נמצא");
-  if (c._count.masterDeals > 0) {
-    throw new Error(
-      `לא ניתן למחוק — ${c._count.masterDeals} עסקאות פעילות שייכות ללקוח זה`
-    );
-  }
+type DeleteResult = { ok: true } | { ok: false; error: string };
 
-  const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.client.update({ where: { id }, data: { deletedAt: now } });
-    await logAudit(tx, {
-      entityType: AuditEntity.CLIENT,
-      entityId: id,
-      action: AuditAction.DELETE,
-      oldValue: { companyName: c.companyName },
-      newValue: { softDeletedAt: now.toISOString() },
-      userId: me.id
+// Soft-delete client + cascade into every active MasterDeal under it (which
+// in turn cascades to permits, tasks, documents — same chain as
+// deleteMasterDeal). The previous version of this action blocked when active
+// deals existed; the admin asked for cascade so a wrong-customer entry can
+// be retired cleanly. Returns the structured DeleteResult shape that
+// SoftDeleteButton can consume.
+export async function deleteClient(id: string): Promise<DeleteResult> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const c = await prisma.client.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        companyName: true,
+        masterDeals: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            permits: {
+              where: { deletedAt: null },
+              select: { id: true }
+            }
+          }
+        }
+      }
     });
-  });
+    if (!c) return { ok: false, error: "הלקוח לא נמצא" };
 
-  revalidatePath("/clients");
-  revalidatePath("/settings/recycle-bin");
+    const now = new Date();
+    const dealIds = c.masterDeals.map((d) => d.id);
+    const permitIds = c.masterDeals.flatMap((d) => d.permits.map((p) => p.id));
+
+    await prisma.$transaction(async (tx) => {
+      if (permitIds.length > 0) {
+        const childWhere = {
+          permitId: { in: permitIds },
+          deletedAt: null as Date | null
+        };
+        await tx.task.updateMany({ where: childWhere, data: { deletedAt: now } });
+        await tx.document.updateMany({ where: childWhere, data: { deletedAt: now } });
+        await tx.permit.updateMany({
+          where: { id: { in: permitIds }, deletedAt: null },
+          data: { deletedAt: now }
+        });
+      }
+      if (dealIds.length > 0) {
+        await tx.masterDeal.updateMany({
+          where: { id: { in: dealIds }, deletedAt: null },
+          data: { deletedAt: now }
+        });
+      }
+      await tx.client.update({ where: { id }, data: { deletedAt: now } });
+      await logAudit(tx, {
+        entityType: AuditEntity.CLIENT,
+        entityId: id,
+        action: AuditAction.DELETE,
+        oldValue: { companyName: c.companyName },
+        newValue: {
+          softDeletedAt: now.toISOString(),
+          cascadedDeals: dealIds.length,
+          cascadedPermits: permitIds.length
+        },
+        userId: me.id
+      });
+    });
+
+    revalidatePath("/clients");
+    revalidatePath("/projects");
+    revalidatePath("/permits");
+    revalidatePath("/tasks");
+    revalidatePath("/settings/recycle-bin");
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "מחיקת הלקוח נכשלה"
+    };
+  }
 }

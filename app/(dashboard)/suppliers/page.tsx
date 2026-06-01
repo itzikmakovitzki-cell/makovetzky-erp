@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { SupplierPicker } from "@/components/global/supplier-picker";
 import { AddSupplierButton } from "@/components/suppliers/add-supplier-button";
 import { EditSupplierButton } from "@/components/suppliers/edit-supplier-button";
+import { SoftDeleteButton } from "@/components/global/soft-delete-button";
+import { deleteSupplier } from "@/app/actions/suppliers";
 import {
   AddAssignmentButton,
   AssignmentRowActions
@@ -238,24 +240,38 @@ async function SupplierDetail({
           label="ספק"
           headerSlot={
             isAdmin && (
-              <EditSupplierButton
-                supplier={{
-                  id: supplier.id,
-                  name: supplier.name,
-                  type: supplier.type,
-                  contactName: supplier.contactName,
-                  phone: supplier.phone,
-                  email: supplier.email,
-                  website: supplier.website,
-                  services: supplier.services,
-                  defaultCommissionType: supplier.defaultCommissionType,
-                  defaultCommissionValue:
-                    supplier.defaultCommissionValue?.toString() ?? null,
-                  defaultPaymentTerms: supplier.defaultPaymentTerms,
-                  notes: supplier.notes
-                }}
-                typeSuggestions={typeSuggestions}
-              />
+              <div className="flex items-center gap-1">
+                <EditSupplierButton
+                  supplier={{
+                    id: supplier.id,
+                    name: supplier.name,
+                    type: supplier.type,
+                    contactName: supplier.contactName,
+                    phone: supplier.phone,
+                    email: supplier.email,
+                    website: supplier.website,
+                    services: supplier.services,
+                    defaultCommissionType: supplier.defaultCommissionType,
+                    defaultCommissionValue:
+                      supplier.defaultCommissionValue?.toString() ?? null,
+                    defaultPaymentTerms: supplier.defaultPaymentTerms,
+                    notes: supplier.notes
+                  }}
+                  typeSuggestions={typeSuggestions}
+                />
+                <SoftDeleteButton
+                  action={deleteSupplier}
+                  id={supplier.id}
+                  label={supplier.name}
+                  variant="icon"
+                  redirectTo="/suppliers"
+                  confirmMessage={
+                    assignments.length === 0
+                      ? `למחוק את הספק "${supplier.name}"?\n\nפעולה לא הפיכה — אין סל מחזור לספקים.`
+                      : `למחוק את הספק "${supplier.name}"?\n\nזה ימחק גם את ${assignments.length} ההקצאות שלו (מחיקה קשה — אין סל מחזור להקצאות). פעולה לא הפיכה.`
+                  }
+                />
+              </div>
             )
           }
         >
