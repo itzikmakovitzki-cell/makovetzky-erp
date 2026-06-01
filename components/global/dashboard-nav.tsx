@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
+  Coins,
   FileCheck2,
   FileText,
   FolderKanban,
@@ -36,6 +37,12 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/tasks", label: "משימות", icon: ListChecks, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/inbox", label: "תיבת WhatsApp", icon: Inbox, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/finances", label: "כספים", icon: Wallet, allowed: ["ADMIN"] },
+  {
+    href: "/finances/supplier-commissions",
+    label: "עמלות מספקים",
+    icon: Coins,
+    allowed: ["ADMIN"]
+  },
   { href: "/suppliers", label: "ספקים", icon: Truck, allowed: ["ADMIN"] },
   { href: "/settings", label: "הגדרות", icon: SettingsIcon, allowed: ["ADMIN"] }
 ];
@@ -48,10 +55,12 @@ export function DashboardNav({ role }: { role?: UserRole }) {
       {NAV_ITEMS.map((item) => {
         // The home entry uses "/" as its href, which would match every path
         // under the naive startsWith check — special-case to exact match.
-        const isActive =
-          item.href === "/"
-            ? pathname === "/"
-            : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        // "/finances" is similar: its child "/finances/supplier-commissions"
+        // would otherwise highlight both at once.
+        const isExactOnly = item.href === "/" || item.href === "/finances";
+        const isActive = isExactOnly
+          ? pathname === item.href
+          : pathname === item.href || pathname.startsWith(`${item.href}/`);
         const isAllowed = role ? item.allowed.includes(role) : true;
         if (!isAllowed) {
           return (
