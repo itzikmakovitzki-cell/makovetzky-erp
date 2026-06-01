@@ -1,45 +1,42 @@
-# Spec — WhatsApp Groups per Project
+# מפרט — קבוצות WhatsApp לכל פרויקט
 
-**Status:** draft, awaiting review
-**Owner:** Bat-Or (PM) + admin (Ofir)
-**Builds on:** Block 8c (inbound webhook), PR #52 (client opt-in), PR #53 (Green API outbound)
-**Replaces:** —
-**Last update:** 2026-06-01
-
----
-
-## 1. Goal in one sentence
-
-Every project (`MasterDeal`) already has its own WhatsApp group in real life. We want the system to plug into that group: ingest files sent there (when tagged), route outbound updates there by default, and surface a per-client history pane that shows the whole conversation (both directions) — without changing the strict rule that the system never auto-sends.
+**סטטוס:** טיוטה, ממתינה לסקירה
+**בעלים:** בת-אור (PM) + אופיר (admin)
+**נבנה על:** Block 8c (webhook נכנס), PR #52 (אישור-לקוח), PR #53 (Green API יוצא)
+**מחליף:** —
+**עדכון אחרון:** 2026-06-01
 
 ---
 
-## 2. User stories
+## 1. המטרה במשפט אחד
 
-1. **As Ofir,** I want to connect the system's WhatsApp number to a project's existing group, so the group becomes the project's communication channel.
-2. **As anyone in the group** (architect, contractor, client, surveyor), I want to send a file by tagging the system's number — and have that file appear inside the project's "pending documents" inbox automatically.
-3. **As the file sender,** I want to write the form's name in the message caption — so the file is saved with that name in the system (not a generic timestamp).
-4. **As Ofir,** when I press "send update" on a project, the message should go to the group by default — that's where everyone sees it. If I explicitly want to message the client privately instead, I can pick that.
-5. **As Bat-Or,** I want a single "WhatsApp" screen per project where I see the full chronological history — what the group sent in, what we sent out — without hunting through audit logs.
+לכל פרויקט (`MasterDeal`) כבר יש קבוצת WhatsApp בחיים האמיתיים. אנחנו רוצים שהמערכת תתחבר לאותה קבוצה: תקלוט קבצים שנשלחים שם (כשמתייגים אותה), תנתב עדכונים יוצאים לקבוצה כברירת מחדל, ותציג חלון היסטוריה לכל לקוח שמראה את כל התכתובת (לשני הכיוונים) — בלי לפגוע בכלל הקשיח שהמערכת לעולם לא שולחת מיוזמתה.
 
 ---
 
-## 3. Data model
+## 2. סיפורי משתמש
 
-### 3.1 New: `ProjectWhatsAppGroup`
+1. **כאופיר,** אני רוצה לחבר את מספר ה-WhatsApp של המערכת לקבוצה הקיימת של פרויקט, כדי שהקבוצה תהפוך לערוץ התקשורת של הפרויקט במערכת.
+2. **כמשתתף בקבוצה** (אדריכל, קבלן, לקוח, מודד), אני רוצה לשלוח קובץ דרך תיוג מספר המערכת — והקובץ ייכנס אוטומטית ל"מסמכים ממתינים" של אותו פרויקט.
+3. **כשולח הקובץ,** אני רוצה לכתוב את שם הטופס בכיתוב ההודעה — והקובץ יישמר במערכת עם השם הזה (במקום timestamp גנרי).
+4. **כאופיר,** כשאני לוחץ "שלח עדכון" בעמוד פרויקט — ההודעה צריכה להיכנס לקבוצה כברירת מחדל (שם כולם רואים). אם במקרה ספציפי אני רוצה להודיע ללקוח בפרטי בלבד, אני יכול לבחור בזה ידנית.
+5. **כבת-אור,** אני רוצה מסך WhatsApp אחד לכל פרויקט שמראה את ההיסטוריה הכרונולוגית — מה הקבוצה שלחה לי, מה אני שלחתי לה — בלי לחפש בlogs.
+
+---
+
+## 3. מודל נתונים
+
+### 3.1 חדש: `ProjectWhatsAppGroup`
 
 ```prisma
 model ProjectWhatsAppGroup {
   id            String   @id @default(cuid())
-  masterDealId  String   @unique   // 1:1 — one project, one group, for now
-  groupChatId   String              // Green API chatId, e.g. "972501234567-1638123456@g.us"
-  groupName     String?             // cached display name from Green API (refresh on inbound webhook)
+  masterDealId  String   @unique   // יחס 1:1 — פרויקט אחד, קבוצה אחת, לעת עתה
+  groupChatId   String              // chatId של Green API, למשל "972501234567-1638123456@g.us"
+  groupName     String?             // שם הקבוצה בקאש (מתעדכן בכל webhook נכנס)
   connectedAt   DateTime @default(now())
   connectedById String?
   isActive      Boolean  @default(true)
-  // When a group sends a message but isn't yet linked to a project, we
-  // hold the groupChatId in this table with masterDealId = null (or in a
-  // separate PendingGroup table — decide in §10).
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -51,74 +48,74 @@ model ProjectWhatsAppGroup {
 }
 
 model MasterDeal {
-  // ... existing fields ...
+  // ...שדות קיימים...
   whatsappGroup ProjectWhatsAppGroup?
 }
 ```
 
-Open question (§10): should `groupChatId` be `@unique`? Probably yes — one WhatsApp group can belong to at most one project. Helps catch double-linking.
+החלטה (סעיף 10): `groupChatId` נשאר `@unique` — קבוצת WhatsApp אחת יכולה להשתייך לכל היותר לפרויקט אחד. עוזר לתפוס חיבור כפול בטעות.
 
-### 3.2 Modified: `Client.notificationPreference`
+### 3.2 שינוי: `Client.notificationPreference`
 
-Current values: `OFF` / `MANUAL_ONLY`. We don't change them — they control whether the **client-direct** path is even allowed on the client profile. The new "group send" path is governed by the **project**, not the client, so a different field on `MasterDeal`:
+הערכים הקיימים: `OFF` / `MANUAL_ONLY` — נשארים כפי שהם. הם שולטים האם המסלול **ישיר ללקוח** מותר בכלל בפרופיל הלקוח. המסלול החדש של "שליחה לקבוצה" נשלט ב**רמת הפרויקט**, לא הלקוח — אז שדה חדש על `MasterDeal`:
 
 ```prisma
 enum WhatsAppDefaultRoute {
-  GROUP            // default destination for "send update" buttons
-  CLIENT_DIRECT    // legacy / projects without a group
-  NONE             // no outbound for this project (mirrors Client.OFF)
+  GROUP            // יעד ברירת מחדל לכפתורי "שלח עדכון"
+  CLIENT_DIRECT    // לפרויקטים בלי קבוצה / מצב legacy
+  NONE             // אין יציאות מהמערכת לפרויקט הזה (מקביל ל-Client.OFF)
 }
 
 model MasterDeal {
-  // ... existing fields ...
+  // ...שדות קיימים...
   whatsappDefaultRoute WhatsAppDefaultRoute @default(GROUP)
 }
 ```
 
-When `whatsappDefaultRoute = GROUP`:
-- Compose dialog's primary button = "📤 שלח לקבוצה"
-- Secondary option (overflow menu): "📤 שלח ישירות ללקוח (פרטי)" — appears only if `Client.notificationPreference = MANUAL_ONLY`
+כש-`whatsappDefaultRoute = GROUP`:
+- הכפתור הראשי בדיאלוג שליחה = "📤 שלח לקבוצה"
+- אפשרות משנית (תפריט נסתר): "📤 שלח ישירות ללקוח (פרטי)" — מופיעה רק אם `Client.notificationPreference = MANUAL_ONLY`
 
-When `whatsappDefaultRoute = CLIENT_DIRECT`:
-- Current PR #52 / PR #53 behaviour.
+כש-`whatsappDefaultRoute = CLIENT_DIRECT`:
+- ההתנהגות הנוכחית של PR #52 / PR #53.
 
-When `whatsappDefaultRoute = NONE`:
-- Button hidden entirely, like `Client.OFF`.
+כש-`whatsappDefaultRoute = NONE`:
+- הכפתור נעלם לחלוטין, בדיוק כמו `Client.OFF`.
 
-### 3.3 New optional column on `PendingDocument`
+### 3.3 עמודות חדשות אופציונליות על `PendingDocument`
 
 ```prisma
 model PendingDocument {
-  // ... existing fields ...
-  groupChatId      String?     // when ingested from a group mention, the source group
-  authorName       String?     // sender's name in the group (from Green API webhook)
-  authorPhone      String?     // sender's phone (already partly captured in senderInfo today)
-  suggestedTaskName String?    // parsed from the message caption — see §4.2
+  // ...שדות קיימים...
+  groupChatId       String?     // כשמקור הקובץ הוא תיוג בקבוצה — מזהה הקבוצה
+  authorName        String?     // שם השולח בקבוצה (מ-webhook של Green API)
+  authorPhone       String?     // טלפון השולח (חלקית מתועד היום ב-senderInfo)
+  suggestedTaskName String?     // נשלף מהכיתוב — ראה סעיף 4.2
 }
 ```
 
-Existing `senderInfo` + `sourceChannel` stay as-is.
+`senderInfo` ו-`sourceChannel` הקיימים נשארים בלי שינוי.
 
-### 3.4 New: outbound message log (optional, §10)
+### 3.4 חדש: לוג הודעות יוצאות (אופציונלי, סעיף 10)
 
-Currently outbound sends only live in `AuditLog`. The history panel (§7) reads them from there. If queries become slow at scale we can mirror to a dedicated `ClientWhatsAppMessage` table later; not in MVP.
+כיום הודעות יוצאות חיות רק ב-`AuditLog`. פאנל ההיסטוריה (סעיף 7) קורא משם. אם בעתיד queries יהיו איטיים נשקף לטבלה ייעודית `ClientWhatsAppMessage`; לא ב-MVP.
 
 ---
 
-## 4. Inbound flow — group → system
+## 4. זרימה נכנסת — מהקבוצה למערכת
 
-### 4.1 Trigger condition
+### 4.1 תנאי הפעלה (trigger)
 
-A message arrives at our Green API webhook with `chatId` ending in `@g.us` (group) AND one of:
-- the system's WhatsApp number is mentioned in the message text (`@972XXXXXXXXX`)
-- the message is a reply-to (`quotedMessage`) of any system message
-- OR (configurable per-group) **any** file in the group is ingested
+webhook של Green API מקבל הודעה ש-`chatId` שלה מסתיים ב-`@g.us` (קבוצה) **וגם** אחד מהבאים:
+- מספר ה-WhatsApp של המערכת מוזכר בטקסט (`@972XXXXXXXXX`)
+- ההודעה היא תגובה (`quotedMessage`) להודעה כלשהי של המערכת
+- או — לפי הגדרה פר-קבוצה — **כל** קובץ בקבוצה נקלט (toggle נפרד, לא במצב ברירת מחדל)
 
-For MVP: **only** mentions + reply-to. The "any file" mode is a per-group toggle for later, to avoid accidentally sucking up everything.
+ל-MVP: **רק** mentions + reply-to. מצב "כל קובץ" — toggle פר-קבוצה לבלוק עתידי, כדי לא לשאוב הכל בטעות.
 
-### 4.2 Parsing rules
+### 4.2 חוקי ניתוח כיתוב
 
-Caption format examples (informal — the parser is permissive):
+דוגמאות בכתיב לא רשמי (המנגנון סלחני):
 
 ```
 @מקובצקי טופס 4 חתום
@@ -128,39 +125,39 @@ Caption format examples (informal — the parser is permissive):
 ```
 @מקובצקי
 ```
-→ no suggested name; file gets the default timestamped filename.
+→ אין שם מוצע; הקובץ נשמר עם שם ברירת מחדל מתוייג בזמן.
 
 ```
 @מקובצקי אישור גינון - מהנדס יואב
 ```
 → `suggestedTaskName = "אישור גינון - מהנדס יואב"`
 
-The mention prefix (`@מקובצקי` or `@972…`) is stripped; whatever follows is the name. Trailing newlines / extra spaces are trimmed.
+קידומת התיוג (`@מקובצקי` או `@972…`) מוסרת; מה שאחריה הוא השם. רווחים נספים בקצוות נגזרים.
 
-### 4.3 What happens after parsing
+### 4.3 מה קורה אחרי הניתוח
 
-1. New `PendingDocument` row created:
+1. נוצרת רשומת `PendingDocument` חדשה:
    - `sourceChannel = WHATSAPP`
-   - `groupChatId = <the group>`
-   - `assignedPermitId` = inferred from the project linked to the group (auto-populated since the group is project-bound)
-   - `suggestedTaskName` = parsed name
-   - `authorName` / `authorPhone` from Green API webhook
-   - `fileUrl` from existing Block 8c flow (download + put in Supabase Storage)
-2. The `/inbox` already shows it, but it now displays grouped by project + with the suggested task name visible.
-3. Admin still does the final assignment (which task in the project gets the file) — same as today. The auto-populated `assignedPermitId` just saves a click.
+   - `groupChatId = <הקבוצה>`
+   - `assignedPermitId` = מוסק אוטומטית מהפרויקט שמקושר לקבוצה (חוסך לחיצה אחת לאופיר)
+   - `suggestedTaskName` = השם המנותח
+   - `authorName` / `authorPhone` מה-webhook
+   - `fileUrl` — דרך הזרימה הקיימת של Block 8c (הורדה + העלאה ל-Supabase Storage)
+2. `/inbox` כבר מציג את זה, אבל עכשיו עם קיבוץ לפי פרויקט + שם משימה מוצע גלוי.
+3. אופיר עדיין מבצע את השיוך הסופי (איזו משימה בפרויקט מקבלת את הקובץ) — בדיוק כמו היום. `assignedPermitId` שנקבע אוטומטית רק חוסך קליק.
 
-### 4.4 Unmatched group fallback
+### 4.4 קבוצה לא משויכת — fallback
 
-If a group sends a message before it's been linked to a project:
-- Record the `groupChatId` in `ProjectWhatsAppGroup` with `masterDealId = null` (or a separate `OrphanWhatsAppGroup` table — §10).
-- The `/settings/whatsapp` page shows "Pending Groups" — admin links each one to a project from a dropdown.
-- Until linked, files from that group are ingested but `assignedPermitId = null` (they sit in `/inbox` like any other untagged message).
+אם קבוצה שולחת הודעה לפני שהיא חוברה לפרויקט:
+- מתעדים את `groupChatId` ב-`ProjectWhatsAppGroup` עם `masterDealId = null`.
+- מסך `/inbox` (תיבת WhatsApp) מציג סקציה "קבוצות ממתינות לקישור" — אופיר בוחר לכל אחת לאיזה פרויקט היא משתייכת.
+- עד הקישור: קבצים מהקבוצה נקלטים אבל `assignedPermitId = null` (הם יושבים ב-`/inbox` כמו כל הודעה לא מתויגת).
 
 ---
 
-## 5. Outbound flow — system → group
+## 5. זרימה יוצאת — מהמערכת לקבוצה
 
-### 5.1 New action: `sendProjectGroupMessage`
+### 5.1 פעולת שרת חדשה: `sendProjectGroupMessage`
 
 ```typescript
 sendProjectGroupMessage({
@@ -168,160 +165,154 @@ sendProjectGroupMessage({
   message: string,
 }): Promise<
   | { ok: true; via: "green-api"; idMessage: string }
-  | { ok: true; via: "wa-me"; waUrl: string }  // group wa.me links don't work the same — see §10
   | { ok: false; error: string }
 >
 ```
 
-Identical structure to `sendClientWhatsAppMessage` (PR #53), but the recipient is the group's `groupChatId` instead of a personal phone. Green API supports group sends with the same endpoint:
+מבנה זהה ל-`sendClientWhatsAppMessage` (PR #53), אבל הנמען הוא `groupChatId` של הקבוצה במקום מספר אישי. Green API תומך בשליחה לקבוצות באותו endpoint:
 
 ```
 POST /waInstance{idInstance}/sendMessage/{apiTokenInstance}
 body: { chatId: "972…@g.us", message: "..." }
 ```
 
-### 5.2 UI integration
+הערה: ל-wa.me אין מקבילה לקבוצות, אז ב-PR-2 אם Green API לא מוגדר/נופל — הכפתור פשוט יראה שגיאה. הסכומים על wa.me נשארים רק במסלול הישיר ללקוח.
 
-On the project detail page (`/projects/[id]`) — new "תקשורת — WhatsApp" panel (mirrors the one on `/clients/[id]`):
-- Status pill: "מחובר לקבוצה: <group name>" / "לא מחובר — חבר עכשיו" / "כבוי"
-- "📤 שלח לקבוצה" button (primary)
-- "📤 שלח ישירות ללקוח" (secondary, only if `Client.notificationPreference = MANUAL_ONLY`) — pops the existing client compose dialog
+### 5.2 שילוב ב-UI
 
-### 5.3 The default-route confusion
+בדף פרטי הפרויקט (`/projects/[id]`) — פאנל חדש "תקשורת — WhatsApp" (מקביל לקיים ב-`/clients/[id]`):
+- תווית סטטוס: "מחובר לקבוצה: <שם>" / "לא מחובר — חבר עכשיו" / "כבוי"
+- כפתור ראשי: "📤 שלח לקבוצה"
+- אפשרות משנית: "📤 שלח ישירות ללקוח (פרטי)" — רק אם `Client.notificationPreference = MANUAL_ONLY`. פותחת את דיאלוג שליחת הלקוח הקיים.
 
-Today the client profile has its own send panel. After this spec lands, there's overlap:
-- The same Send action exists on the client AND the project.
-- Both can produce the same outcome (a message goes to either group or client).
+### 5.3 הבלבול עם ברירת המחדל
 
-Recommended resolution:
-- **Client profile** keeps its panel **only** for the rare "private message to client" case.
-- **Project profile** becomes the primary place. The client panel adds a discreet "fall back to private send" toggle.
+היום בפרופיל הלקוח יש פאנל שליחה משלו. אחרי שמפרט זה ייושם — יש חפיפה:
+- אותה פעולת שליחה קיימת בלקוח **וגם** בפרויקט.
+- שתיהן יכולות לייצר אותה תוצאה (הודעה לקבוצה או ללקוח).
+
+המלצה:
+- **פרופיל הלקוח** משאיר את הפאנל **רק** למקרים הנדירים של "הודעה פרטית ללקוח".
+- **פרופיל הפרויקט** הופך למקום הראשי. הפאנל בלקוח מקבל toggle דיסקרטי "שלח בפרטי במקום לקבוצה".
 
 ---
 
-## 6. The new screen — `/projects/[id]/whatsapp`
+## 6. המסך החדש — `/projects/[id]/whatsapp`
 
-A dedicated tab on the project detail layout, alongside the existing tabs (overview, permits, finances). Three sections:
+טאב חדש בלייאאוט פרטי הפרויקט, ליד הטאבים הקיימים (סקירה, היתרים, כספים). שלוש סקציות:
 
-### 6.1 Section A — Connection status
+### 6.1 סקציה א — סטטוס חיבור
 
-- "מחובר לקבוצה: כהן שיפוצים — דירת רובינא" (cached `groupName`)
+- "מחובר לקבוצה: כהן שיפוצים — דירת רובינא" (`groupName` מהקאש)
 - "כתובת הקבוצה: 972…-1638…@g.us"
 - "מחובר מאז: 28.05.26 ע״י אופיר"
-- Buttons: "בטל חיבור" / "חבר קבוצה אחרת"
+- כפתורים: "בטל חיבור" / "חבר קבוצה אחרת"
 
-If not connected: a "חבר קבוצה" wizard:
-1. Tell the user to send a WhatsApp message in the project group that mentions the system's number, OR add the system's number to the group.
-2. The system shows pending groups (the orphan list) and the admin picks the right one.
+אם לא מחובר: wizard "חבר קבוצה":
+1. הודעה לאופיר: "שלח הודעה בקבוצת הפרויקט עם תיוג של מספר המערכת, או הוסף את מספר המערכת לקבוצה".
+2. המערכת מציגה רשימת קבוצות ממתינות (orphan list) ואופיר בוחר מי שייכת לפרויקט הזה.
 
-### 6.2 Section B — Outbound
+### 6.2 סקציה ב — שליחה יוצאת
 
-Compose dialog identical to PR #53's client send dialog, but:
-- Target = group
-- Confirmation dialog text: "לשלוח את ההודעה לקבוצה X? כולם בקבוצה יקבלו אותה."
+דיאלוג compose זהה לזה של PR #53 לשליחת לקוח, אבל:
+- היעד = קבוצה
+- טקסט confirm: "לשלוח את ההודעה לקבוצה X? כולם בקבוצה יקבלו אותה."
 
-### 6.3 Section C — History
+### 6.3 סקציה ג — היסטוריה
 
-This is the panel I (Claude) offered earlier. Combined timeline of:
+timeline משולב של:
 
-1. **Outbound** — from `AuditLog` filtered to `entityType = CLIENT|MASTER_DEAL`, with `newValue->>'event' LIKE 'whatsapp_%'` AND project matches.
-2. **Inbound** — `PendingDocument` rows where `groupChatId = <this group>` OR `senderInfo` matches the client's phone.
-3. Sorted descending by time. Each row shows:
-   - Direction (← incoming / → outgoing)
-   - Author (name + phone for group; "המערכת ע״י ofir" for outgoing)
-   - Body (message text, or filename + thumbnail for media)
-   - Status badges: "נשלח", "אושר", "תויג למשימה X" (for incoming files)
-   - Click row → drill-down (the original audit row OR the document detail)
+1. **יוצאות** — מ-`AuditLog` מסונן ל-`entityType = CLIENT|MASTER_DEAL`, עם `newValue->>'event' LIKE 'whatsapp_%'` ופרויקט תואם.
+2. **נכנסות** — `PendingDocument` שב-`groupChatId = <הקבוצה>` או ש-`senderInfo` תואם לטלפון הלקוח.
+3. מיון יורד לפי זמן. כל שורה מציגה:
+   - כיוון (← נכנס / → יוצא)
+   - מחבר (שם + טלפון לקבוצה; "המערכת ע״י אופיר" ליוצאות)
+   - תוכן (טקסט ההודעה או שם הקובץ + thumbnail למדיה)
+   - badges של סטטוס: "נשלח", "אושר", "תויג למשימה X" (לקבצים נכנסים)
+   - לחיצה על שורה → drill-down (לשורת ה-audit המקורית או לפרטי המסמך)
 
-Pagination same as `/settings/audit-log` (50 per page, URL-encoded).
-
----
-
-## 7. Architecture decision: is the system in **one** WhatsApp number or **many**?
-
-Today: one number (`GREEN_API_ID_INSTANCE` / `GREEN_API_TOKEN_INSTANCE` env vars on Vercel).
-
-For this spec: same number. The same WhatsApp account is in all project groups.
-
-Implications:
-- The same number receives messages from all groups. Group context lives in the `chatId` of the webhook.
-- Easier to manage one Green API instance billing-wise.
-- Slight privacy issue: if Ofir personally uses the same number, his personal chats interleave with project ones. **Recommendation:** dedicate a separate WhatsApp number to the system (and document it in `reference_makovetzky_resources.md`).
-
-If the user wants per-project numbers later, the schema (`ProjectWhatsAppGroup.groupChatId` + a future `instanceId` column) supports it without a migration redo.
+פגינציה זהה ל-`/settings/audit-log` (50 בעמוד, ב-URL).
 
 ---
 
-## 8. Phasing recommendation
+## 7. החלטת ארכיטקטורה: מספר **אחד** או **רבים**?
 
-Three PRs, mergeable independently:
+היום: מספר אחד (env vars `GREEN_API_ID_INSTANCE` / `GREEN_API_TOKEN_INSTANCE` ב-Vercel).
 
-### PR-1 (small, no Green API required): History panel on client profile
-- Pure read-only. Just renders `AuditLog` rows scoped to the client + matched `PendingDocument` rows by phone.
-- Useful immediately, even without group integration.
-- Surfaces value of the new screen approach without committing schema yet.
+למפרט הזה: אותו מספר אחד. אותו חשבון WhatsApp נמצא בכל קבוצות הפרויקטים.
 
-### PR-2 (medium, requires Green API + dedicated number): Group linking + outbound
-- New `ProjectWhatsAppGroup` model + migration.
-- New `/projects/[id]/whatsapp` screen with sections A + B (connection + outbound).
-- New `sendProjectGroupMessage` action.
-- Default route on `MasterDeal` (`GROUP` / `CLIENT_DIRECT` / `NONE`).
+החלטה: **מספר WhatsApp ייעודי למערכת**, לא האישי של אופיר. נתעד ב-`reference_makovetzky_resources.md` כשייוקצה.
 
-### PR-3 (medium, depends on PR-2): Inbound parsing + history union
-- Webhook update: parse mentions, save `suggestedTaskName`, auto-tag `assignedPermitId`.
-- Section C of the new screen (combined inbound/outbound timeline per project).
-- Optionally fold the client-profile history panel from PR-1 into a project view.
+אם בעתיד תרצה מספר נפרד לכל פרויקט, המודל (`ProjectWhatsAppGroup.groupChatId` + עמודת `instanceId` עתידית) תומך בלי migration נוסף.
 
 ---
 
-## 9. Non-goals (explicitly out of scope)
+## 8. סדר עבודה (לאחר ה-checklist)
 
-- **Sending media (images/PDFs) from the system to a group.** Outbound is text-only for MVP. Green API supports media sends but we don't wire that until Ofir asks.
-- **Multi-instance support.** One Green API number for the whole company.
-- **WhatsApp Business API (Meta direct).** Green API stays the transport. The `Block 8c` webhook is the only inbound path.
-- **Auto-classifying inbound files** to specific tasks. The admin still does the final task assignment in `/inbox`. We only auto-populate the project.
-- **Bidirectional sync to a chat app inside our UI.** This is not WhatsApp Web. We surface metadata, not a live chat experience.
-- **Scheduled/automatic outbound messages.** The hard rule from PR #52 stands: every send is admin-initiated.
+החלטה: **PR-2 → PR-3, מדלגים על PR-1.**
 
----
+### PR-2 (בינוני): חיבור קבוצה + שליחה יוצאת
+- מודל חדש `ProjectWhatsAppGroup` + migration.
+- מסך חדש `/projects/[id]/whatsapp` עם סקציות א + ב (חיבור + שליחה).
+- פעולת `sendProjectGroupMessage` חדשה.
+- ברירת מחדל ל-route על `MasterDeal` (`GROUP` / `CLIENT_DIRECT` / `NONE`).
 
-## 10. Open questions before implementation
+### PR-3 (בינוני, תלוי ב-PR-2): ניתוח זרימה נכנסת + timeline משולב
+- עדכון webhook: ניתוח mentions, שמירת `suggestedTaskName`, תיוג אוטומטי של `assignedPermitId`.
+- סקציה ג של המסך החדש (timeline משולב נכנס/יוצא לכל פרויקט).
 
-1. **One group per project, or many?** Spec assumes 1:1. If a project has both a "client coordination" group and a "contractors" group, we'd need to loosen this to a list. (Recommendation: ship 1:1, refactor if needed.)
-2. **Orphan groups storage.** Same table with nullable `masterDealId`, or a separate `OrphanWhatsAppGroup`? (Recommendation: same table, nullable — simpler.)
-3. **wa.me fallback for groups.** wa.me deep links work for personal numbers but **don't open group chats** the same way. If Green API is unconfigured or fails, what's the group-send fallback? (Likely answer: just show an error — there's no graceful fallback for groups. The user can still copy the text and paste it into WhatsApp manually.)
-4. **Should the history panel include the existing "Block 25 internal team WhatsApp" reminders?** Those are sent to assignees (internal team), not clients/groups. Probably keep them out of the project-WhatsApp history; they belong to the audit log only.
-5. **Privacy on the client profile.** If the project default route is `GROUP`, do we hide the client profile's "send update" button entirely, or keep it as the "private override"? (Recommendation: keep as override but visually de-emphasised.)
-6. **Mention detection.** Does the Green API webhook expose mentions cleanly? Need to inspect a real payload from a group message with a `@number` mention. **Action item before PR-3:** capture one real example.
-7. **Magic keyword fallback.** If the system's number isn't mentioned but the message starts with a magic keyword (e.g. "מקובצקי") followed by a file, do we still ingest? (Recommendation: yes — increases robustness when users forget the @.)
-8. **Trigger on edit/delete of group messages.** Green API webhook delivers edits and deletes too. For MVP we ignore both; PendingDocument rows are append-only.
+PR-1 (פאנל היסטוריה בודד בלקוח) הוסר כי PR-3 ממילא יכלול את הטיימליין המלא ברמת הפרויקט.
 
 ---
 
-## 11. Migration / data impact
+## 9. לא בסקופ (במכוון מחוץ)
 
-- New model `ProjectWhatsAppGroup` — empty initially.
-- `MasterDeal.whatsappDefaultRoute` defaults to `GROUP`. **Risk:** existing projects (Hana Rovina, Sapir Ariel, Ushishkin 39) would suddenly have group as the default routing, BUT they have no group connected yet — so the compose button would be greyed out with "לא מחובר לקבוצה" until linked. No data corruption; just a UI dead-end until the admin connects a group.
-- Existing client `notificationPreference` values untouched.
-- Migration 015 (or whatever's next).
-
----
-
-## 12. Estimate
-
-- **PR-1 (history panel only):** ~3-4 hours. Pure render of existing data.
-- **PR-2 (group linking + outbound):** ~6-8 hours including schema + new screen + dialog wiring.
-- **PR-3 (inbound parsing + combined timeline):** ~6-8 hours including webhook update + parser + timeline UI.
-
-Total feature: ~15-20 hours over 3 PRs. Each independently usable.
+- **שליחת מדיה (תמונות/PDF) מהמערכת לקבוצה.** יוצאות = טקסט בלבד ל-MVP. Green API תומך אבל לא נחבר עד שתבקש.
+- **תמיכה ב-multi-instance.** מספר Green API אחד לכל החברה.
+- **WhatsApp Business API ישיר של Meta.** Green API נשאר ה-transport. `Block 8c webhook` הוא המסלול הנכנס היחיד.
+- **סיווג אוטומטי של קבצים נכנסים** למשימות ספציפיות. אופיר עדיין עושה את השיוך הסופי ב-`/inbox`. אנחנו רק קובעים את הפרויקט אוטומטית.
+- **תכתובת חיה דו-כיוונית בתוך ה-UI שלנו.** זה לא WhatsApp Web. אנחנו מציגים metadata, לא חוויית צ'אט חי.
+- **שליחה אוטומטית/מתוזמנת.** הכלל הקשוח מ-PR #52 נשמר: כל יציאה ביוזמת לחיצה של אופיר.
 
 ---
 
-## Approval checklist before coding
+## 10. שאלות פתוחות / החלטות תיעוד
 
-- [ ] Confirm 1:1 (one group per project) is the right starting model
-- [ ] Confirm a dedicated WhatsApp number for the system (not Ofir's personal)
-- [ ] Confirm the default route is `GROUP` (not `CLIENT_DIRECT`) for new projects
-- [ ] Pick the phasing order — PR-1 first feels right, but if "send to group" is the higher-pain item we can flip and do PR-2 first
-- [ ] Decide on the orphan groups table approach (§10 #2)
-- [ ] Capture one real Green API group-mention webhook payload (§10 #6) before starting PR-3
+### החלטות שכבר אושרו (2026-06-01)
+1. ✅ **1:1 קבוצה לפרויקט.**
+2. ✅ **מספר WhatsApp ייעודי למערכת.**
+3. ✅ **`GROUP` ברירת המחדל לכל פרויקט חדש.**
+4. ✅ **סדר: PR-2 → PR-3, ללא PR-1.**
+5. ✅ **קבוצות יתום באותה טבלה** עם `masterDealId = null`, מוצגות ב-`/inbox`.
+
+### עדיין פתוח, לפני PR-3
+6. **דוגמת webhook של mention קבוצתי.** נאסוף ידנית אחרי שיוקצה המספר הייעודי + תיוג בדיקה בקבוצה אמיתית. **PR-2 לא תלוי בזה** — רק לקראת PR-3 שמכיל את ה-parser.
+
+---
+
+## 11. השפעת מיגרציה / נתונים
+
+- מודל חדש `ProjectWhatsAppGroup` — מתחיל ריק.
+- `MasterDeal.whatsappDefaultRoute` עם ברירת מחדל `GROUP`. **סיכון:** פרויקטים קיימים (חנה רובינא, ספיר אריאל, אושישקין 39) יקבלו פתאום ניתוב ברירת מחדל לקבוצה — אבל אין להם קבוצה מחוברת עדיין, אז הכפתור יהיה אפור עם "לא מחובר לקבוצה" עד שאופיר יחבר. אין dataloss; רק dead-end ב-UI עד החיבור.
+- ערכי `notificationPreference` הקיימים של לקוחות לא משתנים.
+- Migration 015 ב-PR-2, Migration 016 ב-PR-3.
+
+---
+
+## 12. אומדן
+
+- **PR-2 (חיבור קבוצה + שליחה):** ~6-8 שעות כולל schema + מסך חדש + דיאלוג שליחה.
+- **PR-3 (זרימה נכנסת + timeline משולב):** ~6-8 שעות כולל עדכון webhook + parser + UI של timeline.
+
+סה"כ פיצ'ר: ~12-16 שעות על פני 2 PRs. כל אחד שמיש לבדו.
+
+---
+
+## רשימת אישור לפני קוד — **סגור**
+
+- [x] **1:1 קבוצה לפרויקט** — קבוצה אחת בכל פעם, כל פרויקט מקבל קבוצה חדשה. אישור 2026-06-01.
+- [x] **מספר WhatsApp ייעודי למערכת** — לא האישי של אופיר. אישור 2026-06-01.
+- [x] **`GROUP` ברירת המחדל לכל פרויקט חדש**. אישור 2026-06-01.
+- [x] **סדר PRs: PR-2 → PR-3, מדלגים על PR-1.** אישור 2026-06-01.
+- [x] **קבוצות לא משויכות נשמרות באותה טבלה (`ProjectWhatsAppGroup` עם `masterDealId = null`), והרשימה מוצגת ב-`/inbox`.** אישור 2026-06-01.
+- [ ] **דוגמת webhook עם mention קבוצתי** — נאסוף ידנית אחרי שיהיה מספר WhatsApp ייעודי + תיוג בדיקה בקבוצה. דרוש רק לפני PR-3. **PR-2 לא תלוי בזה.**
