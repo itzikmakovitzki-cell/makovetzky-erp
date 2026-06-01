@@ -78,6 +78,14 @@ enum SupplierAssignmentStatus {
   CANCELLED
 }
 
+// How a supplier's commission is structured. FIXED = flat ILS amount per
+// event/assignment; PERCENT = percentage of the deal amount (computed at
+// commission-resolution time, see app/actions/suppliers.ts).
+enum SupplierCommissionType {
+  FIXED
+  PERCENT
+}
+
 enum CommissionReportStatus {
   DRAFT
   SENT
@@ -520,16 +528,29 @@ model BillingMilestone {
 }
 
 model Supplier {
-  id                String   @id @default(cuid())
-  name              String
-  type              String?
-  contactName       String?
-  phone             String?
-  email             String?
-  defaultCommission Decimal? @db.Decimal(10, 2)
-  notes             String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  name                   String
+  // Short tag — "מודד" / "חשמלאי" / "מעבדה". Free text, with a frontend
+  // datalist that auto-suggests previously-used values.
+  type                   String?
+  contactName            String?
+  phone                  String?
+  email                  String?
+  website                String?
+  // Long-form description of what the supplier provides ("בדיקות חשמל +
+  // ייעוץ ת.ת אוטומציה"). Kept separate from `notes` so internal admin
+  // notes stay private to the back office.
+  services               String?
+  // Phase 1 of the suppliers overhaul: commission split into (type, value)
+  // so we can model either a fixed ILS amount or a percentage of the deal.
+  // Per-assignment overrides land on SupplierTaskAssignment in phase 2.
+  defaultCommissionType  SupplierCommissionType?
+  defaultCommissionValue Decimal?                @db.Decimal(10, 2)
+  // Free-text payment terms ("שוטף+30", "מקדמה 50%", "במזומן בסיום").
+  defaultPaymentTerms    String?
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   taskAssignments   SupplierTaskAssignment[]
   commissionReports SupplierCommissionReport[]

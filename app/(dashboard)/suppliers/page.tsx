@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Truck, AlertCircle } from "lucide-react";
+import { Truck, AlertCircle, Globe, Mail, Phone } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { SupplierPicker } from "@/components/global/supplier-picker";
 import { AddSupplierButton } from "@/components/suppliers/add-supplier-button";
+import { EditSupplierButton } from "@/components/suppliers/edit-supplier-button";
 import { PageHeader } from "@/components/global/page-header";
 import {
   SUPPLIER_ASSIGNMENT_STATUS_LABEL,
@@ -17,6 +18,19 @@ import { cn, formatDate, formatILS } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+// Pull distinct, non-empty supplier types — drives the datalist on the
+// create/edit form so admins reuse existing tags rather than typing
+// slight variants ("מודד" vs "מודדים").
+async function fetchTypeSuggestions(): Promise<string[]> {
+  const rows = await prisma.supplier.findMany({
+    where: { type: { not: null } },
+    distinct: ["type"],
+    select: { type: true },
+    orderBy: { type: "asc" }
+  });
+  return rows.map((r) => r.type).filter((t): t is string => !!t && t.trim() !== "");
+}
+
 export default async function SuppliersGlobalPage({
   searchParams
 }: {
@@ -27,12 +41,13 @@ export default async function SuppliersGlobalPage({
     typeof params.supplier === "string" && params.supplier ? params.supplier : null;
   const showAll = params.all === "true";
 
-  const [session, suppliers] = await Promise.all([
+  const [session, suppliers, typeSuggestions] = await Promise.all([
     auth(),
     prisma.supplier.findMany({
       select: { id: true, name: true, type: true },
       orderBy: { name: "asc" }
-    })
+    }),
+    fetchTypeSuggestions()
   ]);
   const isAdmin = session?.user?.role === "ADMIN";
 
@@ -42,13 +57,20 @@ export default async function SuppliersGlobalPage({
         title="ספקים"
         accent="Bulk View"
         description={'תצוגת "סבב ספק" — בחר ספק וראה את כל המשימות הפתוחות מולו חוצות-פרויקטים.'}
-        action={isAdmin ? <AddSupplierButton /> : undefined}
+        action={
+          isAdmin ? <AddSupplierButton typeSuggestions={typeSuggestions} /> : undefined
+        }
       />
 
       <SupplierPicker suppliers={suppliers} currentSupplierId={supplierId} />
 
       {supplierId ? (
-        <SupplierDetail supplierId={supplierId} showAll={showAll} />
+        <SupplierDetail
+          supplierId={supplierId}
+          showAll={showAll}
+          isAdmin={isAdmin}
+          typeSuggestions={typeSuggestions}
+        />
       ) : (
         <SuppliersOverview />
       )}
@@ -139,10 +161,14 @@ async function SuppliersOverview() {
 
 async function SupplierDetail({
   supplierId,
-  showAll
+  showAll,
+  isAdmin,
+  typeSuggestions
 }: {
   supplierId: string;
   showAll: boolean;
+  isAdmin: boolean;
+  typeSuggestions: string[];
 }) {
   const supplier = await prisma.supplier.findUnique({
     where: { id: supplierId },
@@ -153,7 +179,12 @@ async function SupplierDetail({
       contactName: true,
       phone: true,
       email: true,
-      defaultCommission: true
+      website: true,
+      services: true,
+      defaultCommissionType: true,
+      defaultCommissionValue: true,
+      defaultPaymentTerms: true,
+      notes: true
     }
   });
 
@@ -164,6 +195,16 @@ async function SupplierDetail({
       </div>
     );
   }
+
+  // Format the commission for the supplier card — kept on the page so the
+  // shape stays close to the source (we'll reuse the same idea for per-
+  // assignment commission cells in phase 2).
+  const commissionText =
+    supplier.defaultCommissionType === "FIXED" && supplier.defaultCommissionValue
+      ? formatILS(Number(supplier.defaultCommissionValue.toString()))
+      : supplier.defaultCommissionType === "PERCENT" && supplier.defaultCommissionValue
+        ? `${supplier.defaultCommissionValue.toString()}%`
+        : null;
 
   const assignmentWhere: Prisma.SupplierTaskAssignmentWhereInput = {
     supplierId,
@@ -195,26 +236,91 @@ async function SupplierDetail({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-3 gap-3">
-        <SupplierCard label="ספק">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <SupplierCard
+          label="ספק"
+          headerSlot={
+            isAdmin && (
+              <EditSupplierButton
+                supplier={{
+                  id: supplier.id,
+                  name: supplier.name,
+                  type: supplier.type,
+                  contactName: supplier.contactName,
+                  phone: supplier.phone,
+                  email: supplier.email,
+                  website: supplier.website,
+                  services: supplier.services,
+                  defaultCommissionType: supplier.defaultCommissionType,
+                  defaultCommissionValue:
+                    supplier.defaultCommissionValue?.toString() ?? null,
+                  defaultPaymentTerms: supplier.defaultPaymentTerms,
+                  notes: supplier.notes
+                }}
+                typeSuggestions={typeSuggestions}
+              />
+            )
+          }
+        >
           <div className="text-sm font-semibold">{supplier.name}</div>
           {supplier.type && (
             <div className="text-[11px] text-muted-foreground">{supplier.type}</div>
+          )}
+          {supplier.services && (
+            <div className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
+              {supplier.services}
+            </div>
           )}
         </SupplierCard>
         <SupplierCard label="איש קשר">
           <div className="text-sm font-medium">
             {supplier.contactName ?? <span className="text-muted-foreground">—</span>}
           </div>
-          <div className="text-[11px] text-muted-foreground">
-            {supplier.phone ?? "—"}
+          <div className="mt-0.5 flex flex-col gap-0.5 text-[11px] text-muted-foreground">
+            {supplier.phone && (
+              <a
+                href={`tel:${supplier.phone}`}
+                className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+              >
+                <Phone className="size-3" />
+                {supplier.phone}
+              </a>
+            )}
             {supplier.email && (
-              <>
-                {" · "}
+              <a
+                href={`mailto:${supplier.email}`}
+                className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+              >
+                <Mail className="size-3" />
                 {supplier.email}
-              </>
+              </a>
+            )}
+            {supplier.website && (
+              <a
+                href={
+                  supplier.website.startsWith("http")
+                    ? supplier.website
+                    : `https://${supplier.website}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+              >
+                <Globe className="size-3" />
+                {supplier.website}
+              </a>
             )}
           </div>
+        </SupplierCard>
+        <SupplierCard label="עמלת ברירת מחדל">
+          <div className="text-sm font-semibold tabular-nums">
+            {commissionText ?? <span className="text-muted-foreground">—</span>}
+          </div>
+          {supplier.defaultPaymentTerms && (
+            <div className="mt-0.5 text-[11px] text-muted-foreground">
+              תנאי תשלום: {supplier.defaultPaymentTerms}
+            </div>
+          )}
         </SupplierCard>
         <SupplierCard label="סכום פתוח" accent={openAmount > 0 ? "warning" : undefined}>
           <div className="text-sm font-semibold tabular-nums">
@@ -313,11 +419,15 @@ async function SupplierDetail({
 function SupplierCard({
   label,
   children,
-  accent
+  accent,
+  headerSlot
 }: {
   label: string;
   children: React.ReactNode;
   accent?: "warning";
+  // Optional control to render on the header row (e.g. "ערוך" on the supplier
+  // card). React.ReactNode so falsy values render nothing.
+  headerSlot?: React.ReactNode;
 }) {
   return (
     <div
@@ -326,8 +436,11 @@ function SupplierCard({
         accent === "warning" && "border-amber-500/40 bg-amber-50/40 dark:bg-amber-500/5"
       )}
     >
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </div>
+        {headerSlot}
       </div>
       <div className="mt-1">{children}</div>
     </div>
