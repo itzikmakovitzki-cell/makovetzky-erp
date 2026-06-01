@@ -1,0 +1,583 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Link2,
+  Link2Off,
+  Loader2,
+  MessageCircle,
+  ShieldOff,
+  Unplug
+} from "lucide-react";
+import type { WhatsAppDefaultRoute } from "@prisma/client";
+import {
+  checkGreenApiConfiguredForGroups,
+  connectGroupToProject,
+  disconnectGroupFromProject,
+  sendProjectGroupMessage,
+  setProjectWhatsAppDefaultRoute,
+  type OrphanGroup
+} from "@/app/actions/whatsapp-groups";
+import { cn, formatDate } from "@/lib/utils";
+
+// Spec: docs/spec-whatsapp-groups.md §6 (PR-2).
+// Section A — connection status + connect wizard listing orphan groups
+// Section B — compose dialog to send to the connected group
+// Section C (timeline) is deferred to PR-3.
+
+type ConnectedGroup = {
+  id: string;
+  groupChatId: string;
+  groupName: string | null;
+  connectedAt: Date;
+  isActive: boolean;
+  connectedByName: string | null;
+};
+
+export function ProjectWhatsAppPanel({
+  masterDealId,
+  dealName,
+  defaultRoute,
+  connectedGroup,
+  orphanGroups,
+  clientNotificationPreference
+}: {
+  masterDealId: string;
+  dealName: string;
+  defaultRoute: WhatsAppDefaultRoute;
+  connectedGroup: ConnectedGroup | null;
+  orphanGroups: OrphanGroup[];
+  clientNotificationPreference: "OFF" | "MANUAL_ONLY";
+}) {
+  const [route, setRoute] = useState<WhatsAppDefaultRoute>(defaultRoute);
+  const [savingRoute, startRouteSave] = useTransition();
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [greenApiConfigured, setGreenApiConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void checkGreenApiConfiguredForGroups().then((r) => {
+      if (alive) setGreenApiConfigured(r.configured);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const changeRoute = (next: WhatsAppDefaultRoute) => {
+    if (next === route) return;
+    setRouteError(null);
+    setRoute(next);
+    startRouteSave(async () => {
+      const r = await setProjectWhatsAppDefaultRoute({
+        masterDealId,
+        route: next
+      });
+      if (!r.ok) {
+        setRoute(defaultRoute);
+        setRouteError(r.error);
+      }
+    });
+  };
+
+  const sendDisabledReason = (() => {
+    if (route === "NONE") return "תקשורת WhatsApp כבויה לפרויקט הזה";
+    if (route === "CLIENT_DIRECT") {
+      return "ברירת המחדל לפרויקט = שליחה ישירה ללקוח. השתמש בפאנל בפרופיל הלקוח.";
+    }
+    if (!connectedGroup) return "לא מחוברת קבוצה לפרויקט";
+    if (!connectedGroup.isActive) return "הקבוצה המשויכת לא פעילה";
+    return null;
+  })();
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Section A — connection status */}
+      <div className="rounded-md border bg-card">
+        <div className="border-b bg-muted/30 px-3 py-1.5">
+          <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Link2 className="size-3.5 text-emerald-600" />
+            סטטוס חיבור — קבוצת הפרויקט
+          </h2>
+        </div>
+        <div className="space-y-3 px-3 py-2">
+          {connectedGroup ? (
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="space-y-0.5 text-[11px]">
+                <div className="font-medium">
+                  <span className="text-muted-foreground">מחובר לקבוצה: </span>
+                  {connectedGroup.groupName ?? "(ללא שם)"}
+                </div>
+                <div className="text-muted-foreground" dir="ltr">
+                  {connectedGroup.groupChatId}
+                </div>
+                <div className="text-muted-foreground">
+                  מחובר מאז: {formatDate(connectedGroup.connectedAt)}
+                  {connectedGroup.connectedByName && (
+                    <> ע&quot;י {connectedGroup.connectedByName}</>
+                  )}
+                </div>
+                {!connectedGroup.isActive && (
+                  <div className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                    <AlertTriangle className="size-3" />
+                    הקבוצה לא פעילה
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setWizardOpen(true)}
+                  className="inline-flex items-center gap-1 rounded border border-input bg-card px-2 py-1 text-[11px] hover:bg-accent"
+                >
+                  <Link2 className="size-3" />
+                  חבר קבוצה אחרת
+                </button>
+                <DisconnectButton masterDealId={masterDealId} />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                <Link2Off className="size-3.5" />
+                לא מחוברת קבוצה לפרויקט הזה
+              </div>
+              <p className="text-[10.5px] text-muted-foreground">
+                כדי לחבר: הוסף את מספר ה-WhatsApp של המערכת לקבוצה הקיימת של
+                הפרויקט, ושלח שם הודעה שמתייגת את המספר. הקבוצה תופיע ברשימה
+                למטה ותוכל לבחור אותה.
+              </p>
+              <button
+                type="button"
+                onClick={() => setWizardOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-[12px] font-medium text-white hover:bg-emerald-700"
+              >
+                <Link2 className="size-3.5" />
+                חבר קבוצה
+              </button>
+            </div>
+          )}
+
+          {/* Route preference */}
+          <div className="space-y-1 border-t pt-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-medium">יעד שליחה ברירת מחדל:</span>
+              <div
+                role="radiogroup"
+                className="inline-flex items-center rounded-md border border-input bg-background p-0.5"
+              >
+                <RoutePill
+                  label="📣 קבוצה"
+                  active={route === "GROUP"}
+                  onClick={() => changeRoute("GROUP")}
+                  disabled={savingRoute}
+                />
+                <RoutePill
+                  label="👤 ללקוח"
+                  active={route === "CLIENT_DIRECT"}
+                  onClick={() => changeRoute("CLIENT_DIRECT")}
+                  disabled={savingRoute}
+                />
+                <RoutePill
+                  label="🔕 כבוי"
+                  active={route === "NONE"}
+                  onClick={() => changeRoute("NONE")}
+                  disabled={savingRoute}
+                />
+              </div>
+              {savingRoute && (
+                <Loader2 className="size-3 animate-spin text-muted-foreground" />
+              )}
+            </div>
+            {routeError && (
+              <p className="inline-flex items-center gap-1 text-[10px] text-red-700">
+                <AlertTriangle className="size-3" />
+                {routeError}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Section B — outbound send */}
+      <div className="rounded-md border bg-card">
+        <div className="border-b bg-muted/30 px-3 py-1.5">
+          <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <MessageCircle className="size-3.5 text-emerald-600" />
+            שליחה לקבוצה
+          </h2>
+        </div>
+        <div className="space-y-2 px-3 py-2">
+          {route === "NONE" ? (
+            <div className="inline-flex items-center gap-1.5 rounded border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] text-zinc-700 dark:bg-zinc-900/30 dark:text-zinc-300">
+              <ShieldOff className="size-3" />
+              תקשורת WhatsApp כבויה לפרויקט הזה
+            </div>
+          ) : (
+            <>
+              <p className="text-[10.5px] text-muted-foreground">
+                הכפתור שולח דרך Green API לקבוצה {connectedGroup?.groupName ?? "—"}. כולם בקבוצה יראו את ההודעה. לוחץ ידנית, אין שליחה אוטומטית.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setComposeOpen(true)}
+                  disabled={sendDisabledReason !== null}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
+                    sendDisabledReason
+                      ? "bg-muted text-muted-foreground cursor-not-allowed"
+                      : "bg-emerald-600 text-white hover:bg-emerald-700"
+                  )}
+                >
+                  <MessageCircle className="size-3.5" />
+                  📤 שלח לקבוצה
+                </button>
+                {sendDisabledReason && (
+                  <span className="text-[10px] text-amber-700">
+                    {sendDisabledReason}
+                  </span>
+                )}
+              </div>
+              {/* Secondary action — only when the client allows manual sends */}
+              {route === "GROUP" &&
+                clientNotificationPreference === "MANUAL_ONLY" && (
+                  <p className="text-[10px] text-muted-foreground">
+                    רוצה לשלוח ללקוח בלבד? פתח את פרופיל הלקוח והשתמש בפאנל
+                    שם — המסלול הפרטי שמור למקרים נדירים.
+                  </p>
+                )}
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
+                  greenApiConfigured === true &&
+                    "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300",
+                  greenApiConfigured === false &&
+                    "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300",
+                  greenApiConfigured === null &&
+                    "border-input text-muted-foreground"
+                )}
+              >
+                {greenApiConfigured === true && <CheckCircle2 className="size-3" />}
+                {greenApiConfigured === false && <AlertTriangle className="size-3" />}
+                {greenApiConfigured === true
+                  ? "Green API: מוגדר — שליחה ישירה דרך השרת"
+                  : greenApiConfigured === false
+                    ? "Green API: לא מוגדר — שליחה לקבוצה לא תעבוד עד שיוגדר"
+                    : "בודק תצורת Green API…"}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {composeOpen && connectedGroup && (
+        <GroupComposeDialog
+          masterDealId={masterDealId}
+          dealName={dealName}
+          groupName={connectedGroup.groupName ?? connectedGroup.groupChatId}
+          onClose={() => setComposeOpen(false)}
+        />
+      )}
+      {wizardOpen && (
+        <ConnectGroupWizard
+          masterDealId={masterDealId}
+          dealName={dealName}
+          orphans={orphanGroups}
+          onClose={() => setWizardOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function RoutePill({
+  label,
+  active,
+  onClick,
+  disabled
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "rounded px-2 py-0.5 text-[11px] transition-colors",
+        active
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        disabled && "opacity-60"
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function DisconnectButton({ masterDealId }: { masterDealId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const onClick = () => {
+    const proceed = window.confirm(
+      "לנתק את הקבוצה מהפרויקט?\n\nהקבוצה עצמה תישאר במערכת (לא נאבדת היסטוריה), אבל הכפתור 'שלח לקבוצה' יהפוך לא פעיל עד שתחבר קבוצה אחרת."
+    );
+    if (!proceed) return;
+    setError(null);
+    startTransition(async () => {
+      const r = await disconnectGroupFromProject({ masterDealId });
+      if (!r.ok) setError(r.error);
+    });
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={pending}
+        className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+      >
+        {pending ? <Loader2 className="size-3 animate-spin" /> : <Unplug className="size-3" />}
+        בטל חיבור
+      </button>
+      {error && (
+        <span className="text-[10px] text-red-700">{error}</span>
+      )}
+    </div>
+  );
+}
+
+function GroupComposeDialog({
+  masterDealId,
+  dealName,
+  groupName,
+  onClose
+}: {
+  masterDealId: string;
+  dealName: string;
+  groupName: string;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(`עדכון בנושא הפרויקט ${dealName}\n\n`);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const send = () => {
+    setError(null);
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setError("ההודעה ריקה");
+      return;
+    }
+    const proceed = window.confirm(
+      `לשלוח את ההודעה לקבוצה "${groupName}"?\n\nכולם בקבוצה יקבלו אותה. ההודעה תצא מהמערכת מיד דרך Green API.`
+    );
+    if (!proceed) return;
+    startTransition(async () => {
+      const r = await sendProjectGroupMessage({ masterDealId, message: trimmed });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setSent(true);
+      setTimeout(onClose, 1200);
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-md rounded-md border bg-card shadow-lg">
+        <div className="border-b bg-muted/30 px-3 py-1.5">
+          <h3 className="text-sm font-semibold">שלח לקבוצה — {groupName}</h3>
+        </div>
+        <div className="space-y-2 px-3 py-3">
+          <p className="text-[10.5px] text-muted-foreground">
+            ההודעה תישלח דרך Green API לכל חברי הקבוצה ברגע שתאשר.
+          </p>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={6}
+            placeholder="הקלד את ההודעה לקבוצה…"
+            className="w-full resize-y rounded border border-input bg-background px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+            autoFocus
+          />
+          {error && (
+            <p className="inline-flex items-center gap-1 text-[11px] text-red-700">
+              <AlertTriangle className="size-3" />
+              {error}
+            </p>
+          )}
+          {sent && (
+            <p className="inline-flex items-center gap-1 text-[11px] text-emerald-700">
+              <CheckCircle2 className="size-3" />
+              ההודעה נשלחה לקבוצה
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-3 py-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={pending}
+            className="rounded border border-input bg-background px-3 py-1 text-[12px] hover:bg-accent disabled:opacity-50"
+          >
+            ביטול
+          </button>
+          <button
+            type="button"
+            onClick={send}
+            disabled={pending || sent}
+            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {pending ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : sent ? (
+              <CheckCircle2 className="size-3" />
+            ) : (
+              <MessageCircle className="size-3" />
+            )}
+            📤 שלח עכשיו
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConnectGroupWizard({
+  masterDealId,
+  dealName,
+  orphans,
+  onClose
+}: {
+  masterDealId: string;
+  dealName: string;
+  orphans: OrphanGroup[];
+  onClose: () => void;
+}) {
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  const choose = (groupId: string, label: string) => {
+    const proceed = window.confirm(
+      `לחבר את הקבוצה "${label}" לפרויקט "${dealName}"?`
+    );
+    if (!proceed) return;
+    setError(null);
+    setPendingId(groupId);
+    startTransition(async () => {
+      const r = await connectGroupToProject({ groupId, masterDealId });
+      setPendingId(null);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      onClose();
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-lg rounded-md border bg-card shadow-lg">
+        <div className="border-b bg-muted/30 px-3 py-1.5">
+          <h3 className="text-sm font-semibold">חבר קבוצה לפרויקט — {dealName}</h3>
+        </div>
+        <div className="space-y-2 px-3 py-3">
+          <ol className="list-decimal space-y-1 pr-4 text-[11px] text-muted-foreground">
+            <li>הוסף את מספר ה-WhatsApp של המערכת לקבוצת הפרויקט.</li>
+            <li>שלח בקבוצה הודעה שמתייגת את מספר המערכת.</li>
+            <li>הקבוצה תופיע ברשימה כאן בתוך מספר שניות. בחר אותה למטה.</li>
+          </ol>
+          <div className="border-t pt-2">
+            <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              קבוצות ממתינות לקישור
+            </h4>
+            {orphans.length === 0 ? (
+              <p className="rounded border border-dashed bg-muted/30 px-2 py-2 text-[11px] text-muted-foreground">
+                אין כרגע קבוצות ממתינות. ברגע שתשלח הודעה בקבוצה עם תיוג המערכת,
+                הקבוצה תופיע כאן.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {orphans.map((g) => {
+                  const label = g.groupName ?? g.groupChatId;
+                  const isPending = pendingId === g.id;
+                  return (
+                    <li
+                      key={g.id}
+                      className="flex items-center justify-between gap-2 rounded border border-input bg-background px-2 py-1.5"
+                    >
+                      <div className="min-w-0 text-[11px]">
+                        <div className="font-medium">{label}</div>
+                        <div className="text-muted-foreground" dir="ltr">
+                          {g.groupChatId}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          התקבלה: {formatDate(g.createdAt)}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => choose(g.id, label)}
+                        disabled={pendingId !== null}
+                        className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {isPending ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Link2 className="size-3" />
+                        )}
+                        חבר
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          {error && (
+            <p className="inline-flex items-center gap-1 text-[11px] text-red-700">
+              <AlertTriangle className="size-3" />
+              {error}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-end border-t bg-muted/30 px-3 py-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-input bg-background px-3 py-1 text-[12px] hover:bg-accent"
+          >
+            סגור
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
