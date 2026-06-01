@@ -249,27 +249,29 @@ async function main() {
   });
   if (!admin) throw new Error("No active ADMIN user to attribute audit rows to.");
 
-  // -- Existing tasks (dedupe by exact prefixed name) --
-  const existingTaskNames = new Set(
+  // -- Existing tasks / templates (dedupe by (category, name) — both fields
+  // matter now that category lives in its own column).
+  const dedupeKey = (category: string | null, name: string) =>
+    `${(category ?? "").trim()} ${name.trim()}`;
+  const existingTaskKeys = new Set(
     (
       await prisma.task.findMany({
         where: { permitId: PERMIT_ID, deletedAt: null },
-        select: { name: true }
+        select: { name: true, category: true }
       })
-    ).map((t) => t.name)
+    ).map((t) => dedupeKey(t.category, t.name))
   );
 
-  // -- Existing templates for this authority+buildingType --
-  const existingTemplateNames = new Set(
+  const existingTemplateKeys = new Set(
     (
       await prisma.taskTemplate.findMany({
         where: {
           authorityId: AUTHORITY_ID,
           buildingTypeId: BUILDING_TYPE_ID
         },
-        select: { name: true }
+        select: { name: true, category: true }
       })
-    ).map((t) => t.name)
+    ).map((t) => dedupeKey(t.category, t.name))
   );
 
   // -- Highest existing orderIndex so we append, not collide --
@@ -288,6 +290,7 @@ async function main() {
     description: string | null;
     status: TaskStatus;
     frozen: boolean;
+    category: string | null;
   }> = [];
   const templateRows: Array<{
     authorityId: string;
@@ -297,46 +300,49 @@ async function main() {
     defaultDurationDays: number;
     orderIndex: number;
     isActive: boolean;
+    category: string | null;
   }> = [];
 
   let taskDupes = 0;
   let templateDupes = 0;
 
   for (const r of rows) {
-    const prefixedName = `[${r.category}] ${r.name}`.trim();
+    const key = dedupeKey(r.category || null, r.name);
     const { status, description, frozen } = resolveStatus(
       r.rawStatus,
       r.description
     );
 
-    if (existingTaskNames.has(prefixedName)) {
+    if (existingTaskKeys.has(key)) {
       taskDupes++;
     } else {
       taskRows.push({
         permitId: PERMIT_ID,
-        name: prefixedName,
+        name: r.name,
         description,
         status,
-        frozen
+        frozen,
+        category: r.category || null
       });
-      existingTaskNames.add(prefixedName);
+      existingTaskKeys.add(key);
     }
 
     // Templates: clean (no status — status is per-permit), description from
-    // detail only.
-    if (existingTemplateNames.has(prefixedName)) {
+    // detail only. Category lives in its own column.
+    if (existingTemplateKeys.has(key)) {
       templateDupes++;
     } else {
       templateRows.push({
         authorityId: AUTHORITY_ID,
         buildingTypeId: BUILDING_TYPE_ID,
-        name: prefixedName,
+        name: r.name,
         description: r.description,
         defaultDurationDays: 14,
         orderIndex: nextOrderIndex++,
-        isActive: true
+        isActive: true,
+        category: r.category || null
       });
-      existingTemplateNames.add(prefixedName);
+      existingTemplateKeys.add(key);
     }
   }
 

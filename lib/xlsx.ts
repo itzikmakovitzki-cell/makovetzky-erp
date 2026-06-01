@@ -133,17 +133,37 @@ export function extractCategory(name: string): {
   return { category: CATEGORY_FALLBACK, cleanName: name.trim() };
 }
 
-// Groups rows by extracted category, preserving first-seen category order so
-// the sheet mirrors the on-screen task ordering.
+// Row shape accepted by buildMakovetzkiWorkbook. `category` is preferred —
+// it comes from Task.category directly. If absent we fall back to parsing a
+// `[xxx] name` prefix out of `requirement` (legacy data path / tasks that
+// pre-date the migration in scripts/split-bracket-category-into-column.ts).
+export type MakovetzkiExportRow = {
+  category?: string | null;
+  requirement: string;
+  detail: string;
+  status: string;
+};
+
+// Groups rows by category, preserving first-seen order so the sheet mirrors
+// the on-screen task ordering.
 function groupByCategory(
-  rows: Array<{ requirement: string; detail: string; status: string }>
+  rows: MakovetzkiExportRow[]
 ): Map<string, Array<{ requirement: string; detail: string; status: string }>> {
   const groups = new Map<
     string,
     Array<{ requirement: string; detail: string; status: string }>
   >();
   for (const r of rows) {
-    const { category, cleanName } = extractCategory(r.requirement);
+    let category: string;
+    let cleanName: string;
+    if (r.category && r.category.trim()) {
+      category = r.category.trim();
+      cleanName = r.requirement.trim();
+    } else {
+      const parsed = extractCategory(r.requirement);
+      category = parsed.category;
+      cleanName = parsed.cleanName;
+    }
     const list = groups.get(category) ?? [];
     list.push({ requirement: cleanName, detail: r.detail, status: r.status });
     if (!groups.has(category)) groups.set(category, list);
@@ -156,7 +176,7 @@ function groupByCategory(
 // a merged sub-header band followed by that category's task rows.
 export async function buildMakovetzkiWorkbook(
   title: string,
-  rows: Array<{ requirement: string; detail: string; status: string }>
+  rows: MakovetzkiExportRow[]
 ): Promise<string> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("סטטוס", {
