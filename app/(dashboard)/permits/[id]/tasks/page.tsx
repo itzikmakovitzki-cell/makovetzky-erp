@@ -9,10 +9,11 @@ export default async function PermitTasksTabPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; category?: string }>;
 }) {
-  const [{ id }, { view }] = await Promise.all([params, searchParams]);
+  const [{ id }, { view, category }] = await Promise.all([params, searchParams]);
   const active = view === "timeline" ? "timeline" : "table";
+  const categoryFilter = category && category.trim() ? category.trim() : null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -22,7 +23,7 @@ export default async function PermitTasksTabPage({
       {active === "timeline" ? (
         <TimelineView permitId={id} />
       ) : (
-        <TasksTable permitId={id} />
+        <TasksTable permitId={id} categoryFilter={categoryFilter} />
       )}
     </div>
   );

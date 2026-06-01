@@ -1,5 +1,5 @@
 import { Star, Lock, Hourglass } from "lucide-react";
-import type { TaskResponsibility } from "@prisma/client";
+import type { Prisma, TaskResponsibility } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { deleteTask } from "@/app/actions/tasks";
@@ -17,6 +17,7 @@ import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { MagicLinkButton } from "@/components/permit/magic-link-button";
 import { PermitTasksXlsxToolbar } from "@/components/permit/permit-tasks-xlsx-toolbar";
 import { TaskEditButton } from "@/components/permit/task-edit-dialog";
+import { TasksCategoryFilter } from "@/components/permit/tasks-category-filter";
 import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
 import {
   TaskBulkCheckbox,
@@ -29,13 +30,28 @@ import {
 } from "@/lib/status-maps";
 import { cn } from "@/lib/utils";
 
-export async function TasksTable({ permitId }: { permitId: string }) {
+export async function TasksTable({
+  permitId,
+  categoryFilter
+}: {
+  permitId: string;
+  // When set, only tasks with this exact category render. Categories present
+  // on the permit are computed independently of the filter, so the dropdown
+  // stays stable as the user narrows the view.
+  categoryFilter?: string | null;
+}) {
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";
 
-  const [tasks, assignees, categoryRows] = await Promise.all([
+  const taskWhere: Prisma.TaskWhereInput = {
+    permitId,
+    deletedAt: null,
+    ...(categoryFilter ? { category: categoryFilter } : {})
+  };
+
+  const [tasks, assignees, permitCategoryRows, globalCategoryRows] = await Promise.all([
     prisma.task.findMany({
-      where: { permitId, deletedAt: null },
+      where: taskWhere,
       include: {
         assignee: { select: { id: true, name: true } },
         template: { select: { name: true } },
@@ -54,6 +70,14 @@ export async function TasksTable({ permitId }: { permitId: string }) {
       select: { id: true, name: true },
       orderBy: { name: "asc" }
     }),
+    // Categories on *this* permit — drives the filter dropdown.
+    prisma.task.findMany({
+      where: { permitId, deletedAt: null, category: { not: null } },
+      select: { category: true },
+      distinct: ["category"],
+      orderBy: { category: "asc" }
+    }),
+    // All categories anywhere — feeds the edit-dialog autocomplete.
     prisma.task.findMany({
       where: { deletedAt: null, category: { not: null } },
       select: { category: true },
@@ -63,7 +87,10 @@ export async function TasksTable({ permitId }: { permitId: string }) {
     })
   ]);
 
-  const categorySuggestions = categoryRows
+  const permitCategories = permitCategoryRows
+    .map((r) => r.category)
+    .filter((c): c is string => !!c);
+  const categorySuggestions = globalCategoryRows
     .map((r) => r.category)
     .filter((c): c is string => !!c);
 
@@ -75,9 +102,15 @@ export async function TasksTable({ permitId }: { permitId: string }) {
       <BulkTaskActionBar users={assignees} canDelete={isAdmin} />
       <div className="rounded-md border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          משימות ({tasks.length})
-        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            משימות ({tasks.length})
+          </h2>
+          <TasksCategoryFilter
+            categories={permitCategories}
+            current={categoryFilter ?? null}
+          />
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
             <LegendDot color="bg-red-500" label="באיחור" />
