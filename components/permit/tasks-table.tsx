@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Star, Lock, Hourglass } from "lucide-react";
 import type { Prisma, TaskResponsibility } from "@prisma/client";
 import { auth } from "@/auth";
@@ -150,7 +151,7 @@ export async function TasksTable({
               </td>
             </tr>
           )}
-          {tasks.map((t) => {
+          {tasks.map((t, idx) => {
             const isCompleted = t.status === "COMPLETED";
             const isOverdue =
               !!t.dueDate && !t.frozen && !isCompleted && new Date(t.dueDate) < now;
@@ -167,9 +168,27 @@ export async function TasksTable({
                   ? "bg-zinc-400"
                   : "bg-transparent";
 
+            // Visual category grouping (PR-D of the polish sweep): insert a
+            // band row before the first task of each new category. Tasks are
+            // already sorted by category-asc first (PR #34) so the iteration
+            // order does the grouping for us. Uncategorised tasks (category
+            // null) skip the band.
+            const prevCategory = idx > 0 ? tasks[idx - 1].category : null;
+            const showBand = !!t.category && t.category !== prevCategory;
+
             return (
+              <Fragment key={t.id}>
+                {showBand && (
+                  <tr>
+                    <td
+                      colSpan={11}
+                      className="bg-muted/40 px-3 py-1 text-[11px] font-semibold text-muted-foreground"
+                    >
+                      {t.category}
+                    </td>
+                  </tr>
+                )}
               <tr
-                key={t.id}
                 className={cn(
                   "group hover:bg-muted/30",
                   isCompleted && "task-completed"
@@ -297,6 +316,7 @@ export async function TasksTable({
                   </div>
                 </td>
               </tr>
+              </Fragment>
             );
           })}
         </tbody>

@@ -42,10 +42,18 @@ const NEXT_OPTIONS: Record<AuthoritySubmissionStatus, AuthoritySubmissionStatus[
   REJECTED: ["SUBMITTED", "PREPARING"]
 };
 
+export type CategoryCompletion = {
+  // Total non-deleted tasks in the category.
+  total: number;
+  // Of those, how many have status === COMPLETED.
+  completed: number;
+};
+
 export function AuthoritySubmissionsStrip({
   permitId,
   categories,
-  submissions
+  submissions,
+  completionByCategory
 }: {
   permitId: string;
   // Every category present on the permit's tasks. Order is server-controlled
@@ -53,6 +61,9 @@ export function AuthoritySubmissionsStrip({
   categories: string[];
   // Existing submission rows. Categories without a row implicitly = PREPARING.
   submissions: Submission[];
+  // n-of-m completion stats per category — drives the "X/Y" hint on each
+  // pill and the confirm dialog when SUBMITTED is clicked with X < Y.
+  completionByCategory: Record<string, CategoryCompletion>;
 }) {
   if (categories.length === 0) return null;
 
@@ -69,6 +80,7 @@ export function AuthoritySubmissionsStrip({
           permitId={permitId}
           category={category}
           submission={byCategory.get(category) ?? null}
+          completion={completionByCategory[category] ?? { total: 0, completed: 0 }}
         />
       ))}
     </div>
@@ -78,11 +90,13 @@ export function AuthoritySubmissionsStrip({
 function SubmissionPill({
   permitId,
   category,
-  submission
+  submission,
+  completion
 }: {
   permitId: string;
   category: string;
   submission: Submission | null;
+  completion: CategoryCompletion;
 }) {
   const status: AuthoritySubmissionStatus = submission?.status ?? "PREPARING";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -91,6 +105,19 @@ function SubmissionPill({
 
   function transition(nextStatus: AuthoritySubmissionStatus, decisionNotes?: string) {
     setError(null);
+
+    // Completion gate: if the admin is moving to SUBMITTED but the category
+    // still has un-completed tasks, surface a confirm dialog so a misclick
+    // doesn't freeze work-in-progress (which is exactly the bug that bit us
+    // on Hana Rovina and got fixed in PR #43).
+    if (nextStatus === "SUBMITTED" && completion.completed < completion.total) {
+      const remaining = completion.total - completion.completed;
+      const proceed = window.confirm(
+        `יש עוד ${remaining} משימות לא הושלמו בקטגוריה "${category}" (${completion.completed}/${completion.total}).\n\nאם תמשיך — כל המשימות הפעילות בקטגוריה ייכנסו ל"ממתין לרשות" ויוקפאו.\n\nלהמשיך בכל זאת?`
+      );
+      if (!proceed) return;
+    }
+
     const fd = new FormData();
     fd.append("permitId", permitId);
     fd.append("category", category);
@@ -127,6 +154,19 @@ function SubmissionPill({
         title={submission?.decisionNotes ?? undefined}
       >
         <span className="font-medium">{category}</span>
+        {completion.total > 0 && (
+          <span
+            className={cn(
+              "text-[10px] tabular-nums",
+              completion.completed === completion.total
+                ? "opacity-80"
+                : "opacity-60"
+            )}
+            title={`${completion.completed} מתוך ${completion.total} משימות הושלמו`}
+          >
+            {completion.completed}/{completion.total}
+          </span>
+        )}
         <span className="text-[10px] opacity-80">·</span>
         <span>{STATUS_LABEL[status]}</span>
         {date && <span className="text-[10px] opacity-70">· {date}</span>}
