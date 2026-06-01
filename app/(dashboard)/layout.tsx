@@ -22,7 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Link
           href="/"
           aria-label="מקובצקי — לדף הבית"
-          className="mb-4 flex items-center justify-center rounded-md bg-white/95 px-2 py-3 transition-shadow hover:shadow-md"
+          className="mb-4 flex shrink-0 items-center justify-center rounded-md bg-white/95 px-2 py-3 transition-shadow hover:shadow-md"
         >
           <Image
             src="/logo.png"
@@ -33,14 +33,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
             className="h-auto w-full max-w-[180px] object-contain"
           />
         </Link>
-        <CommandPaletteTrigger className="mb-3" />
-        <DashboardNav role={user?.role} />
+        <CommandPaletteTrigger className="mb-3 shrink-0" />
+        {/* min-h-0 + overflow-y-auto = the nav scrolls inside the sidebar on
+            short viewports (e.g. Bat-Or's small monitor) instead of pushing
+            the user menu off-screen. Pinned items stay shrink-0 above/below. */}
+        <div className="-mx-1 flex-1 overflow-y-auto px-1 [scrollbar-width:thin]">
+          <DashboardNav role={user?.role} />
+        </div>
         {user && (
-          <UserMenu
-            name={user.name ?? "—"}
-            email={user.email ?? "—"}
-            role={user.role}
-          />
+          <div className="shrink-0">
+            <UserMenu
+              name={user.name ?? "—"}
+              email={user.email ?? "—"}
+              role={user.role}
+            />
+          </div>
         )}
       </aside>
       <div className="flex flex-1 flex-col">
