@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,14 @@ import { cn } from "@/lib/utils";
 // Server actions are migrating from "throws on failure" to a structured
 // { ok, error? } shape (Block 20). This button tolerates either — old
 // actions return undefined on success, new ones return { ok: true }.
+//
+// Optional props:
+//   - confirmMessage: override the default confirm copy for cases where
+//     the cascade is wider than a single row (e.g. deleting a project
+//     also removes all its permits + tasks + documents).
+//   - redirectTo: navigate to this path after a successful delete. Used
+//     by detail pages that would otherwise show a 404 once the entity
+//     they were rendering is gone.
 type DeleteActionResult = void | { ok: boolean; error?: string | null };
 
 export function SoftDeleteButton({
@@ -20,21 +29,27 @@ export function SoftDeleteButton({
   id,
   label,
   variant = "button",
-  buttonLabel = "מחק"
+  buttonLabel = "מחק",
+  confirmMessage,
+  redirectTo
 }: {
   action: (id: string) => Promise<DeleteActionResult>;
   id: string;
   label: string;
   variant?: "icon" | "button";
   buttonLabel?: string;
+  confirmMessage?: string;
+  redirectTo?: string;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleClick = () => {
     setErrorMsg(null);
     const confirmed = window.confirm(
-      `למחוק את "${label}"?\n\nהפריט יעבור לסל המחזור וניתן יהיה לשחזר אותו מ-הגדרות → סל המחזור.`
+      confirmMessage ??
+        `למחוק את "${label}"?\n\nהפריט יעבור לסל המחזור וניתן יהיה לשחזר אותו מ-הגדרות → סל המחזור.`
     );
     if (!confirmed) return;
     startTransition(async () => {
@@ -44,7 +59,9 @@ export function SoftDeleteButton({
           const msg = result.error ?? "שגיאה";
           window.alert(msg);
           setErrorMsg(msg);
+          return;
         }
+        if (redirectTo) router.push(redirectTo);
       } catch (e) {
         // Old-style throwing actions still flow through here.
         const msg = e instanceof Error ? e.message : "שגיאה";

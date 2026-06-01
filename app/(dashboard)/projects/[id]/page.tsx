@@ -10,8 +10,10 @@ import {
 import type { PermitStatus, MasterDealStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { deleteMasterDeal } from "@/app/actions/permits";
 import { Badge } from "@/components/ui/badge";
 import { SheetButton } from "@/components/global/sheet-button";
+import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { DealFinanceSummary } from "@/components/projects/deal-finance-summary";
 import {
   MASTER_DEAL_STATUS_LABEL,
@@ -140,6 +142,20 @@ export default async function ProjectDetailPage({
               >
                 <DealFinanceSummary dealId={deal.id} />
               </SheetButton>
+            )}
+            {isAdmin && (
+              <SoftDeleteButton
+                action={deleteMasterDeal}
+                id={deal.id}
+                label={deal.name}
+                buttonLabel="מחק פרוייקט"
+                redirectTo="/projects"
+                confirmMessage={
+                  totalPermits === 0
+                    ? `למחוק את הפרוייקט "${deal.name}"?\n\nהפרוייקט יעבור לסל המחזור.`
+                    : `למחוק את הפרוייקט "${deal.name}"?\n\nזה ימחק גם את ${totalPermits} ההיתרים שתחתיו, ${totalTasks} המשימות וכל המסמכים המקושרים.\nהכל יעבור לסל המחזור — ניתן לשחזר מ-הגדרות → סל המחזור.`
+                }
+              />
             )}
           </div>
         </div>
