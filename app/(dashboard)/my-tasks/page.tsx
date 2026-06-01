@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { Prisma, TaskStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { greetingForHour, israelHour } from "@/lib/greeting";
 import { PageHeader } from "@/components/global/page-header";
 import { MyTasksFilterBar } from "@/components/tasks/my-tasks-filter-bar";
 import { MyTasksView } from "@/components/tasks/my-tasks-view";
@@ -54,25 +55,6 @@ function computeDueState(
   if (!frozen && due < startToday) return "overdue";
   if (due >= startToday && due <= endToday) return "today";
   return "future";
-}
-
-// Hour of day in Israel (0–23), independent of the server's UTC clock so the
-// greeting matches the PM's wall clock. Falls back to local hour if Intl misbehaves.
-function israelHour(now: Date): number {
-  const s = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Jerusalem",
-    hour: "2-digit",
-    hour12: false
-  }).format(now);
-  const h = Number(s);
-  return Number.isFinite(h) ? h % 24 : now.getHours();
-}
-
-function greetingForHour(h: number): { greeting: string; emoji: string } {
-  if (h >= 5 && h < 12) return { greeting: "בוקר טוב", emoji: "☕" };
-  if (h >= 12 && h < 17) return { greeting: "צהריים טובים", emoji: "☀️" };
-  if (h >= 17 && h < 21) return { greeting: "ערב טוב", emoji: "🌆" };
-  return { greeting: "לילה טוב", emoji: "🌙" };
 }
 
 export default async function MyTasksPage({
