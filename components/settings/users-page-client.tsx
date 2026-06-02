@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Plus, Power, Loader2 } from "lucide-react";
+import { KeyRound, Pencil, Plus, Power, Loader2 } from "lucide-react";
 import type { UserRole } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatDateTime } from "@/lib/utils";
 import { toggleUserActive } from "@/app/actions/users";
 import { UserFormDialog } from "./user-form-dialog";
+import { ResetPasswordDialog } from "./reset-password-dialog";
 
 export type UserRow = {
   id: string;
@@ -48,6 +49,11 @@ export function UsersPageClient({
   >(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Separate from `mode` so the row keeps showing while the reset dialog
+  // is open — admin can edit and reset without re-clicking the row.
+  const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(
+    null
+  );
 
   const handleToggleActive = (u: UserRow) => {
     const verb = u.isActive ? "להשבית" : "להפעיל מחדש";
@@ -144,25 +150,38 @@ export function UsersPageClient({
                       ערוך
                     </button>
                     {!isSelf && (
-                      <button
-                        type="button"
-                        disabled={isToggling}
-                        onClick={() => handleToggleActive(u)}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium",
-                          u.isActive
-                            ? "border-red-500/50 bg-red-500/10 text-red-800 hover:bg-red-500/20 dark:text-red-300"
-                            : "border-emerald-500/50 bg-emerald-500/10 text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-300",
-                          isToggling && "opacity-50"
-                        )}
-                      >
-                        {isToggling ? (
-                          <Loader2 className="size-2.5 animate-spin" />
-                        ) : (
-                          <Power className="size-2.5" />
-                        )}
-                        {u.isActive ? "השבת" : "הפעל"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setResetTarget({ id: u.id, name: u.name })
+                          }
+                          className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 hover:bg-amber-500/20 dark:text-amber-300"
+                          title="איפוס סיסמה למשתמש זה"
+                        >
+                          <KeyRound className="size-2.5" />
+                          אפס סיסמה
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isToggling}
+                          onClick={() => handleToggleActive(u)}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                            u.isActive
+                              ? "border-red-500/50 bg-red-500/10 text-red-800 hover:bg-red-500/20 dark:text-red-300"
+                              : "border-emerald-500/50 bg-emerald-500/10 text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-300",
+                            isToggling && "opacity-50"
+                          )}
+                        >
+                          {isToggling ? (
+                            <Loader2 className="size-2.5 animate-spin" />
+                          ) : (
+                            <Power className="size-2.5" />
+                          )}
+                          {u.isActive ? "השבת" : "הפעל"}
+                        </button>
+                      </>
                     )}
                   </div>
                 </td>
@@ -177,6 +196,13 @@ export function UsersPageClient({
           key={mode.kind === "update" ? `edit-${mode.userId}` : "create"}
           mode={mode}
           onClose={() => setMode(null)}
+        />
+      )}
+      {resetTarget && (
+        <ResetPasswordDialog
+          userId={resetTarget.id}
+          userName={resetTarget.name}
+          onClose={() => setResetTarget(null)}
         />
       )}
     </div>

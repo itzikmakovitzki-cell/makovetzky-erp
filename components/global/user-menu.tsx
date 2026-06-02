@@ -1,4 +1,5 @@
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { KeyRound, LogOut } from "lucide-react";
 import type { UserRole } from "@prisma/client";
 import { signOutAction } from "@/app/actions/auth";
 
@@ -34,6 +35,13 @@ export function UserMenu({
           {ROLE_LABEL[role]} · <span className="truncate">{email}</span>
         </div>
       </div>
+      <Link
+        href="/account/password"
+        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white"
+      >
+        <KeyRound className="size-3.5" />
+        שינוי סיסמה
+      </Link>
       <form action={signOutAction}>
         <button
           type="submit"
