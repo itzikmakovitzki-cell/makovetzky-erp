@@ -105,3 +105,24 @@ export function parseSystemMention(
 export function isGroupChatId(chatId: string | null | undefined): boolean {
   return !!chatId && chatId.endsWith("@g.us");
 }
+
+/**
+ * Reply-to-system trigger (spec §4.1, second bullet). The Green API webhook
+ * surfaces `quotedParticipant` as the chatId of whoever sent the message
+ * being quoted — e.g. "972539456995@c.us" when the user replied to a system
+ * message. We treat any reply whose `quotedParticipant` matches the system
+ * phone as if the user had explicitly @mentioned us.
+ *
+ * Compares on the phone digits (Green API's wid is always "972…@c.us" for
+ * a user, so the prefix before "@" matches `SYSTEM_WHATSAPP_PHONE` directly).
+ * Returns false when the env var isn't set — same caveat as the @mention
+ * parser, the webhook falls back to legacy behaviour.
+ */
+export function isReplyToSystem(
+  quotedParticipant: string | null | undefined,
+  systemPhone: string
+): boolean {
+  if (!quotedParticipant || !systemPhone) return false;
+  const head = quotedParticipant.split("@")[0] ?? "";
+  return head === systemPhone;
+}

@@ -29,11 +29,31 @@ export type GreenApiFileMessageData = {
   mimeType?: string;
 };
 
+// Green API includes a quotedMessage block when the inbound message is a
+// reply. Shape varies a bit between message types — `participant` is the
+// chatId of whoever sent the message being quoted ("972…@c.us" for a person
+// in a group). We only need participant + stableId for spec §4.1's
+// reply-to-system trigger; the rest of the quoted body is ignored.
+export type GreenApiQuotedMessage = {
+  stanzaId?: string;
+  participant?: string;
+  typeMessage?: string;
+  textMessage?: string;
+};
+
 export type GreenApiMessageData = {
   typeMessage?: string;
   textMessageData?: { textMessage?: string };
-  extendedTextMessageData?: { text?: string };
-  fileMessageData?: GreenApiFileMessageData;
+  extendedTextMessageData?: {
+    text?: string;
+    // Present when the user replied to a previous message in the chat.
+    // Same shape Green API documents under "Quoted message".
+    quotedMessage?: GreenApiQuotedMessage;
+  };
+  fileMessageData?: GreenApiFileMessageData & {
+    // Captions on media replies still carry the quotedMessage block.
+    quotedMessage?: GreenApiQuotedMessage;
+  };
 };
 
 export type GreenApiWebhook = {
@@ -57,6 +77,12 @@ export type NormalizedIncoming = {
   // Group display name (chatName from the webhook). Null when not a group
   // or when WhatsApp didn't supply it. Cached on ProjectWhatsAppGroup.groupName.
   chatName: string | null;
+  // When the message is a reply, this is the participant chatId of whoever
+  // sent the message being quoted (e.g. "972539456995@c.us" if the user
+  // replied to the system). Null when not a reply. Drives spec §4.1's
+  // reply-to-system trigger — the webhook compares this to the system's
+  // own chatId and treats a match as a mention.
+  quotedParticipant: string | null;
   text: string | null;
   media: { downloadUrl: string; fileName: string | null; mimeType: string | null; caption: string | null } | null;
   reason?: string; // for unsupported
@@ -92,6 +118,12 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
 
   const msg = payload.messageData ?? {};
   const type = msg.typeMessage;
+  // Reply detection: both extendedTextMessage and the media variants can carry
+  // a quotedMessage. Plain textMessage never does.
+  const quotedParticipant =
+    (msg.extendedTextMessageData?.quotedMessage?.participant ?? "").trim() ||
+    (msg.fileMessageData?.quotedMessage?.participant ?? "").trim() ||
+    null;
 
   if (type === "textMessage") {
     const text = (msg.textMessageData?.textMessage ?? "").trim();
@@ -102,6 +134,7 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
       senderName,
       chatId,
       chatName,
+      quotedParticipant,
       text: text || null,
       media: null
     };
@@ -115,6 +148,7 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
       senderName,
       chatId,
       chatName,
+      quotedParticipant,
       text: text || null,
       media: null
     };
@@ -139,6 +173,7 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
         senderName,
         chatId,
         chatName,
+        quotedParticipant,
         text: null,
         media: null,
         reason: `${type} ללא downloadUrl`
@@ -151,6 +186,7 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
       senderName,
       chatId,
       chatName,
+      quotedParticipant,
       text: null,
       media: {
         downloadUrl: f.downloadUrl,
@@ -170,6 +206,7 @@ export function normalizeGreenApiPayload(payload: GreenApiWebhook): NormalizedIn
     senderName,
     chatId,
     chatName,
+    quotedParticipant,
     text: null,
     media: null,
     reason: `סוג הודעה לא נתמך: ${type ?? "unknown"}`

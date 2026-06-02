@@ -24,6 +24,15 @@ import { cn } from "@/lib/utils";
 
 export type TimelineDirection = "incoming" | "outgoing";
 
+// Each row carries an `href` so the timeline can render a click target
+// without re-deriving the URL itself. The page computes:
+//   • outgoing → /settings/audit-log filtered to MASTER_DEAL+dealId so the
+//     admin lands on the row of the AuditLog entry that generated this
+//     timeline item.
+//   • incoming ASSIGNED → /permits/<permitId>/tasks when the doc was wired
+//     to a permit (drills into the same view the admin used to file it).
+//   • incoming PENDING → /inbox (no per-row anchor in /inbox today, but at
+//     least the admin lands on the workspace where the row lives).
 export type TimelineRow =
   | {
       kind: "incoming-text";
@@ -37,6 +46,7 @@ export type TimelineRow =
       status: "PENDING" | "ASSIGNED" | "REJECTED";
       assignedPermitName: string | null;
       assignedTaskName: string | null;
+      href: string | null;
     }
   | {
       kind: "incoming-media";
@@ -52,6 +62,7 @@ export type TimelineRow =
       status: "PENDING" | "ASSIGNED" | "REJECTED";
       assignedPermitName: string | null;
       assignedTaskName: string | null;
+      href: string | null;
     }
   | {
       kind: "outgoing-text";
@@ -63,6 +74,7 @@ export type TimelineRow =
       idMessage: string | null;
       ok: boolean;
       error: string | null;
+      href: string | null;
     };
 
 export function ProjectWhatsAppTimeline({
@@ -144,44 +156,69 @@ export function ProjectWhatsAppTimeline({
 
 function TimelineRowView({ row }: { row: TimelineRow }) {
   const incoming = row.direction === "incoming";
+  // When the page supplies an href we wrap the inner content in a Link so
+  // the whole row is clickable. The component intentionally keeps the row
+  // semantics as `<li>` — the Link is the click target, not the list item.
   return (
     <li
       className={cn(
-        "flex flex-wrap items-start gap-2 px-3 py-2",
+        "px-0 py-0",
         incoming ? "bg-card" : "bg-emerald-50/30 dark:bg-emerald-500/5"
       )}
     >
-      <div
-        className={cn(
-          "mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full",
-          incoming
-            ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
-            : "bg-emerald-600 text-white"
-        )}
-        title={incoming ? "נכנס" : "יוצא"}
-      >
-        {incoming ? <ArrowDownLeft className="size-3" /> : <ArrowUpRight className="size-3" />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
-          <span className="font-medium">
-            {row.direction === "incoming"
-              ? row.authorName ?? "(לא מזוהה)"
-              : `המערכת${row.actorName ? ` ע״י ${row.actorName}` : ""}`}
-          </span>
-          {row.direction === "incoming" && row.authorPhone && (
-            <span className="text-muted-foreground" dir="ltr">
-              {row.authorPhone}
-            </span>
+      <RowWrapper href={row.href}>
+        <div
+          className={cn(
+            "mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full",
+            incoming
+              ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+              : "bg-emerald-600 text-white"
           )}
-          <span className="text-muted-foreground" dir="ltr">
-            {new Date(row.at).toLocaleString("he-IL")}
-          </span>
+          title={incoming ? "נכנס" : "יוצא"}
+        >
+          {incoming ? <ArrowDownLeft className="size-3" /> : <ArrowUpRight className="size-3" />}
         </div>
-        <RowBody row={row} />
-        <RowBadges row={row} />
-      </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+            <span className="font-medium">
+              {row.direction === "incoming"
+                ? row.authorName ?? "(לא מזוהה)"
+                : `המערכת${row.actorName ? ` ע״י ${row.actorName}` : ""}`}
+            </span>
+            {row.direction === "incoming" && row.authorPhone && (
+              <span className="text-muted-foreground" dir="ltr">
+                {row.authorPhone}
+              </span>
+            )}
+            <span className="text-muted-foreground" dir="ltr">
+              {new Date(row.at).toLocaleString("he-IL")}
+            </span>
+          </div>
+          <RowBody row={row} />
+          <RowBadges row={row} />
+        </div>
+      </RowWrapper>
     </li>
+  );
+}
+
+// Single source of truth for the row's flex layout — used either as a plain
+// div (no href) or as a Link (drill-down enabled). Keeps the row's spacing
+// identical in both modes.
+function RowWrapper({
+  href,
+  children
+}: {
+  href: string | null;
+  children: React.ReactNode;
+}) {
+  const className =
+    "flex flex-wrap items-start gap-2 px-3 py-2 transition-colors hover:bg-accent/40";
+  if (!href) return <div className={className}>{children}</div>;
+  return (
+    <Link href={href} className={cn(className, "cursor-pointer")}>
+      {children}
+    </Link>
   );
 }
 

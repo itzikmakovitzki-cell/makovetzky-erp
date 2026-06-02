@@ -91,6 +91,8 @@ export default async function ProjectWhatsAppPage({
             suggestedTaskName: true,
             status: true,
             fileUrl: true,
+            assignedPermitId: true,
+            assignedTaskId: true,
             assignedPermit: { select: { name: true } },
             assignedTask: { select: { name: true } }
           }
@@ -141,8 +143,29 @@ export default async function ProjectWhatsAppPage({
     return true; // legacy or unknown — treat as ok
   }
 
+  // Drill-down target for an incoming row:
+  //   PENDING  → /inbox (no per-row anchor today, but lands on the workspace)
+  //   ASSIGNED → /permits/<permitId>/tasks if we know the permit, otherwise /inbox
+  //   REJECTED → /inbox?all=true so the row is visible under the "all" filter
+  const incomingHref = (p: {
+    status: "PENDING" | "ASSIGNED" | "REJECTED";
+    assignedPermitId: string | null;
+  }): string => {
+    if (p.status === "ASSIGNED" && p.assignedPermitId) {
+      return `/permits/${p.assignedPermitId}/tasks`;
+    }
+    if (p.status === "REJECTED") return "/inbox?all=true";
+    return "/inbox";
+  };
+
+  // Outgoing rows go to the audit log filtered to this deal's WhatsApp
+  // events. The audit log page already supports entityType + entityId
+  // (PR #45). The admin can scan the filtered list to find the exact row.
+  const outgoingHref = `/settings/audit-log?entityType=MASTER_DEAL&entityId=${deal.id}`;
+
   const inboundRows: TimelineRow[] = pendingDocs.map((p) => {
     const isMedia = !!p.fileUrl && p.fileUrl !== "";
+    const href = incomingHref(p);
     if (isMedia) {
       return {
         kind: "incoming-media",
@@ -157,7 +180,8 @@ export default async function ProjectWhatsAppPage({
         suggestedTaskName: p.suggestedTaskName,
         status: p.status,
         assignedPermitName: p.assignedPermit?.name ?? null,
-        assignedTaskName: p.assignedTask?.name ?? null
+        assignedTaskName: p.assignedTask?.name ?? null,
+        href
       } satisfies TimelineRow;
     }
     return {
@@ -171,7 +195,8 @@ export default async function ProjectWhatsAppPage({
       suggestedTaskName: p.suggestedTaskName,
       status: p.status,
       assignedPermitName: p.assignedPermit?.name ?? null,
-      assignedTaskName: p.assignedTask?.name ?? null
+      assignedTaskName: p.assignedTask?.name ?? null,
+      href
     } satisfies TimelineRow;
   });
 
@@ -190,7 +215,8 @@ export default async function ProjectWhatsAppPage({
       text: readString(a.newValue, "message") ?? "",
       idMessage: readString(a.newValue, "idMessage"),
       ok,
-      error: readString(a.newValue, "error")
+      error: readString(a.newValue, "error"),
+      href: outgoingHref
     } satisfies TimelineRow;
   });
 

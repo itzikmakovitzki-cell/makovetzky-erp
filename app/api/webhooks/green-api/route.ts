@@ -10,6 +10,7 @@ import {
 } from "@/lib/green-api";
 import {
   isGroupChatId,
+  isReplyToSystem,
   parseSystemMention,
   readSystemMentionTokens
 } from "@/lib/whatsapp-mentions";
@@ -149,21 +150,31 @@ export async function POST(req: NextRequest) {
       groupName: normalized.chatName
     });
 
-    // Spec §4.1 trigger: only ingest when there's an @mention of the system.
-    // (Reply-to-system trigger is deferred — needs outbound idMessage
-    // bookkeeping that PR #53 doesn't keep yet.)
+    // Spec §4.1 trigger: ingest when EITHER an @mention of the system is in
+    // the body OR the user replied to a previous system message. The reply
+    // path piggybacks on Green API's `quotedParticipant`, so we can detect it
+    // without storing every outbound idMessage server-side. We don't yet
+    // support the future per-group "ingest every file" toggle.
     const tokens = readSystemMentionTokens();
     const subject = normalized.text ?? normalized.media?.caption ?? "";
     mention = parseSystemMention(subject, tokens);
 
     if (!mention.mentioned) {
-      return NextResponse.json({
-        ok: true,
-        group: true,
-        groupChatId: normalized.chatId,
-        ingested: false,
-        reason: "no_system_mention"
-      });
+      // Reply-to-system fallback: even without a textual @mention, a reply
+      // to a message we sent counts as a trigger. suggestedTaskName stays
+      // null (the caption text wasn't aimed at the parser), but the file /
+      // message is still ingested.
+      if (isReplyToSystem(normalized.quotedParticipant, tokens.phone)) {
+        mention = { mentioned: true, suggestedTaskName: null };
+      } else {
+        return NextResponse.json({
+          ok: true,
+          group: true,
+          groupChatId: normalized.chatId,
+          ingested: false,
+          reason: "no_system_mention"
+        });
+      }
     }
   }
 
