@@ -44,7 +44,10 @@ async function main() {
   // ----- Users -----
   console.log("→ Seeding users…");
   const admin = await prisma.user.create({
-    data: { email: "ofir@makovetzky.local", name: "אופיר מקובצקי", role: UserRole.ADMIN, passwordHash: PASSWORD_HASH }
+    // Email kept as the legacy `ofir@…` for stability — PortalAccess + AuditLog
+    // reference users by id, but the email is the user-visible login string. The
+    // display name is the customer's actual name (Itzik Makovetzky).
+    data: { email: "ofir@makovetzky.local", name: "איציק מקובצקי", role: UserRole.ADMIN, passwordHash: PASSWORD_HASH }
   });
   const employeeYossi = await prisma.user.create({
     data: { email: "yossi@makovetzky.local", name: "יוסי לוי", role: UserRole.EMPLOYEE, passwordHash: PASSWORD_HASH }
