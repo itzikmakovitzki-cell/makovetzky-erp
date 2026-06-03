@@ -190,7 +190,8 @@ export function TemplatesPageClient({
             </div>
           </div>
 
-          <table>
+          <div className="overflow-x-auto">
+          <table className="min-w-[760px]">
             <thead>
               <tr>
                 <th className="w-12 text-center">סדר</th>
@@ -313,6 +314,7 @@ export function TemplatesPageClient({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

@@ -219,7 +219,83 @@ export default async function SupplierCommissionsPage({
         />
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="md:hidden flex flex-col gap-2">
+        {buckets.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            אין עמלות בתקופה הזו
+          </div>
+        ) : (
+          buckets.map((b) => (
+            <Link
+              key={b.supplierId}
+              href={`/suppliers?supplier=${b.supplierId}&all=true`}
+              className="block rounded-md border bg-card p-3 shadow-sm transition-colors active:bg-muted/40"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-medium leading-snug line-clamp-2">
+                    {b.supplierName}
+                  </h3>
+                  {b.supplierType && (
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      {b.supplierType}
+                    </p>
+                  )}
+                </div>
+                <div
+                  className={cn(
+                    "text-end text-[13px] font-semibold tabular-nums",
+                    b.outstandingAmount > 0
+                      ? "text-amber-700 dark:text-amber-300"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {formatILS(b.outstandingAmount)}
+                  <div className="text-[10px] font-normal text-muted-foreground">
+                    יתרה
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                <div>
+                  <div className="text-muted-foreground">הושלם בתקופה</div>
+                  <div className="tabular-nums">
+                    {b.earnedAmount > 0
+                      ? `${formatILS(b.earnedAmount)} (${b.earnedCount})`
+                      : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">שולם בתקופה</div>
+                  <div className="tabular-nums text-emerald-700 dark:text-emerald-300">
+                    {b.paidAmount > 0
+                      ? `${formatILS(b.paidAmount)} (${b.paidCount})`
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))
+        )}
+        {buckets.length > 0 && (
+          <div className="rounded-md border bg-muted/30 p-3 text-[12px] font-semibold tabular-nums">
+            <div className="flex items-center justify-between">
+              <span>סה&quot;כ הושלם</span>
+              <span>{formatILS(grandEarned)}</span>
+            </div>
+            <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-300">
+              <span>סה&quot;כ שולם</span>
+              <span>{formatILS(grandPaid)}</span>
+            </div>
+            <div className="flex items-center justify-between text-amber-700 dark:text-amber-300">
+              <span>סה&quot;כ יתרה</span>
+              <span>{formatILS(grandOutstanding)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
         <div className="border-b bg-muted/30 px-3 py-1.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             פירוט לפי ספק ({buckets.length})

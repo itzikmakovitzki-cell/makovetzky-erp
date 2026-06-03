@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArchiveToggle } from "@/components/global/archive-toggle";
 import { PageHeader } from "@/components/global/page-header";
+import { ProjectMobileCard } from "@/components/projects/project-mobile-card";
 import {
   MASTER_DEAL_STATUS_LABEL,
   MASTER_DEAL_STATUS_VARIANT
@@ -125,7 +126,19 @@ export default async function ProjectsListPage({
         />
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="md:hidden flex flex-col gap-2">
+        {rows.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            {showArchived
+              ? "אין פרויקטים שהושלמו"
+              : 'אין פרויקטים — לחץ "פרויקט חדש" כדי להוסיף אחד.'}
+          </div>
+        ) : (
+          rows.map((r) => <ProjectMobileCard key={r.id} project={r} />)
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {showArchived ? "פרויקטים שהושלמו" : "פרויקטים פעילים"} ({rows.length})

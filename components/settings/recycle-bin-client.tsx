@@ -99,7 +99,8 @@ function SectionTable({
           {section.title} ({rows.length})
         </h2>
       </div>
-      <table>
+      <div className="overflow-x-auto">
+      <table className="min-w-[560px]">
         <thead>
           <tr>
             <th>שם</th>
@@ -119,6 +120,7 @@ function SectionTable({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

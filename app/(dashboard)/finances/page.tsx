@@ -96,7 +96,7 @@ export default async function FinancesGlobalPage({
         }
       />
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <SummaryCard
           label="ממתין"
           sum={pending.sum}
@@ -121,7 +121,69 @@ export default async function FinancesGlobalPage({
 
       <FinancesFilterBar />
 
-      <div className="rounded-md border bg-card">
+      <div className="md:hidden flex flex-col gap-2">
+        {rows.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            {statuses.length > 0
+              ? "אין אבני דרך תואמות לסינון"
+              : "אין אבני דרך במערכת"}
+          </div>
+        ) : (
+          rows.map((r) => {
+            const overdue =
+              r.status !== "PAID" &&
+              r.dueDate !== null &&
+              new Date(r.dueDate).getTime() < now.getTime();
+            return (
+              <div
+                key={r.id}
+                className="flex flex-col gap-1.5 rounded-md border bg-card p-3 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/permits/${r.permit.id}/finances`}
+                      className="text-sm font-medium underline-offset-2 hover:underline line-clamp-2"
+                    >
+                      {r.name}
+                    </Link>
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {r.permit.masterDeal.client.companyName} · {r.permit.name}
+                    </p>
+                  </div>
+                  <Badge variant={MILESTONE_STATUS_VARIANT[r.status]}>
+                    {MILESTONE_STATUS_LABEL[r.status]}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[14px] font-semibold tabular-nums">
+                    {formatILS(r.amount)}
+                  </div>
+                  <div
+                    className={cn(
+                      "text-[11px] tabular-nums",
+                      overdue
+                        ? "font-semibold text-red-600"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {r.dueDate ? `יעד: ${formatDate(r.dueDate)}` : "אין יעד"}
+                  </div>
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {r.triggerTask
+                    ? `מפעיל: ${r.triggerTask.name}`
+                    : r.triggerPercentage !== null
+                      ? `מפעיל: יעד ${r.triggerPercentage}% מהמשימות`
+                      : null}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             תוצאות ({rows.length})

@@ -150,7 +150,63 @@ export default async function AuditLogPage({
             יומן פעולות ({total})
           </h2>
         </div>
-        <table>
+
+        <div className="md:hidden flex flex-col gap-2 p-2">
+          {rows.length === 0 ? (
+            <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+              אין רשומות התואמות לסינון.
+            </div>
+          ) : (
+            rows.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-col gap-1.5 rounded-md border bg-card p-3 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <Badge variant={ACTION_TONE[r.action]}>
+                    {ACTION_LABEL[r.action]}
+                  </Badge>
+                  <span className="text-[10px] tabular-nums text-muted-foreground">
+                    {new Date(r.timestamp).toLocaleString("he-IL", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </span>
+                </div>
+                <div className="text-[11px]">
+                  {r.user ? (
+                    <span>
+                      <span className="font-medium">{r.user.name}</span>
+                      <span className="ms-1 text-[10px] text-muted-foreground">
+                        ({r.user.email})
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </div>
+                <div
+                  className={cn(
+                    "font-mono text-[10px] text-muted-foreground",
+                    !ENTITY_OPTIONS.includes(r.entityType) && "italic"
+                  )}
+                >
+                  {r.entityType} · {r.entityId}
+                </div>
+                <AuditLogJsonCell
+                  oldValue={r.oldValue as unknown}
+                  newValue={r.newValue as unknown}
+                />
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
+        <table className="min-w-[760px]">
           <thead>
             <tr>
               <th className="w-36">זמן</th>
@@ -223,6 +279,7 @@ export default async function AuditLogPage({
             ))}
           </tbody>
         </table>
+        </div>
 
         {total > PAGE_SIZE && (
           <div className="border-t bg-muted/20 px-3 py-2">

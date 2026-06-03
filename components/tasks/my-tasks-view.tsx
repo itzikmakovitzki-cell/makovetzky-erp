@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { LayoutGrid, Table2 } from "lucide-react";
 import { MyTasksTable } from "@/components/tasks/my-tasks-table";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
+import { MyTaskMobileCard } from "@/components/tasks/my-task-mobile-card";
 import { cn } from "@/lib/utils";
 import type { MyTask, AssigneeOption } from "@/components/tasks/my-tasks-types";
 
@@ -31,7 +32,7 @@ export function MyTasksView({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-end">
+      <div className="hidden md:flex items-center justify-end">
         <div className="inline-flex rounded-md border bg-card p-0.5">
           <ToggleBtn
             active={view === "table"}
@@ -48,11 +49,23 @@ export function MyTasksView({
         </div>
       </div>
 
-      {view === "table" ? (
-        <MyTasksTable tasks={tasks} users={users} />
-      ) : (
-        <KanbanBoard tasks={tasks} />
-      )}
+      <div className="md:hidden flex flex-col gap-2">
+        {tasks.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            אין משימות תואמות — נסה לשנות את הסינון
+          </div>
+        ) : (
+          tasks.map((t) => <MyTaskMobileCard key={t.id} task={t} users={users} />)
+        )}
+      </div>
+
+      <div className="hidden md:block">
+        {view === "table" ? (
+          <MyTasksTable tasks={tasks} users={users} />
+        ) : (
+          <KanbanBoard tasks={tasks} />
+        )}
+      </div>
     </div>
   );
 }

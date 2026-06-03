@@ -10,6 +10,7 @@ import { CsvToolbar } from "@/components/global/csv-toolbar";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/global/page-header";
 import { ClientFormDialog, type ClientFormInitial } from "./client-form-dialog";
+import { ClientMobileCard } from "./client-mobile-card";
 
 export type ClientRow = {
   id: string;
@@ -102,7 +103,27 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
         />
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="md:hidden flex flex-col gap-2">
+        {filtered.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            {rows.length === 0
+              ? "אין לקוחות עדיין. צור את הראשון."
+              : "אין תוצאות לחיפוש."}
+          </div>
+        ) : (
+          filtered.map((row) => (
+            <ClientMobileCard
+              key={row.id}
+              row={row}
+              isDeleting={deletingId === row.id && pending}
+              onEdit={(id, initial) => setMode({ kind: "update", id, initial })}
+              onDelete={handleDelete}
+            />
+          ))
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
         <table>
           <thead>
             <tr>

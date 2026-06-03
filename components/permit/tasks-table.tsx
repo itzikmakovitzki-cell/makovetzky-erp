@@ -19,6 +19,7 @@ import { MagicLinkButton } from "@/components/permit/magic-link-button";
 import { PermitTasksXlsxToolbar } from "@/components/permit/permit-tasks-xlsx-toolbar";
 import { TaskEditButton } from "@/components/permit/task-edit-dialog";
 import { TasksCategoryFilter } from "@/components/permit/tasks-category-filter";
+import { PermitTaskMobileCard } from "@/components/permit/permit-task-mobile-card";
 import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
 import {
   TaskBulkCheckbox,
@@ -101,7 +102,46 @@ export async function TasksTable({
   return (
     <BulkSelectionProvider>
       <BulkTaskActionBar users={assignees} canDelete={isAdmin} />
-      <div className="rounded-md border bg-card">
+
+      <div className="md:hidden flex flex-col gap-2 mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card px-3 py-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            משימות ({tasks.length})
+          </h2>
+          <TasksCategoryFilter
+            categories={permitCategories}
+            current={categoryFilter ?? null}
+          />
+        </div>
+        {tasks.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            אין משימות בהיתר זה
+          </div>
+        ) : (
+          tasks.map((t, idx) => {
+            const prevCategory = idx > 0 ? tasks[idx - 1].category : null;
+            const showBand = !!t.category && t.category !== prevCategory;
+            return (
+              <Fragment key={t.id}>
+                {showBand && (
+                  <div className="mt-1 px-1 text-[11px] font-semibold text-muted-foreground">
+                    {t.category}
+                  </div>
+                )}
+                <PermitTaskMobileCard
+                  task={t}
+                  assignees={assignees}
+                  categorySuggestions={categorySuggestions}
+                  isAdmin={isAdmin}
+                  now={now}
+                />
+              </Fragment>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

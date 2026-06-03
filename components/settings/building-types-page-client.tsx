@@ -52,7 +52,71 @@ export function BuildingTypesPageClient({ rows }: { rows: BuildingTypeRow[] }) {
         </button>
       </div>
 
-      <table>
+      <div className="md:hidden flex flex-col gap-2 p-2">
+        {rows.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            אין סוגי בניינים. צור את הראשון.
+          </div>
+        ) : (
+          rows.map((row) => {
+            const isDeleting = deletingId === row.id && pending;
+            const canDelete = row.templateCount === 0;
+            return (
+              <div
+                key={row.id}
+                className="flex flex-col gap-1.5 rounded-md border bg-card p-3 shadow-sm"
+              >
+                <div className="text-sm font-medium">{row.name}</div>
+                {row.description && (
+                  <div className="text-[11px] text-muted-foreground line-clamp-2">
+                    {row.description}
+                  </div>
+                )}
+                <div className="text-[11px] tabular-nums text-muted-foreground">
+                  <span className="font-semibold text-foreground">
+                    {row.templateCount}
+                  </span>{" "}
+                  תבניות משימות
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMode({
+                        kind: "update",
+                        id: row.id,
+                        initial: { name: row.name, description: row.description ?? "" }
+                      })
+                    }
+                    className="inline-flex items-center gap-1 rounded border border-input px-2 py-1 text-[11px] hover:bg-accent"
+                  >
+                    <Pencil className="size-3" /> ערוך
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(row)}
+                    disabled={!canDelete || isDeleting}
+                    title={canDelete ? "מחק" : "לא ניתן למחוק — קיימות תבניות"}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded border border-red-500/50 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-800 hover:bg-red-500/20 dark:text-red-300",
+                      (!canDelete || isDeleting) && "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3" />
+                    )}
+                    מחק
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <table className="hidden md:table">
         <thead>
           <tr>
             <th>שם</th>

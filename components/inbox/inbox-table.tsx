@@ -23,6 +23,7 @@ import {
   type PendingDocForDialog
 } from "./process-pending-dialog";
 import { ManualUploadDialog } from "./manual-upload-dialog";
+import { PendingDocMobileCard } from "./pending-doc-mobile-card";
 
 export type PendingDocRow = PendingDocForDialog & {
   mimeType: string | null;
@@ -134,7 +135,25 @@ export function InboxTable({
         }
       />
 
-      <div className="rounded-md border bg-card">
+      <div className="md:hidden flex flex-col gap-2">
+        {pendingDocs.length === 0 ? (
+          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+            {showAll ? "אין מסמכים נכנסים" : "אין מסמכים ממתינים לטיפול 🎉"}
+          </div>
+        ) : (
+          pendingDocs.map((d) => (
+            <PendingDocMobileCard
+              key={d.id}
+              doc={d}
+              isRejecting={rejectingId === d.id && rejectPending}
+              onAssign={(id) => setProcessingDocId(id)}
+              onReject={handleReject}
+            />
+          ))
+        )}
+      </div>
+
+      <div className="hidden md:block rounded-md border bg-card">
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {showAll

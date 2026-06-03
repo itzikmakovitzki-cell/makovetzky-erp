@@ -86,6 +86,105 @@ export function UsersPageClient({
         </button>
       </div>
 
+      <div className="md:hidden flex flex-col gap-2 p-2">
+        {users.map((u) => {
+          const isSelf = u.id === currentUserId;
+          const isToggling = togglingId === u.id && pending;
+          return (
+            <div
+              key={u.id}
+              className={cn(
+                "flex flex-col gap-1.5 rounded-md border bg-card p-3 shadow-sm",
+                !u.isActive && "opacity-70"
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className={cn("text-sm font-medium", !u.isActive && "line-through")}>
+                    {u.name}
+                    {isSelf && (
+                      <span className="ms-1 text-[10px] text-muted-foreground">(אתה)</span>
+                    )}
+                  </div>
+                  <div className="truncate text-[11px] text-muted-foreground">
+                    {u.email}
+                  </div>
+                  {u.phone && (
+                    <div className="truncate text-[10px] tabular-nums text-muted-foreground">
+                      {u.phone}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-0.5">
+                  <Badge variant={ROLE_VARIANT[u.role]}>{ROLE_LABEL[u.role]}</Badge>
+                  {u.isActive ? (
+                    <Badge variant="success">פעיל</Badge>
+                  ) : (
+                    <Badge variant="muted">מושבת</Badge>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMode({
+                      kind: "update",
+                      userId: u.id,
+                      initial: {
+                        name: u.name,
+                        email: u.email,
+                        phone: u.phone,
+                        role: u.role
+                      }
+                    })
+                  }
+                  className="inline-flex items-center gap-1 rounded border border-input px-2 py-1 text-[11px] hover:bg-accent"
+                >
+                  <Pencil className="size-3" />
+                  ערוך
+                </button>
+                {!isSelf && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setResetTarget({ id: u.id, name: u.name })}
+                      className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-500/20 dark:text-amber-300"
+                    >
+                      <KeyRound className="size-3" />
+                      אפס סיסמה
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isToggling}
+                      onClick={() => handleToggleActive(u)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium",
+                        u.isActive
+                          ? "border-red-500/50 bg-red-500/10 text-red-800 hover:bg-red-500/20 dark:text-red-300"
+                          : "border-emerald-500/50 bg-emerald-500/10 text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-300",
+                        isToggling && "opacity-50"
+                      )}
+                    >
+                      {isToggling ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Power className="size-3" />
+                      )}
+                      {u.isActive ? "השבת" : "הפעל"}
+                    </button>
+                  </>
+                )}
+              </div>
+              <div className="text-[10px] tabular-nums text-muted-foreground">
+                נוסף {formatDateTime(u.createdAt)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:block">
       <table>
         <thead>
           <tr>
@@ -190,6 +289,7 @@ export function UsersPageClient({
           })}
         </tbody>
       </table>
+      </div>
 
       {mode && (
         <UserFormDialog

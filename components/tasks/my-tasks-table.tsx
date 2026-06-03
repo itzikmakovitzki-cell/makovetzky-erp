@@ -21,7 +21,7 @@ export function MyTasksTable({
   users: AssigneeOption[];
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+    <div className="hidden md:block overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-3 py-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           המשימות שלי ({tasks.length})
