@@ -13,7 +13,6 @@ function daysFromNow(n: number): Date {
 
 async function clean() {
   // Order matters — children before parents.
-  await prisma.weeklySummaryDraft.deleteMany();
   await prisma.pendingDocument.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.note.deleteMany();

@@ -54,9 +54,9 @@ export async function deletePermit(permitId: string): Promise<DeleteResult> {
         where: childWhere,
         data: { deletedAt: now }
       });
-      // Note + WeeklySummaryDraft don't have deletedAt — they cascade only on
-      // hard delete. BillingMilestone has no deletedAt either; visibility is
-      // permit-scoped queries so hiding the parent is sufficient.
+      // Note doesn't have deletedAt — it cascades only on hard delete.
+      // BillingMilestone has no deletedAt either; visibility is permit-scoped
+      // queries so hiding the parent is sufficient.
 
       await tx.permit.update({
         where: { id: permitId },

@@ -177,7 +177,6 @@ model User {
   approvedDocuments        Document[]           @relation("DocumentApprover")
   notes                    Note[]
   overriddenDependencies   TaskDependency[]
-  weeklySummariesEdited    WeeklySummaryDraft[]
   auditLogs                AuditLog[]
   portalAccesses           PortalAccess[]
   createdProposals         Proposal[]           @relation("ProposalCreator")
@@ -337,7 +336,6 @@ model Permit {
   notes            Note[]
   milestones       BillingMilestone[]
   magicLinks       MagicLink[]
-  weeklySummaries  WeeklySummaryDraft[]
   pendingDocuments PendingDocument[]
   authoritySubmissions AuthoritySubmission[]
 
@@ -787,21 +785,6 @@ model ProjectWhatsAppGroup {
   connectedBy User?       @relation(fields: [connectedById], references: [id], onDelete: SetNull)
 
   @@index([isActive])
-}
-
-model WeeklySummaryDraft {
-  id           String    @id @default(cuid())
-  permitId     String
-  draftContent String
-  generatedAt  DateTime  @default(now())
-  sentAt       DateTime?
-  editedById   String?
-  updatedAt    DateTime  @updatedAt
-
-  permit   Permit @relation(fields: [permitId], references: [id], onDelete: Cascade)
-  editedBy User?  @relation(fields: [editedById], references: [id], onDelete: SetNull)
-
-  @@index([permitId, generatedAt])
 }
 
 // =============================================================
