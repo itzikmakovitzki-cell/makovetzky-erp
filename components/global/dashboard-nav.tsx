@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen,
   Building2,
   Coins,
   FileCheck2,
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
     allowed: ["ADMIN"]
   },
   { href: "/suppliers", label: "ספקים", icon: Truck, allowed: ["ADMIN"] },
+  { href: "/guides", label: "מדריכים", icon: BookOpen, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/settings", label: "הגדרות", icon: SettingsIcon, allowed: ["ADMIN"] }
 ];
 

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen,
   Building2,
   FileCheck2,
   FileText,
@@ -47,6 +48,7 @@ const OVERFLOW_SLOTS: Slot[] = [
   { href: "/inbox", label: "תיבת WhatsApp", icon: Inbox, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/finances", label: "כספים", icon: Wallet, allowed: ["ADMIN"] },
   { href: "/suppliers", label: "ספקים", icon: Truck, allowed: ["ADMIN"] },
+  { href: "/guides", label: "מדריכים", icon: BookOpen, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/settings", label: "הגדרות", icon: SettingsIcon, allowed: ["ADMIN"] }
 ];
 
