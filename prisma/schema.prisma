@@ -185,8 +185,34 @@ model User {
   authoritySubmissions     AuthoritySubmission[]
   // ProjectWhatsAppGroup rows this user wired to a project (spec PR-2).
   connectedWhatsappGroups  ProjectWhatsAppGroup[]
+  // Block 28: self-service "forgot password" tokens. Sent over WhatsApp
+  // to the user's `phone` and consumed by /reset-password/[token].
+  passwordResetTokens      PasswordResetToken[]
 
   @@index([role])
+}
+
+// Block 28: short-lived single-use tokens that grant the holder the right
+// to set a new password without knowing the current one. Minted by
+// requestPasswordReset() and delivered to User.phone via Green API. The
+// token itself never appears in audit logs — only its lifecycle events
+// (issued / consumed) are recorded. TTL: 1 hour.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  // Best-effort IP captured at issue time for forensics if a leaked token
+  // ever shows up consumed. Nullable because Server Actions don't always
+  // expose the request IP.
+  issuedIp  String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // Multiple users can have portal access to a single client (contractor + staff).

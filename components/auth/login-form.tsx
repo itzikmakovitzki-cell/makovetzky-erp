@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Loader2, LogIn } from "lucide-react";
 import { signInAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,15 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
         {isPending ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
         התחבר
       </Button>
+
+      <div className="pt-1 text-center">
+        <Link
+          href="/forgot-password"
+          className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          שכחת סיסמה?
+        </Link>
+      </div>
     </form>
   );
 }
