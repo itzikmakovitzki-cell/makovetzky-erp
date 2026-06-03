@@ -13,6 +13,7 @@ export function AuditLogFilters({
   actionOptions,
   userOptions,
   currentEntity,
+  currentEntityId,
   currentAction,
   currentUser,
   currentFrom,
@@ -22,6 +23,7 @@ export function AuditLogFilters({
   actionOptions: { value: string; label: string }[];
   userOptions: { id: string; name: string }[];
   currentEntity: string | null;
+  currentEntityId: string | null;
   currentAction: string | null;
   currentUser: string | null;
   currentFrom: string | null;
@@ -42,8 +44,20 @@ export function AuditLogFilters({
     router.push(q ? `${pathname}?${q}` : pathname);
   };
 
+  // Clear deep-link drill-down (entityType + entityId) but keep the rest
+  // of the filters the user might have applied on top.
+  const clearEntityId = () => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("entityId");
+    next.delete("entityType");
+    next.delete("page");
+    const q = next.toString();
+    router.push(q ? `${pathname}?${q}` : pathname);
+  };
+
   const hasAny =
     !!currentEntity ||
+    !!currentEntityId ||
     !!currentAction ||
     !!currentUser ||
     !!currentFrom ||
@@ -51,6 +65,22 @@ export function AuditLogFilters({
 
   return (
     <div className="rounded-md border bg-card px-3 py-2">
+      {currentEntityId && (
+        <div className="mb-2 flex items-center gap-2 rounded border border-primary/30 bg-primary/5 px-2 py-1 text-[11px]">
+          <span className="font-semibold text-primary">מסונן לפי ישות:</span>
+          <code className="font-mono text-[10px] text-muted-foreground">
+            {currentEntityId}
+          </code>
+          <button
+            type="button"
+            onClick={clearEntityId}
+            className="ms-auto inline-flex items-center gap-1 rounded border border-input bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <X className="size-2.5" />
+            הצג הכל
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-end gap-2 text-[11px]">
         <FilterGroup label="סוג ישות">
           <select

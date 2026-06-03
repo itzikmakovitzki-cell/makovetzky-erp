@@ -159,8 +159,9 @@ export default async function ProjectWhatsAppPage({
   };
 
   // Outgoing rows go to the audit log filtered to this deal's WhatsApp
-  // events. The audit log page already supports entityType + entityId
-  // (PR #45). The admin can scan the filtered list to find the exact row.
+  // events. The audit log page accepts entityType (alias for entity) +
+  // entityId as deep-link drill-down params and shows a "מסונן לפי ישות"
+  // chip with a clear button when entityId is present.
   const outgoingHref = `/settings/audit-log?entityType=MASTER_DEAL&entityId=${deal.id}`;
 
   const inboundRows: TimelineRow[] = pendingDocs.map((p) => {
