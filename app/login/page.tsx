@@ -29,16 +29,14 @@ export default async function LoginPage({
       />
 
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-6">
-        <div className="flex items-center justify-center rounded-xl bg-white/95 px-5 py-4 shadow-lg">
-          <Image
-            src="/logo.png"
-            alt="מקובצקי — ניהול פרויקטים"
-            width={640}
-            height={271}
-            priority
-            className="h-auto w-60 object-contain"
-          />
-        </div>
+        <Image
+          src="/logo-dark.png"
+          alt="מקובצקי — ניהול פרויקטים · הביורוקרטיה — עלינו"
+          width={600}
+          height={600}
+          priority
+          className="h-auto w-72 object-contain drop-shadow-xl sm:w-80"
+        />
 
         <div className="text-center">
           <h1 className="text-3xl font-extrabold leading-tight tracking-tight">
@@ -46,7 +44,7 @@ export default async function LoginPage({
             <br />
             <span className="text-primary">לפרויקטי נדל״ן</span>
           </h1>
-          <p className="mt-2 text-sm text-white/70">
+          <p className="mt-2 text-sm text-brand-navy-foreground/70">
             התחברו כדי להמשיך לניהול ההיתרים והפרויקטים שלכם.
           </p>
         </div>

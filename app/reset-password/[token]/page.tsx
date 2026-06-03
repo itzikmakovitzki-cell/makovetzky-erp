@@ -55,23 +55,21 @@ export default async function ResetPasswordPage({
       />
 
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-6">
-        <div className="flex items-center justify-center rounded-xl bg-white/95 px-5 py-4 shadow-lg">
-          <Image
-            src="/logo.png"
-            alt="מקובצקי — ניהול פרויקטים"
-            width={640}
-            height={271}
-            priority
-            className="h-auto w-60 object-contain"
-          />
-        </div>
+        <Image
+          src="/logo-dark.png"
+          alt="מקובצקי — ניהול פרויקטים · הביורוקרטיה — עלינו"
+          width={600}
+          height={600}
+          priority
+          className="h-auto w-64 object-contain drop-shadow-xl sm:w-72"
+        />
 
         <div className="text-center">
           <h1 className="text-3xl font-extrabold leading-tight tracking-tight">
             קביעת סיסמה חדשה
           </h1>
           {record && !reason && (
-            <p className="mt-2 text-sm text-white/70">
+            <p className="mt-2 text-sm text-brand-navy-foreground/70">
               חשבון: <span className="font-medium">{record.user.name}</span> ·{" "}
               {record.user.email}
             </p>
@@ -100,7 +98,7 @@ export default async function ResetPasswordPage({
 
         <Link
           href="/login"
-          className="text-[12px] text-white/70 underline-offset-2 hover:text-white hover:underline"
+          className="text-[12px] text-brand-navy-foreground/70 underline-offset-2 hover:text-brand-navy-foreground hover:underline"
         >
           חזרה להתחברות
         </Link>

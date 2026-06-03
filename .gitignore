@@ -44,3 +44,8 @@ prisma/migrations/dev.db*
 /לוגו*.jpeg
 /לוגו*.jpg
 /לוגו*.png
+
+# Brand kit source (~170MB of high-res PNGs). Kept locally only; the assets
+# actually shipped to users live in public/ after running
+# `node scripts/install-brand-assets.mjs`.
+/מקוביצקי ניהול פרוייקטים מיתוג סופי/

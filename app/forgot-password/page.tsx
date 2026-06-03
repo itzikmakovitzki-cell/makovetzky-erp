@@ -22,22 +22,20 @@ export default function ForgotPasswordPage() {
       />
 
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-6">
-        <div className="flex items-center justify-center rounded-xl bg-white/95 px-5 py-4 shadow-lg">
-          <Image
-            src="/logo.png"
-            alt="מקובצקי — ניהול פרויקטים"
-            width={640}
-            height={271}
-            priority
-            className="h-auto w-60 object-contain"
-          />
-        </div>
+        <Image
+          src="/logo-dark.png"
+          alt="מקובצקי — ניהול פרויקטים · הביורוקרטיה — עלינו"
+          width={600}
+          height={600}
+          priority
+          className="h-auto w-64 object-contain drop-shadow-xl sm:w-72"
+        />
 
         <div className="text-center">
           <h1 className="text-3xl font-extrabold leading-tight tracking-tight">
             שכחת סיסמה?
           </h1>
-          <p className="mt-2 text-sm text-white/70">
+          <p className="mt-2 text-sm text-brand-navy-foreground/70">
             נשלח אליך קישור איפוס ב-WhatsApp למספר שמירשם בחשבונך.
           </p>
         </div>
@@ -48,7 +46,7 @@ export default function ForgotPasswordPage() {
 
         <Link
           href="/login"
-          className="text-[12px] text-white/70 underline-offset-2 hover:text-white hover:underline"
+          className="text-[12px] text-brand-navy-foreground/70 underline-offset-2 hover:text-brand-navy-foreground hover:underline"
         >
           חזרה להתחברות
         </Link>

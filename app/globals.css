@@ -4,38 +4,44 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Brand palette mirrors the marketing site (makovetzki.vercel.app):
-     - navy #13192C for sidebar/header chrome
-     - orange #EE7B2F for primary actions and accents
-     - warm cream page background keeps logo continuity */
-  --background: oklch(0.984 0.006 85);
-  --foreground: oklch(0.145 0 0);
+  /* Final brand palette ("מקובצקי ניהול פרויקטים" — מסמך מותג):
+     - Charcoal #1F2937 for sidebar/header chrome and primary text
+     - Signal Orange #E25822 for CTAs, focus ring, and active state
+     - Cream #F5F1E8 as the warm secondary surface on dark chrome */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.27 0.024 252);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.27 0.024 252);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* Brand orange — drives every primary button, focus ring, and active state */
-  --primary: oklch(0.704 0.17 50);
-  --primary-foreground: oklch(0.985 0 0);
+  --popover-foreground: oklch(0.27 0.024 252);
+  /* Signal Orange #E25822 — every primary button, focus ring, active state */
+  --primary: oklch(0.626 0.198 38);
+  --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary-foreground: oklch(0.27 0.024 252);
+  --muted: oklch(0.965 0.002 86);
+  --muted-foreground: oklch(0.46 0.018 252);
+  --accent: oklch(0.97 0.012 75);
+  --accent-foreground: oklch(0.27 0.024 252);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.704 0.17 50);
+  --border: oklch(0.91 0.005 252);
+  --input: oklch(0.91 0.005 252);
+  --ring: oklch(0.626 0.198 38);
   --radius: 0.5rem;
-  /* Brand chrome: deep navy used by sidebar/header. Lighter "muted" variant
-     for inactive nav text; orange becomes the active-state indicator. */
-  --brand-navy: oklch(0.20 0.04 265);
-  --brand-navy-foreground: oklch(0.985 0 0);
-  --brand-navy-muted: oklch(0.72 0.02 265);
-  /* Lighter orange — the far stop of the landing-page CTA gradient/glow. */
-  --brand-orange-light: oklch(0.80 0.13 60);
+  /* Brand chrome on dark surfaces (sidebar, mobile header, login).
+     Name kept as `brand-navy` so existing utility classes keep working —
+     value is now Charcoal #1F2937 per the final brand book.
+     `foreground` is Cream #F5F1E8 (not pure white) for warmth. */
+  --brand-navy: oklch(0.27 0.024 252);
+  --brand-navy-foreground: oklch(0.957 0.011 86);
+  --brand-navy-muted: oklch(0.74 0.014 252);
+  /* Lighter orange — hover state and far stop of the CTA gradient. */
+  --brand-orange-light: oklch(0.733 0.149 47);
+  /* New brand tokens from the final brand book — available as
+     bg-brand-cream / text-brand-charcoal-70 utilities. */
+  --brand-cream: oklch(0.957 0.011 86);
+  --brand-charcoal-70: oklch(0.46 0.018 252);
 }
 
 .dark {
@@ -61,8 +67,9 @@
 }
 
 @theme inline {
-  /* font-sans resolves to Noto Sans Hebrew (Hebrew + Latin) injected by next/font in layout.tsx */
-  --font-sans: var(--font-noto-sans-hebrew), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* font-sans resolves to Heebo (Hebrew + Latin) injected by next/font in layout.tsx —
+     the official brand font per the מסמך מותג, weights 300-900. */
+  --font-sans: var(--font-heebo), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -86,6 +93,8 @@
   --color-brand-navy-foreground: var(--brand-navy-foreground);
   --color-brand-navy-muted: var(--brand-navy-muted);
   --color-brand-orange-light: var(--brand-orange-light);
+  --color-brand-cream: var(--brand-cream);
+  --color-brand-charcoal-70: var(--brand-charcoal-70);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

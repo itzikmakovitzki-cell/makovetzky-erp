@@ -158,10 +158,10 @@ function PublicShell({ children }: { children: React.ReactNode }) {
           <Image
             src="/logo.png"
             alt="מקובצקי — ניהול פרויקטים"
-            width={576}
-            height={244}
+            width={600}
+            height={300}
             priority
-            className="h-auto w-full max-w-[240px] object-contain"
+            className="h-auto w-full max-w-[260px] object-contain"
           />
         </div>
       </header>

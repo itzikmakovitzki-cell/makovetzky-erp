@@ -381,7 +381,7 @@ export default async function ProjectPrintPage({
         )}
 
         <footer className="mt-6 border-t pt-2 text-[10px] text-muted-foreground">
-          הופק ב-{formatDate(generatedAt)} · מקובצקי ניהול פרוייקטים
+          הופק ב-{formatDate(generatedAt)} · מקובצקי ניהול פרויקטים · הביורוקרטיה — עלינו
         </footer>
       </article>
     </div>

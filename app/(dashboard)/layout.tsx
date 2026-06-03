@@ -22,15 +22,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Link
           href="/"
           aria-label="מקובצקי — לדף הבית"
-          className="mb-4 flex shrink-0 items-center justify-center rounded-md bg-white/95 px-2 py-3 transition-shadow hover:shadow-md"
+          className="mb-4 flex shrink-0 items-center justify-center transition-opacity hover:opacity-90"
         >
           <Image
-            src="/logo.png"
-            alt="מקובצקי — ניהול פרויקטים"
-            width={480}
-            height={203}
+            src="/logo-dark.png"
+            alt="מקובצקי — ניהול פרויקטים · הביורוקרטיה — עלינו"
+            width={600}
+            height={600}
             priority
-            className="h-auto w-full max-w-[180px] object-contain"
+            className="h-auto w-full object-contain"
           />
         </Link>
         <CommandPaletteTrigger className="mb-3 shrink-0" />
@@ -54,18 +54,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Mobile-only top bar: brand logo on navy, links home. Desktop uses the sidebar logo. */}
         <header className="sticky top-0 z-40 flex h-14 items-center justify-center border-b border-white/10 bg-brand-navy px-4 md:hidden">
           <CommandPaletteIconButton className="absolute start-2 top-1/2 -translate-y-1/2" />
+          {/* Mobile bar is horizontal (56px tall) so a horizontal logo with the
+              slogan reads cleanly. The horizontal art is light-bg; we mount it
+              on a brand-cream chip so it stays brand-correct against the dark
+              top bar instead of a stark white plate. */}
           <Link
             href="/"
             aria-label="מקובצקי — לדף הבית"
-            className="flex items-center rounded-md bg-white/95 px-3 py-1.5"
+            className="flex items-center rounded-md bg-brand-cream px-3 py-1 shadow-sm transition-opacity hover:opacity-95"
           >
             <Image
-              src="/logo.png"
-              alt="מקובצקי — ניהול פרויקטים"
-              width={480}
-              height={203}
+              src="/logo-horizontal.png"
+              alt="מקובצקי — ניהול פרויקטים · הביורוקרטיה — עלינו"
+              width={600}
+              height={300}
               priority
-              className="h-7 w-auto object-contain"
+              className="h-9 w-auto object-contain"
             />
           </Link>
         </header>

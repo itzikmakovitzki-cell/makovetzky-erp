@@ -19,10 +19,10 @@ export default async function PortalLayout({ children }: { children: React.React
             <Image
               src="/logo.png"
               alt="מקובצקי — ניהול פרויקטים"
-              width={480}
-              height={203}
+              width={600}
+              height={300}
               priority
-              className="h-auto w-[120px] object-contain sm:w-[140px]"
+              className="h-auto w-[130px] object-contain sm:w-[160px]"
             />
             <span className="hidden text-[11px] text-muted-foreground sm:inline">פורטל לקוח / קבלן</span>
           </Link>
