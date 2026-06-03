@@ -58,9 +58,20 @@ export default async function AuditLogPage({
   await requireRole(["ADMIN"]);
 
   const params = await searchParams;
+  // Accept both `entity` (used by the filter dropdown) and `entityType`
+  // (used by deep-links such as the WhatsApp timeline drill-down).
   const entityParam =
     typeof params.entity === "string" && params.entity.trim()
       ? params.entity.trim()
+      : typeof params.entityType === "string" && params.entityType.trim()
+        ? params.entityType.trim()
+        : null;
+  // Deep-link drill-down: restrict to a single entity instance (e.g. the
+  // events for one specific MASTER_DEAL). No UI control writes this — it
+  // comes only from URLs built by other pages.
+  const entityIdParam =
+    typeof params.entityId === "string" && params.entityId.trim()
+      ? params.entityId.trim()
       : null;
   const actionParam =
     typeof params.action === "string" &&
@@ -88,6 +99,7 @@ export default async function AuditLogPage({
 
   const where: Prisma.AuditLogWhereInput = {};
   if (entityParam) where.entityType = entityParam;
+  if (entityIdParam) where.entityId = entityIdParam;
   if (actionParam) where.action = actionParam;
   if (userParam) where.userId = userParam;
   if (from || toExclusive) {
@@ -125,6 +137,7 @@ export default async function AuditLogPage({
         }))}
         userOptions={users.map((u) => ({ id: u.id, name: u.name }))}
         currentEntity={entityParam}
+        currentEntityId={entityIdParam}
         currentAction={actionParam}
         currentUser={userParam}
         currentFrom={fromRaw ?? null}

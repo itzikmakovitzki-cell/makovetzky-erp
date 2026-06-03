@@ -32,6 +32,17 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // "Forgot password" + token-consume routes — auth via the unguessable
+  // token (verified by the server action), not via session. Anyone needs
+  // to be able to reach these without first logging in (that's the point).
+  if (
+    pathname === "/forgot-password" ||
+    pathname.startsWith("/forgot-password/") ||
+    pathname.startsWith("/reset-password/")
+  ) {
+    return NextResponse.next();
+  }
+
   // Everything else requires a session. The user check here narrows `session`
   // to non-null for the rest of the function.
   if (!session?.user?.id) {
