@@ -106,6 +106,9 @@ function readSupplierForm(formData: FormData) {
   const marketingDescription =
     String(formData.get("marketingDescription") || "").trim() || null;
   const logoUrl = String(formData.get("logoUrl") || "").trim() || null;
+  // Block 30 polish #2 — broad marketplace category. Empty string = "no
+  // category" (NULL FK).
+  const categoryId = String(formData.get("categoryId") || "").trim() || null;
   return {
     name,
     type,
@@ -118,7 +121,8 @@ function readSupplierForm(formData: FormData) {
     notes,
     isPublic,
     marketingDescription,
-    logoUrl
+    logoUrl,
+    categoryId
   };
 }
 

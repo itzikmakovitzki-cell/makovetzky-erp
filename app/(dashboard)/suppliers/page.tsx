@@ -54,13 +54,17 @@ export default async function SuppliersGlobalPage({
     typeof params.supplier === "string" && params.supplier ? params.supplier : null;
   const showAll = params.all === "true";
 
-  const [session, suppliers, typeSuggestions] = await Promise.all([
+  const [session, suppliers, typeSuggestions, categoryOptions] = await Promise.all([
     auth(),
     prisma.supplier.findMany({
       select: { id: true, name: true, type: true },
       orderBy: { name: "asc" }
     }),
-    fetchTypeSuggestions()
+    fetchTypeSuggestions(),
+    prisma.partnerCategory.findMany({
+      select: { id: true, name: true },
+      orderBy: [{ displayOrder: "asc" }, { name: "asc" }]
+    })
   ]);
   const isAdmin = session?.user?.role === "ADMIN";
 
@@ -73,7 +77,12 @@ export default async function SuppliersGlobalPage({
         action={
           <div className="flex items-center gap-2">
             <ExportListButton kind="suppliers" />
-            {isAdmin && <AddSupplierButton typeSuggestions={typeSuggestions} />}
+            {isAdmin && (
+              <AddSupplierButton
+                typeSuggestions={typeSuggestions}
+                categoryOptions={categoryOptions}
+              />
+            )}
           </div>
         }
       />
@@ -86,6 +95,7 @@ export default async function SuppliersGlobalPage({
           showAll={showAll}
           isAdmin={isAdmin}
           typeSuggestions={typeSuggestions}
+          categoryOptions={categoryOptions}
         />
       ) : (
         <SuppliersOverview />
@@ -134,12 +144,14 @@ async function SupplierDetail({
   supplierId,
   showAll,
   isAdmin,
-  typeSuggestions
+  typeSuggestions,
+  categoryOptions
 }: {
   supplierId: string;
   showAll: boolean;
   isAdmin: boolean;
   typeSuggestions: string[];
+  categoryOptions: { id: string; name: string }[];
 }) {
   const supplier = await prisma.supplier.findUnique({
     where: { id: supplierId },
@@ -158,7 +170,9 @@ async function SupplierDetail({
       notes: true,
       isPublic: true,
       marketingDescription: true,
-      logoUrl: true
+      logoUrl: true,
+      categoryId: true,
+      category: { select: { name: true } }
     }
   });
 
@@ -266,9 +280,11 @@ async function SupplierDetail({
                     notes: supplier.notes,
                     isPublic: supplier.isPublic,
                     marketingDescription: supplier.marketingDescription,
-                    logoUrl: supplier.logoUrl
+                    logoUrl: supplier.logoUrl,
+                    categoryId: supplier.categoryId
                   }}
                   typeSuggestions={typeSuggestions}
+                  categoryOptions={categoryOptions}
                 />
                 <SoftDeleteButton
                   action={deleteSupplier}

@@ -586,12 +586,35 @@ model BillingMilestone {
   @@index([status, dueDate])
 }
 
+// Block 30 polish #2 — Partner Marketplace categories.
+// Free-text `type` on Supplier remains as the *narrow* back-office tag
+// ("מודד", "חשמלאי"); PartnerCategory is the *broad* marketplace bucket
+// ("בעלי מקצוע", "כניסה לבית", "נותני שירות") that drives the filter pills
+// on /portal/partners + /partners. Admin-managed from /settings/partner-categories.
+model PartnerCategory {
+  id           String     @id @default(cuid())
+  name         String     @unique
+  description  String?
+  // Drives the order of pills in the marketplace + rows in the settings
+  // table. Lower = first.
+  displayOrder Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  suppliers Supplier[]
+
+  @@index([displayOrder])
+}
+
 model Supplier {
   id                     String   @id @default(cuid())
   name                   String
   // Short tag — "מודד" / "חשמלאי" / "מעבדה". Free text, with a frontend
   // datalist that auto-suggests previously-used values.
   type                   String?
+  // Block 30 polish #2 — broader marketplace category. Nullable so legacy
+  // rows stay valid; deleting the category SetsNull rather than blocking.
+  categoryId             String?
   contactName            String?
   phone                  String?
   email                  String?
@@ -621,9 +644,11 @@ model Supplier {
   updatedAt              DateTime @updatedAt
 
   taskAssignments SupplierTaskAssignment[]
+  category        PartnerCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([name])
   @@index([isPublic])
+  @@index([categoryId])
 }
 
 // Powers the cross-project "Bulk View" of open work per supplier.

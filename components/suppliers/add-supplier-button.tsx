@@ -7,12 +7,14 @@ import { SupplierFormDialog } from "./supplier-form-dialog";
 // ADMIN-only "ספק חדש" trigger. The form body lives in the shared
 // SupplierFormDialog so create and edit stay in lockstep field-wise.
 export function AddSupplierButton({
-  typeSuggestions
+  typeSuggestions,
+  categoryOptions
 }: {
   // Distinct supplier types already in the DB — feeds a datalist autocomplete
   // on the "type" input so admins reuse existing tags ("מודד", "חשמלאי", …)
   // rather than typing slight variants.
   typeSuggestions: string[];
+  categoryOptions: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -29,6 +31,7 @@ export function AddSupplierButton({
         <SupplierFormDialog
           mode="create"
           typeSuggestions={typeSuggestions}
+          categoryOptions={categoryOptions}
           onClose={() => setOpen(false)}
         />
       )}

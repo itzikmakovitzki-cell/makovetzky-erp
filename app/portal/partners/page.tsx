@@ -6,14 +6,19 @@ import { PartnersMarketplace } from "@/components/partners/partners-marketplace"
 
 export const dynamic = "force-dynamic";
 
-// Block 30 — portal-side marketplace. Same content as
-// /(dashboard)/partners — they share the PartnersMarketplace renderer.
-// Difference is only the back-link chrome.
-
-export default async function PortalPartnersPage() {
+export default async function PortalPartnersPage({
+  searchParams
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
   const user = { id: session.user.id, role: session.user.role };
+  const sp = await searchParams;
+  const search = {
+    category: typeof sp.category === "string" ? sp.category : undefined,
+    q: typeof sp.q === "string" ? sp.q : undefined
+  };
 
   return (
     <div className="space-y-4">
@@ -27,7 +32,11 @@ export default async function PortalPartnersPage() {
         </Link>
       </div>
 
-      <PartnersMarketplace user={user} />
+      <PartnersMarketplace
+        user={user}
+        basePath="/portal/partners"
+        search={search}
+      />
     </div>
   );
 }

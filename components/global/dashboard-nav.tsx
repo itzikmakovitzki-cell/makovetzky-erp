@@ -107,6 +107,7 @@ const GROUPS: NavGroup[] = [
           { href: "/settings/authorities", label: "רשויות", icon: Building2, allowed: ["ADMIN"] },
           { href: "/settings/building-types", label: "סוגי בניינים", icon: Box, allowed: ["ADMIN"] },
           { href: "/settings/templates", label: "תבניות משימות", icon: ListTodo, allowed: ["ADMIN"] },
+          { href: "/settings/partner-categories", label: "קטגוריות שותפים", icon: Store, allowed: ["ADMIN"] },
           { href: "/settings/whatsapp", label: "WhatsApp", icon: MessageCircle, allowed: ["ADMIN"] },
           { href: "/settings/audit-log", label: "יומן פעולות", icon: History, allowed: ["ADMIN"] },
           { href: "/settings/recycle-bin", label: "סל המחזור", icon: Trash2, allowed: ["ADMIN"] }
