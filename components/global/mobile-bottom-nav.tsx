@@ -18,6 +18,7 @@ import {
   LogOut,
   Menu,
   Settings as SettingsIcon,
+  Store,
   Truck,
   Wallet
 } from "lucide-react";
@@ -57,6 +58,12 @@ const OVERFLOW_SLOTS: Slot[] = [
     label: "עמלות מספקים",
     icon: Coins,
     allowed: ["ADMIN"]
+  },
+  {
+    href: "/partners",
+    label: "מאגר שותפים",
+    icon: Store,
+    allowed: ["ADMIN", "EMPLOYEE"]
   },
   { href: "/guides", label: "מדריכים", icon: BookOpen, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/settings", label: "הגדרות", icon: SettingsIcon, allowed: ["ADMIN"] }

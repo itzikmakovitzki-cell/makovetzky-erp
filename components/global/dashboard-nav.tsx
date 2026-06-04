@@ -20,6 +20,7 @@ import {
   ListTodo,
   MessageCircle,
   Settings as SettingsIcon,
+  Store,
   Trash2,
   Truck,
   Users,
@@ -82,6 +83,12 @@ const GROUPS: NavGroup[] = [
         label: "עמלות מספקים",
         icon: Coins,
         allowed: ["ADMIN"]
+      },
+      {
+        href: "/partners",
+        label: "מאגר שותפים",
+        icon: Store,
+        allowed: ["ADMIN", "EMPLOYEE"]
       }
     ]
   },
