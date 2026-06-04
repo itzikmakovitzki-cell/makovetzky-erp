@@ -54,6 +54,8 @@ export default async function EditProposalPage({
           projectLocation: proposal.projectLocation ?? "",
           totalAmount: String(proposal.totalAmount),
           terms: proposal.terms ?? "",
+          quoteTitle: proposal.quoteTitle ?? "",
+          serviceDescription: proposal.serviceDescription ?? "",
           milestones
         }}
       />

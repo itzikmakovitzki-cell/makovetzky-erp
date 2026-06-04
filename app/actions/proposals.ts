@@ -1,10 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { AuditAction, Prisma, ProposalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { validateIsraeliId, normalizeIsraeliId } from "@/lib/israeli-id";
+import {
+  buildProposalHtml,
+  renderPdfBuffer,
+  type ProposalMilestoneLite
+} from "@/lib/proposal-pdf";
+import {
+  buildProposalStoragePath,
+  uploadToStorage
+} from "@/lib/supabase-storage";
 
 type ActionResult<T = void> = { ok: boolean; error: string | null; data?: T };
 type FormState = { ok: boolean; error: string | null; id?: string };
@@ -79,6 +90,10 @@ export async function createProposal(
       String(formData.get("projectLocation") || "").trim() || null;
     const totalAmount = parseAmount(formData.get("totalAmount"));
     const terms = String(formData.get("terms") || "").trim() || null;
+    const quoteTitle =
+      String(formData.get("quoteTitle") || "").trim() || null;
+    const serviceDescription =
+      String(formData.get("serviceDescription") || "").trim() || null;
 
     if (!customerName) return { ok: false, error: "שם הלקוח חובה" };
     if (!customerPhone) return { ok: false, error: "טלפון הלקוח חובה" };
@@ -119,6 +134,11 @@ export async function createProposal(
           totalAmount,
           milestones: milestonesJson as unknown as Prisma.InputJsonValue,
           terms,
+          quoteTitle,
+          serviceDescription,
+          // All new proposals are V2 (branded PDF flow). Existing V1 rows on
+          // the same table keep their old templateVersion=1 and old renderer.
+          templateVersion: 2,
           status: ProposalStatus.DRAFT,
           createdById: me.id
         }
@@ -183,6 +203,10 @@ export async function updateProposal(
       String(formData.get("projectLocation") || "").trim() || null;
     const totalAmount = parseAmount(formData.get("totalAmount"));
     const terms = String(formData.get("terms") || "").trim() || null;
+    const quoteTitle =
+      String(formData.get("quoteTitle") || "").trim() || null;
+    const serviceDescription =
+      String(formData.get("serviceDescription") || "").trim() || null;
 
     if (!customerName) return { ok: false, error: "שם הלקוח חובה" };
     if (!customerPhone) return { ok: false, error: "טלפון הלקוח חובה" };
@@ -218,7 +242,9 @@ export async function updateProposal(
           projectLocation,
           totalAmount,
           milestones: milestonesJson as unknown as Prisma.InputJsonValue,
-          terms
+          terms,
+          quoteTitle,
+          serviceDescription
         }
       });
       await logAudit(tx, {
@@ -296,11 +322,22 @@ export async function markProposalSent(
 // ============================================================================
 
 // Public action callable from /quote/[id]. No auth gate. Treats the cuid id
-// as a sufficiently-unguessable token. Records who claimed to sign (typed
-// name) plus the optional canvas signature.
+// as a sufficiently-unguessable token.
+//
+// V1 path (templateVersion = 1, legacy rows): records typed name + optional
+// canvas dataURL onto `signatureData` / `signedName`, like before.
+//
+// V2 path (templateVersion >= 2, new flow): requires Israeli ID number too,
+// captures IP/UA + the customer's phone at signing time, renders the signed
+// PDF, and uploads it to Supabase storage. The PDF becomes the document of
+// record for the agreement.
 export async function signProposal(
   proposalId: string,
-  input: { signedName: string; signatureData?: string | null }
+  input: {
+    signedName: string;
+    signedIdNumber?: string | null;
+    signatureData?: string | null;
+  }
 ): Promise<ActionResult> {
   try {
     if (!proposalId) return { ok: false, error: "מזהה הצעה חסר" };
@@ -314,8 +351,7 @@ export async function signProposal(
         : null;
 
     const proposal = await prisma.proposal.findFirst({
-      where: { id: proposalId, deletedAt: null },
-      select: { id: true, status: true }
+      where: { id: proposalId, deletedAt: null }
     });
     if (!proposal) return { ok: false, error: "הצעה לא נמצאה" };
     if (proposal.status === ProposalStatus.SIGNED) {
@@ -326,12 +362,105 @@ export async function signProposal(
     }
 
     const now = new Date();
+
+    // === V1: legacy signing — unchanged behavior ===
+    if (proposal.templateVersion < 2) {
+      await prisma.$transaction(async (tx) => {
+        await tx.proposal.update({
+          where: { id: proposalId },
+          data: {
+            status: ProposalStatus.SIGNED,
+            signedName,
+            signatureData,
+            signedAt: now
+          }
+        });
+        await logAudit(tx, {
+          entityType: AuditEntity.PROPOSAL,
+          entityId: proposalId,
+          action: AuditAction.APPROVE,
+          oldValue: { status: proposal.status },
+          newValue: {
+            status: ProposalStatus.SIGNED,
+            signedName,
+            signedAt: now.toISOString()
+          },
+          userId: null
+        });
+      });
+
+      revalidatePath(`/quote/${proposalId}`);
+      revalidatePath(`/proposals/${proposalId}`);
+      revalidatePath("/proposals");
+      return { ok: true, error: null };
+    }
+
+    // === V2: branded PDF + richer audit ===
+    const signedIdNumber = normalizeIsraeliId(input.signedIdNumber);
+    if (!signedIdNumber) {
+      return { ok: false, error: "יש להזין מספר תעודת זהות" };
+    }
+    if (!validateIsraeliId(signedIdNumber)) {
+      return { ok: false, error: "מספר תעודת הזהות אינו תקין" };
+    }
+    if (!signatureData) {
+      return { ok: false, error: "יש לחתום בריבוע החתימה" };
+    }
+
+    // Capture audit metadata from request headers. headers() is async in Next 15.
+    const h = await headers();
+    const xff = h.get("x-forwarded-for") || "";
+    const signedIp = (xff.split(",")[0] || h.get("x-real-ip") || "").trim() || null;
+    const signedUserAgent = h.get("user-agent") || null;
+
+    const milestones: ProposalMilestoneLite[] = Array.isArray(
+      proposal.milestones
+    )
+      ? (proposal.milestones as unknown as ProposalMilestoneLite[])
+      : [];
+
+    // Render the signed PDF, then upload BEFORE the DB update so a storage
+    // failure aborts the whole sign — never want a SIGNED row without a PDF.
+    const html = buildProposalHtml(
+      {
+        id: proposal.id,
+        quoteTitle: proposal.quoteTitle,
+        customerName: proposal.customerName,
+        customerPhone: proposal.customerPhone,
+        customerEmail: proposal.customerEmail,
+        projectLocation: proposal.projectLocation,
+        totalAmount: proposal.totalAmount.toString(),
+        serviceDescription: proposal.serviceDescription,
+        milestones,
+        createdAt: proposal.createdAt
+      },
+      {
+        mode: "signed",
+        signature: {
+          signedName,
+          signedIdNumber,
+          signatureDataUrl: signatureData,
+          signedAt: now
+        }
+      }
+    );
+    const pdfBuffer = await renderPdfBuffer(html);
+    const path = buildProposalStoragePath(proposal.id, "signed");
+    await uploadToStorage(pdfBuffer, path, "application/pdf");
+
     await prisma.$transaction(async (tx) => {
       await tx.proposal.update({
         where: { id: proposalId },
         data: {
           status: ProposalStatus.SIGNED,
           signedName,
+          signedIdNumber,
+          signedPhone: proposal.customerPhone,
+          signedIp,
+          signedUserAgent,
+          signedPdfPath: path,
+          // Keep the raw canvas dataURL too — cheap belt-and-suspenders if we
+          // ever need to re-render the signed PDF from source.
           signatureData,
           signedAt: now
         }
@@ -344,9 +473,12 @@ export async function signProposal(
         newValue: {
           status: ProposalStatus.SIGNED,
           signedName,
+          signedIdNumber,
+          signedPhone: proposal.customerPhone,
+          signedIp,
+          signedPdfPath: path,
           signedAt: now.toISOString()
         },
-        // No userId — this is a public action.
         userId: null
       });
     });

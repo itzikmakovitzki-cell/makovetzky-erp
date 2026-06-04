@@ -22,6 +22,17 @@ export default auth((req) => {
   // not via session. Lets prospects sign before becoming a Client/user.
   if (pathname.startsWith("/quote/")) return NextResponse.next();
 
+  // The PDF endpoint for the public quote page (`/api/proposals/<id>/pdf`) is
+  // the only proposal API that's exposed to unauthenticated traffic — same
+  // cuid-as-secret model as /quote/<id>. Narrow match avoids opening other
+  // /api/proposals routes that may be added later.
+  if (
+    pathname.startsWith("/api/proposals/") &&
+    pathname.endsWith("/pdf")
+  ) {
+    return NextResponse.next();
+  }
+
   // Check session.user.id directly — Auth.js v5 can return a session shell
   // object that is truthy but has no user when there is no JWT in the edge
   // runtime, so a bare `if (session)` would let unauthenticated traffic through.

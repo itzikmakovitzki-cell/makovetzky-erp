@@ -6,6 +6,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { createProposal, updateProposal } from "@/app/actions/proposals";
 import type { ProposalMilestoneJson } from "@/app/actions/proposals";
 import { formatILS } from "@/lib/utils";
+import { DEFAULT_SERVICE_DESCRIPTION } from "@/lib/proposal-template";
 
 type Milestone = { description: string; amount: string; dueDate: string };
 
@@ -43,6 +44,8 @@ export function ProposalForm({
     projectLocation: string;
     totalAmount: string;
     terms: string;
+    quoteTitle: string;
+    serviceDescription: string;
     milestones: ProposalMilestoneJson[];
   };
 }) {
@@ -127,6 +130,37 @@ export function ProposalForm({
         name="milestones"
         value={JSON.stringify(toJson(milestones))}
       />
+
+      <section className="rounded-md border bg-card">
+        <h2 className="border-b bg-muted/30 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          פרטי ההצעה
+        </h2>
+        <div className="grid grid-cols-1 gap-3 p-3">
+          <Field
+            label="כותרת ההצעה"
+            name="quoteTitle"
+            defaultValue={initial?.quoteTitle}
+            placeholder='למשל: "ליווי וניהול לקבלת תעודת גמר (טופס 4)"'
+          />
+          <label className="block">
+            <span className="mb-0.5 block text-[11px] font-medium">
+              מהות השירות (יוצג כבולטים תחת ״השירות כולל״)
+            </span>
+            <textarea
+              name="serviceDescription"
+              defaultValue={
+                initial?.serviceDescription ?? DEFAULT_SERVICE_DESCRIPTION
+              }
+              rows={6}
+              placeholder="שורה לכל בולט"
+              className="w-full resize-y rounded border border-input bg-background px-2 py-1 text-[12px] focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <span className="mt-0.5 block text-[10px] text-muted-foreground">
+              כל שורה הופכת לבולט נפרד ב-PDF. ערך ברירת המחדל ערוך — שנה לפי הצורך.
+            </span>
+          </label>
+        </div>
+      </section>
 
       <section className="rounded-md border bg-card">
         <h2 className="border-b bg-muted/30 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

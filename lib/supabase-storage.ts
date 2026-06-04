@@ -29,6 +29,15 @@ export function buildPermitStoragePath(permitId: string, fileName: string): stri
   return `permits/${permitId}/${ts}-${rand}-${safe}`;
 }
 
+export function buildProposalStoragePath(
+  proposalId: string,
+  kind: "signed" | "preview"
+): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `proposals/${proposalId}/${kind}-${ts}-${rand}.pdf`;
+}
+
 export function buildPendingStoragePath(fileName: string): string {
   const ts = Date.now();
   const rand = Math.random().toString(36).slice(2, 8);

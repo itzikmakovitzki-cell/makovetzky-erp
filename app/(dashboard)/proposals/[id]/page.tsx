@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRight, CheckCircle2, FileText, Pencil, XCircle } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Download,
+  FileText,
+  Pencil,
+  XCircle
+} from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
@@ -213,10 +220,51 @@ export default async function ProposalDetailPage({
               <span className="text-muted-foreground">חתום ע"י:</span>{" "}
               <span className="font-medium">{proposal.signedName ?? "—"}</span>
             </div>
+            {proposal.signedIdNumber && (
+              <div>
+                <span className="text-muted-foreground">ת.ז:</span>{" "}
+                <span className="font-medium tabular-nums">
+                  {proposal.signedIdNumber}
+                </span>
+              </div>
+            )}
+            {proposal.signedPhone && (
+              <div>
+                <span className="text-muted-foreground">טלפון בעת חתימה:</span>{" "}
+                <span className="tabular-nums">{proposal.signedPhone}</span>
+              </div>
+            )}
             <div>
               <span className="text-muted-foreground">תאריך חתימה:</span>{" "}
               <span className="tabular-nums">{formatDate(proposal.signedAt)}</span>
             </div>
+            {proposal.signedIp && (
+              <div>
+                <span className="text-muted-foreground">כתובת IP:</span>{" "}
+                <span className="tabular-nums">{proposal.signedIp}</span>
+              </div>
+            )}
+            {proposal.signedUserAgent && (
+              <div>
+                <span className="text-muted-foreground">דפדפן:</span>{" "}
+                <span className="break-all text-[11px]">
+                  {proposal.signedUserAgent}
+                </span>
+              </div>
+            )}
+            {proposal.signedPdfPath && (
+              <div className="pt-1">
+                <a
+                  href={`/api/proposals/${proposal.id}/pdf?mode=signed`}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1.5 rounded border border-emerald-600 bg-emerald-600 px-3 py-1 text-[12px] font-medium text-white hover:opacity-90"
+                >
+                  <Download className="size-3" />
+                  הורד הצעה חתומה (PDF)
+                </a>
+              </div>
+            )}
             {proposal.signatureData && proposal.signatureData.startsWith("data:image/") && (
               <div>
                 <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">

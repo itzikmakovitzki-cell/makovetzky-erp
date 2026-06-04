@@ -816,6 +816,18 @@ model Proposal {
   signedAt        DateTime?
   // Free-text reason captured when the customer rejects the proposal.
   rejectionReason String?
+  // V2 (templateVersion >= 2): the customer signs an embedded PDF, and we
+  // capture richer audit data + a server-rendered signed PDF in storage.
+  // V1 rows (templateVersion = 1) keep the old plain-HTML signing flow
+  // forever — none of these new fields are populated for them.
+  templateVersion    Int      @default(1)
+  quoteTitle         String?
+  serviceDescription String?
+  signedIdNumber     String?
+  signedPhone        String?
+  signedIp           String?
+  signedUserAgent    String?
+  signedPdfPath      String?
   // Conversion linkage — null until the admin converts. Both are set
   // atomically by convertProposalToProject.
   clientId        String?
