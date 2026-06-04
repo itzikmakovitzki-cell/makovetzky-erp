@@ -315,9 +315,10 @@ function NavRow({
   );
 }
 
-// Split-row pattern (GitHub-style): the row body is a Link that navigates
-// to the parent route; the inline chevron button toggles the nested
-// sub-menu without navigating.
+// Whole-row toggle (same pattern as the outer category headers). Click
+// anywhere on the row opens/closes the nested sub-menu. The parent route
+// (/settings) isn't directly clickable from the sidebar — it ultimately
+// redirects to /settings/users which is the first sub-item anyway.
 function ExpandableNavRow({
   item,
   pathname,
@@ -332,7 +333,11 @@ function ExpandableNavRow({
   onToggle: () => void;
 }) {
   const isAllowed = role ? item.allowed.includes(role) : true;
-  const isActive = isItemActive(item, pathname);
+  // Parent reads "active" whenever any of its sub-items is the current
+  // route — gives the user a visual home base in the sidebar.
+  const isActive =
+    isItemActive(item, pathname) ||
+    (item.children?.some((c) => isItemActive(c, pathname)) ?? false);
   const panelId = `nav-sub-${item.href.replace(/\//g, "-")}`;
 
   if (!isAllowed) {
@@ -350,55 +355,42 @@ function ExpandableNavRow({
 
   return (
     <div className="flex flex-col">
-      <div
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+        aria-controls={panelId}
         className={cn(
-          "group/expandable relative flex items-stretch gap-0.5 rounded-md transition-colors",
-          isActive ? "" : "hover:bg-white/5"
+          "group relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-start transition-all duration-150",
+          isActive
+            ? "bg-primary font-medium text-primary-foreground shadow-sm"
+            : "text-white/75 hover:bg-white/10 hover:text-white"
         )}
       >
-        <Link
-          href={item.href}
-          aria-current={isActive ? "page" : undefined}
-          className={cn(
-            "relative flex flex-1 items-center gap-2.5 rounded-md px-2.5 py-1.5 transition-all duration-150",
-            isActive
-              ? "bg-primary font-medium text-primary-foreground shadow-sm"
-              : "text-white/75 hover:bg-white/10 hover:text-white"
-          )}
-        >
-          {isActive && (
-            <span
-              className="absolute inset-y-1 start-0 w-0.5 rounded-full bg-primary-foreground/60"
-              aria-hidden
-            />
-          )}
-          <item.icon
-            className={cn(
-              "size-4 shrink-0 transition-transform duration-150",
-              isActive ? "scale-110" : "text-white/60 group-hover/expandable:text-white"
-            )}
-            strokeWidth={isActive ? 2.25 : 1.75}
-          />
-          <span className="flex-1 truncate">{item.label}</span>
-        </Link>
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={isExpanded}
-          aria-controls={panelId}
-          aria-label={isExpanded ? `סגור תפריט משנה — ${item.label}` : `פתח תפריט משנה — ${item.label}`}
-          className="flex items-center justify-center rounded-md px-1.5 text-white/55 transition-colors hover:bg-white/10 hover:text-white"
-        >
-          <ChevronDown
-            className={cn(
-              "size-3.5 transition-transform duration-200 ease-out",
-              isExpanded ? "rotate-0" : "-rotate-90"
-            )}
-            strokeWidth={2}
+        {isActive && (
+          <span
+            className="absolute inset-y-1 start-0 w-0.5 rounded-full bg-primary-foreground/60"
             aria-hidden
           />
-        </button>
-      </div>
+        )}
+        <item.icon
+          className={cn(
+            "size-4 shrink-0 transition-transform duration-150",
+            isActive ? "scale-110" : "text-white/60 group-hover:text-white"
+          )}
+          strokeWidth={isActive ? 2.25 : 1.75}
+        />
+        <span className="flex-1 truncate">{item.label}</span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 transition-transform duration-200 ease-out",
+            isExpanded ? "rotate-0" : "-rotate-90",
+            isActive ? "opacity-90" : "opacity-60"
+          )}
+          strokeWidth={2}
+          aria-hidden
+        />
+      </button>
       <div
         id={panelId}
         className={cn(
