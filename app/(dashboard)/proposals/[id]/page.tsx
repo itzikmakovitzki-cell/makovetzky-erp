@@ -176,6 +176,9 @@ export default async function ProposalDetailPage({
             <span className="font-semibold tabular-nums">
               {formatILS(proposal.totalAmount)}
             </span>
+            <span className="ms-1 text-[10px] text-muted-foreground">
+              ({proposal.pricesIncludeVat ? "כולל מע״מ" : "לפני מע״מ"})
+            </span>
           </div>
         </div>
         <table>

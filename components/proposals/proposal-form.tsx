@@ -46,6 +46,7 @@ export function ProposalForm({
     terms: string;
     quoteTitle: string;
     serviceDescription: string;
+    pricesIncludeVat: boolean;
     milestones: ProposalMilestoneJson[];
   };
 }) {
@@ -61,6 +62,11 @@ export function ProposalForm({
     initial ? fromJson(initial.milestones) : fromJson([])
   );
   const [totalAmount, setTotalAmount] = useState(initial?.totalAmount ?? "");
+  // VAT mode — controls whether displayed prices already include VAT, or VAT
+  // is added on top in the PDF with a breakdown box.
+  const [pricesIncludeVat, setPricesIncludeVat] = useState<boolean>(
+    initial?.pricesIncludeVat ?? true
+  );
 
   const milestoneSum = useMemo(
     () =>
@@ -216,7 +222,7 @@ export function ProposalForm({
             </span>
           </div>
         </div>
-        <div className="p-3">
+        <div className="space-y-3 p-3">
           <Field
             label="סכום כולל (₪)"
             name="totalAmount"
@@ -226,6 +232,43 @@ export function ProposalForm({
             onChange={(v) => setTotalAmount(v)}
             placeholder="50000"
           />
+          <div>
+            <span className="mb-1 block text-[11px] font-medium">
+              מע״מ <span className="text-red-600">*</span>
+            </span>
+            <input
+              type="hidden"
+              name="pricesIncludeVat"
+              value={pricesIncludeVat ? "true" : "false"}
+            />
+            <div className="flex flex-wrap gap-3 text-[12px]">
+              <label className="inline-flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="radio"
+                  checked={pricesIncludeVat}
+                  onChange={() => setPricesIncludeVat(true)}
+                  className="accent-foreground"
+                />
+                <span>המחירים כוללים מע״מ</span>
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="radio"
+                  checked={!pricesIncludeVat}
+                  onChange={() => setPricesIncludeVat(false)}
+                  className="accent-foreground"
+                />
+                <span>המחירים בתוספת מע״מ (18% יחושב אוטומטית)</span>
+              </label>
+            </div>
+            {!pricesIncludeVat && totalNum > 0 && (
+              <div className="mt-2 rounded border border-input bg-muted/40 px-2 py-1.5 text-[11px] tabular-nums text-muted-foreground">
+                סה״כ לפני מע״מ: <strong className="text-foreground">{formatILS(totalNum)}</strong>{" · "}
+                מע״מ 18%: <strong className="text-foreground">{formatILS(Math.round(totalNum * 0.18 * 100) / 100)}</strong>{" · "}
+                סה״כ לתשלום: <strong className="text-foreground">{formatILS(Math.round(totalNum * 1.18 * 100) / 100)}</strong>
+              </div>
+            )}
+          </div>
           {sumMismatch && totalNum > 0 && (
             <div className="mt-2 rounded border border-amber-500/40 bg-amber-50/60 px-2 py-1 text-[11px] text-amber-800 dark:bg-amber-500/5 dark:text-amber-200">
               שים לב: סכום אבני הדרך ({formatILS(milestoneSum)}) חייב להיות שווה לסכום הכולל ({formatILS(totalNum)}).

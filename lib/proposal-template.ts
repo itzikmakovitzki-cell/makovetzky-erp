@@ -7,6 +7,10 @@
 // Per the user's call: the four general terms (gilui naot) are identical
 // across every quote, so we don't expose them in the admin form.
 
+// Israeli VAT rate as of Jan 1, 2025 — 18%. Update here if the rate changes.
+export const VAT_RATE = 0.18;
+export const VAT_RATE_LABEL = "18%";
+
 export const BRAND_TOKENS = {
   charcoal: "#1F2937",
   charcoal70: "#4A5562",

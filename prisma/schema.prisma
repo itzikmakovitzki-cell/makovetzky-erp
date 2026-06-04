@@ -823,6 +823,9 @@ model Proposal {
   templateVersion    Int      @default(1)
   quoteTitle         String?
   serviceDescription String?
+  // V2 only: do the milestone amounts already include VAT, or is VAT added
+  // on top? Drives label rendering + the VAT breakdown box in the PDF.
+  pricesIncludeVat   Boolean  @default(true)
   signedIdNumber     String?
   signedPhone        String?
   signedIp           String?

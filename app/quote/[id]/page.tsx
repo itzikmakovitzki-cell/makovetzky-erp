@@ -73,6 +73,11 @@ export default async function PublicQuotePage({
                   סכום:{" "}
                   <span className="tabular-nums">
                     {formatILS(proposal.totalAmount)}
+                  </span>{" "}
+                  <span className="text-[11px]">
+                    ({proposal.pricesIncludeVat
+                      ? "כולל מע״מ"
+                      : "בתוספת מע״מ 18%"})
                   </span>
                 </p>
               </div>

@@ -56,6 +56,7 @@ export default async function EditProposalPage({
           terms: proposal.terms ?? "",
           quoteTitle: proposal.quoteTitle ?? "",
           serviceDescription: proposal.serviceDescription ?? "",
+          pricesIncludeVat: proposal.pricesIncludeVat,
           milestones
         }}
       />

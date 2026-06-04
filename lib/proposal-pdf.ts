@@ -9,6 +9,8 @@ import {
   COMPANY_DETAILS,
   DEFAULT_SERVICE_DESCRIPTION,
   GENERAL_TERMS_BULLETS,
+  VAT_RATE,
+  VAT_RATE_LABEL,
   type ProposalSignaturePayload
 } from "./proposal-template";
 import { formatDate, formatILS } from "./utils";
@@ -28,6 +30,7 @@ export type ProposalPdfInput = {
   projectLocation: string | null;
   totalAmount: number | string;
   serviceDescription: string | null;
+  pricesIncludeVat: boolean;
   milestones: ProposalMilestoneLite[];
   createdAt: Date;
 };
@@ -67,7 +70,10 @@ function renderServiceBullets(text: string | null): string {
     .join("")}</ul>`;
 }
 
-function renderMilestonesTable(milestones: ProposalMilestoneLite[]): string {
+function renderMilestonesTable(
+  milestones: ProposalMilestoneLite[],
+  pricesIncludeVat: boolean
+): string {
   const rows = milestones
     .map(
       (m, i) => `
@@ -79,6 +85,9 @@ function renderMilestonesTable(milestones: ProposalMilestoneLite[]): string {
       </tr>`
     )
     .join("");
+  const amountColLabel = pricesIncludeVat
+    ? "סכום (כולל מע״מ)"
+    : "סכום (לפני מע״מ)";
   return `
     <table class="items">
       <thead>
@@ -86,11 +95,48 @@ function renderMilestonesTable(milestones: ProposalMilestoneLite[]): string {
           <th class="num">#</th>
           <th>תיאור השלב</th>
           <th class="num">מועד יעד</th>
-          <th class="num">סכום (כולל מע״מ)</th>
+          <th class="num">${esc(amountColLabel)}</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+// VAT breakdown box. When pricesIncludeVat=true we show the original single
+// total. When false, the amounts are net; we add 18% VAT and show subtotal
+// + VAT + grand total.
+function renderTotalBox(
+  totalAmount: number,
+  pricesIncludeVat: boolean
+): string {
+  if (pricesIncludeVat) {
+    return `
+    <div class="total-row">
+      <div class="total-box">
+        <div class="label">סה״כ לתשלום (כולל מע״מ)</div>
+        <div class="amount">${esc(formatILS(totalAmount))}</div>
+      </div>
+    </div>`;
+  }
+  const vat = Math.round(totalAmount * VAT_RATE * 100) / 100;
+  const grand = Math.round((totalAmount + vat) * 100) / 100;
+  return `
+    <div class="total-row">
+      <div class="total-box vat-breakdown">
+        <div class="vat-row">
+          <span class="vat-label">סה״כ לפני מע״מ</span>
+          <span class="vat-value">${esc(formatILS(totalAmount))}</span>
+        </div>
+        <div class="vat-row">
+          <span class="vat-label">מע״מ ${esc(VAT_RATE_LABEL)}</span>
+          <span class="vat-value">${esc(formatILS(vat))}</span>
+        </div>
+        <div class="vat-row total">
+          <span class="vat-label">סה״כ לתשלום</span>
+          <span class="vat-value amount">${esc(formatILS(grand))}</span>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderTermsBullets(): string {
@@ -173,7 +219,14 @@ export function buildProposalHtml(
       : "ליווי וניהול פרויקט מול הרשויות";
   const dateLabel = formatDate(proposal.createdAt);
   const proposalNumber = shortProposalNumber(proposal.id);
-  const totalFormatted = formatILS(proposal.totalAmount);
+  const totalNumeric =
+    typeof proposal.totalAmount === "number"
+      ? proposal.totalAmount
+      : Number(proposal.totalAmount);
+  const totalFormatted = formatILS(totalNumeric);
+  const vatSuffix = proposal.pricesIncludeVat
+    ? "כולל מע״מ"
+    : `בתוספת מע״מ ${VAT_RATE_LABEL} כחוק`;
 
   return `<!DOCTYPE html>
 <html lang="he" dir="rtl">
@@ -315,6 +368,29 @@ export function buildProposalHtml(
     font-weight: 800;
     color: var(--charcoal);
   }
+  .total-box.vat-breakdown {
+    min-width: 280px;
+    background: #FDECE2;
+  }
+  .vat-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 3px 0;
+    font-size: 12px;
+    color: var(--charcoal-70);
+  }
+  .vat-row .vat-value { font-variant-numeric: tabular-nums; color: var(--charcoal); font-weight: 600; }
+  .vat-row.total {
+    border-top: 1px solid var(--orange);
+    margin-top: 4px;
+    padding-top: 8px;
+  }
+  .vat-row.total .vat-label { font-weight: 700; color: var(--charcoal); }
+  .vat-row.total .vat-value.amount {
+    font-size: 18px;
+    font-weight: 800;
+  }
   .sign-block {
     display: flex;
     gap: 24px;
@@ -399,14 +475,9 @@ export function buildProposalHtml(
     </div>
 
     <h2 class="section">2. עלות השירות ואופן התשלום</h2>
-    <p>סה״כ עלות השירות: <strong>${esc(totalFormatted)}</strong> כולל מע״מ.</p>
-    ${renderMilestonesTable(proposal.milestones)}
-    <div class="total-row">
-      <div class="total-box">
-        <div class="label">סה״כ לתשלום (כולל מע״מ)</div>
-        <div class="amount">${esc(totalFormatted)}</div>
-      </div>
-    </div>
+    <p>סה״כ עלות השירות: <strong>${esc(totalFormatted)}</strong> ${esc(vatSuffix)}.</p>
+    ${renderMilestonesTable(proposal.milestones, proposal.pricesIncludeVat)}
+    ${renderTotalBox(totalNumeric, proposal.pricesIncludeVat)}
 
     <div class="footer">
       <div><span class="slogan">${esc(COMPANY_DETAILS.slogan)}</span></div>

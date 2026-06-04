@@ -94,6 +94,9 @@ export async function createProposal(
       String(formData.get("quoteTitle") || "").trim() || null;
     const serviceDescription =
       String(formData.get("serviceDescription") || "").trim() || null;
+    // Boolean from a form: "true" / "false". Default = true (כולל מע״מ).
+    const pricesIncludeVat =
+      String(formData.get("pricesIncludeVat") || "true") !== "false";
 
     if (!customerName) return { ok: false, error: "שם הלקוח חובה" };
     if (!customerPhone) return { ok: false, error: "טלפון הלקוח חובה" };
@@ -136,6 +139,7 @@ export async function createProposal(
           terms,
           quoteTitle,
           serviceDescription,
+          pricesIncludeVat,
           // All new proposals are V2 (branded PDF flow). Existing V1 rows on
           // the same table keep their old templateVersion=1 and old renderer.
           templateVersion: 2,
@@ -207,6 +211,9 @@ export async function updateProposal(
       String(formData.get("quoteTitle") || "").trim() || null;
     const serviceDescription =
       String(formData.get("serviceDescription") || "").trim() || null;
+    // Boolean from a form: "true" / "false". Default = true (כולל מע״מ).
+    const pricesIncludeVat =
+      String(formData.get("pricesIncludeVat") || "true") !== "false";
 
     if (!customerName) return { ok: false, error: "שם הלקוח חובה" };
     if (!customerPhone) return { ok: false, error: "טלפון הלקוח חובה" };
@@ -244,7 +251,8 @@ export async function updateProposal(
           milestones: milestonesJson as unknown as Prisma.InputJsonValue,
           terms,
           quoteTitle,
-          serviceDescription
+          serviceDescription,
+          pricesIncludeVat
         }
       });
       await logAudit(tx, {
@@ -435,6 +443,7 @@ export async function signProposal(
         projectLocation: proposal.projectLocation,
         totalAmount: proposal.totalAmount.toString(),
         serviceDescription: proposal.serviceDescription,
+        pricesIncludeVat: proposal.pricesIncludeVat,
         milestones,
         createdAt: proposal.createdAt
       },

@@ -83,6 +83,7 @@ export async function GET(
       projectLocation: proposal.projectLocation,
       totalAmount: proposal.totalAmount.toString(),
       serviceDescription: proposal.serviceDescription,
+      pricesIncludeVat: proposal.pricesIncludeVat,
       milestones,
       createdAt: proposal.createdAt
     },
