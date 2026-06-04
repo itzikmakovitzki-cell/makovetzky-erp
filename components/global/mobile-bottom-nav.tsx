@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import {
   BookOpen,
   Building2,
+  Calendar as CalendarIcon,
+  Coins,
   FileCheck2,
   FileText,
   FolderKanban,
@@ -31,13 +33,14 @@ type Slot = {
   allowed: UserRole[];
 };
 
-// Primary mobile slots — first four are the "main" routes the user lives in,
-// matched to the desktop sidebar's terminology. Order matters: it's the visual order.
+// Primary mobile slots — the always-visible bottom row. Mirror the desktop
+// sidebar's PINNED list ("/" + "/calendar") so the daily-use anchors are
+// one tap away on phone too. The rest move to the "More" sheet below.
 const PRIMARY_SLOTS: Slot[] = [
   { href: "/", label: "מבט-על", icon: LayoutDashboard, allowed: ["ADMIN", "EMPLOYEE"] },
+  { href: "/calendar", label: "לוח שנה", icon: CalendarIcon, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/projects", label: "פרויקטים", icon: FolderKanban, allowed: ["ADMIN", "EMPLOYEE"] },
-  { href: "/permits", label: "היתרים", icon: FileCheck2, allowed: ["ADMIN", "EMPLOYEE"] },
-  { href: "/proposals", label: "הצעות", icon: FileText, allowed: ["ADMIN"] }
+  { href: "/permits", label: "היתרים", icon: FileCheck2, allowed: ["ADMIN", "EMPLOYEE"] }
 ];
 
 // Everything not in PRIMARY_SLOTS — surfaced via the "More" sheet.
@@ -46,8 +49,15 @@ const OVERFLOW_SLOTS: Slot[] = [
   { href: "/tasks", label: "משימות", icon: ListChecks, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/clients", label: "לקוחות", icon: Building2, allowed: ["ADMIN"] },
   { href: "/inbox", label: "תיבת WhatsApp", icon: Inbox, allowed: ["ADMIN", "EMPLOYEE"] },
+  { href: "/proposals", label: "הצעות מחיר", icon: FileText, allowed: ["ADMIN"] },
   { href: "/finances", label: "כספים", icon: Wallet, allowed: ["ADMIN"] },
   { href: "/suppliers", label: "ספקים", icon: Truck, allowed: ["ADMIN"] },
+  {
+    href: "/finances/supplier-commissions",
+    label: "עמלות מספקים",
+    icon: Coins,
+    allowed: ["ADMIN"]
+  },
   { href: "/guides", label: "מדריכים", icon: BookOpen, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/settings", label: "הגדרות", icon: SettingsIcon, allowed: ["ADMIN"] }
 ];
