@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import type { TaskStatus } from "@prisma/client";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { PrintTrigger } from "@/components/projects/print-trigger";
@@ -14,7 +13,7 @@ import {
   TASK_STATUS_LABEL,
   TASK_STATUS_VARIANT
 } from "@/lib/status-maps";
-import { cn, formatDate, formatILS } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +37,12 @@ export default async function ProjectPrintPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN";
 
+  // This print is shared OUT to clients and suppliers — no money fields
+  // (billing milestones, supplier commissions) are queried so the
+  // sensitive data can't accidentally leak into the rendered document.
+  // Admin views those in the project's finances / supplier-commissions
+  // tabs instead.
   const deal = await prisma.masterDeal.findFirst({
     where: { id, deletedAt: null },
     include: {
@@ -70,50 +72,12 @@ export default async function ProjectPrintPage({
               dueDate: true,
               assignee: { select: { name: true } }
             }
-          },
-          milestones: isAdmin
-            ? {
-                orderBy: { createdAt: "asc" },
-                select: {
-                  id: true,
-                  name: true,
-                  amount: true,
-                  status: true,
-                  dueDate: true,
-                  paidAt: true
-                }
-              }
-            : false
+          }
         }
       }
     }
   });
   if (!deal) notFound();
-
-  // Aggregate commissions for any supplier-assignment under this project's
-  // tasks — admin-only since it's money.
-  const supplierAssignments = isAdmin
-    ? await prisma.supplierTaskAssignment.findMany({
-        where: {
-          task: {
-            deletedAt: null,
-            permit: { deletedAt: null, masterDealId: id }
-          }
-        },
-        include: {
-          supplier: {
-            select: {
-              id: true,
-              name: true,
-              defaultCommissionType: true,
-              defaultCommissionValue: true
-            }
-          },
-          task: { select: { id: true, name: true, permit: { select: { name: true } } } }
-        },
-        orderBy: { createdAt: "asc" }
-      })
-    : [];
 
   // Roll up tasks per permit by status for the headline numbers.
   let projectTotalTasks = 0;
@@ -299,85 +263,9 @@ export default async function ProjectPrintPage({
                   </table>
                 )}
 
-                {isAdmin && p.milestones && p.milestones.length > 0 && (
-                  <div className="mt-3 break-inside-avoid">
-                    <h3 className="text-[12px] font-semibold">אבני דרך לחיוב</h3>
-                    <table className="mt-1">
-                      <thead>
-                        <tr>
-                          <th>אבן דרך</th>
-                          <th className="w-24 text-end">סכום</th>
-                          <th className="w-24">סטטוס</th>
-                          <th className="w-24">יעד</th>
-                          <th className="w-24">שולם</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {p.milestones.map((m) => (
-                          <tr key={m.id}>
-                            <td>{m.name}</td>
-                            <td className="text-end tabular-nums">
-                              {formatILS(Number(m.amount.toString()))}
-                            </td>
-                            <td className="text-[11px]">{m.status}</td>
-                            <td className="text-[11px] tabular-nums text-muted-foreground">
-                              {m.dueDate ? formatDate(m.dueDate) : "—"}
-                            </td>
-                            <td className="text-[11px] tabular-nums text-muted-foreground">
-                              {m.paidAt ? formatDate(m.paidAt) : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </section>
             );
           })
-        )}
-
-        {isAdmin && supplierAssignments.length > 0 && (
-          <section className="break-inside-avoid">
-            <h2 className="text-sm font-semibold border-b pb-1">
-              עמלות ספקים — תחת הפרויקט
-            </h2>
-            <table className="mt-2">
-              <thead>
-                <tr>
-                  <th>ספק</th>
-                  <th>משימה</th>
-                  <th>היתר</th>
-                  <th className="w-24 text-end">עמלה</th>
-                  <th className="w-20">שולם?</th>
-                </tr>
-              </thead>
-              <tbody>
-                {supplierAssignments.map((a) => {
-                  const type = a.commissionType ?? a.supplier.defaultCommissionType;
-                  const value = a.commissionValue ?? a.supplier.defaultCommissionValue;
-                  const label = value
-                    ? type === "FIXED"
-                      ? formatILS(Number(value.toString()))
-                      : `${value.toString()}%`
-                    : "—";
-                  return (
-                    <tr key={a.id}>
-                      <td>{a.supplier.name}</td>
-                      <td className="text-[11px]">{a.task.name}</td>
-                      <td className="text-[11px] text-muted-foreground">
-                        {a.task.permit.name}
-                      </td>
-                      <td className="text-end text-[11px] tabular-nums">{label}</td>
-                      <td className="text-[11px] tabular-nums text-muted-foreground">
-                        {a.commissionPaidAt ? formatDate(a.commissionPaidAt) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
         )}
 
         <footer className="mt-6 border-t pt-2 text-[10px] text-muted-foreground">
