@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BookOpen,
   Building2,
+  Calendar as CalendarIcon,
   Coins,
   FileCheck2,
   FileText,
@@ -31,6 +32,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "מבט-על", icon: LayoutDashboard, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/my-tasks", label: "המשימות שלי", icon: ListTodo, allowed: ["ADMIN", "EMPLOYEE"] },
+  { href: "/calendar", label: "לוח שנה", icon: CalendarIcon, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/proposals", label: "הצעות מחיר", icon: FileText, allowed: ["ADMIN"] },
   { href: "/projects", label: "פרויקטים", icon: FolderKanban, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/permits", label: "היתרים", icon: FileCheck2, allowed: ["ADMIN", "EMPLOYEE"] },

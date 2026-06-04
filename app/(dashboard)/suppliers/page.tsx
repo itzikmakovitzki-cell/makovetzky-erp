@@ -20,6 +20,7 @@ import {
 } from "@/components/suppliers/suppliers-overview-table";
 import { AssignmentMobileList } from "@/components/suppliers/assignment-mobile-list";
 import { PageHeader } from "@/components/global/page-header";
+import { ExportListButton } from "@/components/global/export-list-button";
 import {
   SUPPLIER_ASSIGNMENT_STATUS_LABEL,
   SUPPLIER_ASSIGNMENT_STATUS_VARIANT,
@@ -70,7 +71,10 @@ export default async function SuppliersGlobalPage({
         accent="Bulk View"
         description={'תצוגת "סבב ספק" — בחר ספק וראה את כל המשימות הפתוחות מולו חוצות-פרויקטים.'}
         action={
-          isAdmin ? <AddSupplierButton typeSuggestions={typeSuggestions} /> : undefined
+          <div className="flex items-center gap-2">
+            <ExportListButton kind="suppliers" />
+            {isAdmin && <AddSupplierButton typeSuggestions={typeSuggestions} />}
+          </div>
         }
       />
 

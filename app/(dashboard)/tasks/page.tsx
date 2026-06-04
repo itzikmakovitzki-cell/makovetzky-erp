@@ -13,6 +13,7 @@ import { SnoozeBadge } from "@/components/tasks/snooze-badge";
 import { WhatsAppReminderButton } from "@/components/tasks/whatsapp-reminder-button";
 import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
 import { PageHeader } from "@/components/global/page-header";
+import { ExportListButton } from "@/components/global/export-list-button";
 import {
   TaskBulkCheckbox,
   TaskBulkSelectAll
@@ -169,6 +170,7 @@ export default async function TasksGlobalPage({
         title="משימות"
         accent="מבט-על"
         description="תצוגה חוצת-פרויקטים. סינון נשמר ב-URL — אפשר לסמן כסימנייה."
+        action={<ExportListButton kind="tasks" />}
       />
 
       <BulkTaskActionBar users={users} canDelete={isAdmin} />

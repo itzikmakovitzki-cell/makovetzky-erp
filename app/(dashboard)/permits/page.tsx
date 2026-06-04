@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/global/page-header";
+import { ExportListButton } from "@/components/global/export-list-button";
 import { PermitMobileCard } from "@/components/permits/permit-mobile-card";
 import { PermitRowActions } from "@/components/permits/permit-row-actions";
 import { ArchiveToggle } from "@/components/global/archive-toggle";
@@ -81,14 +82,17 @@ export default async function PermitsListPage({
         accent={`(${permits.length})`}
         className="mb-3"
         action={
-          isAdmin ? (
-            <Button asChild variant="cta" className="h-9">
-              <Link href="/permits/new">
-                <FolderPlus className="size-3.5" />
-                פרויקט חדש
-              </Link>
-            </Button>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <ExportListButton kind="permits" />
+            {isAdmin && (
+              <Button asChild variant="cta" className="h-9">
+                <Link href="/permits/new">
+                  <FolderPlus className="size-3.5" />
+                  פרויקט חדש
+                </Link>
+              </Button>
+            )}
+          </div>
         }
       />
 

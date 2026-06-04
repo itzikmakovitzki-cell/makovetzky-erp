@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/global/page-header";
+import { ExportListButton } from "@/components/global/export-list-button";
 import { ProposalMobileCard } from "@/components/proposals/proposal-mobile-card";
 import { ProposalRowActions } from "@/components/proposals/proposal-row-actions";
 import {
@@ -74,12 +75,15 @@ export default async function ProposalsListPage({
         title="הצעות מחיר"
         description={'הצעות עצמאיות לליד — לא תופסות מקום ב"לקוחות" עד שנחתמות והומרו לפרויקט.'}
         action={
-          <Button asChild variant="cta" className="h-9">
-            <Link href="/proposals/new">
-              <Plus className="size-3.5" />
-              הצעה חדשה
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportListButton kind="proposals" />
+            <Button asChild variant="cta" className="h-9">
+              <Link href="/proposals/new">
+                <Plus className="size-3.5" />
+                הצעה חדשה
+              </Link>
+            </Button>
+          </div>
         }
       />
 

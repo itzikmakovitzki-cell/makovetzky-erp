@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArchiveToggle } from "@/components/global/archive-toggle";
 import { PageHeader } from "@/components/global/page-header";
+import { ExportListButton } from "@/components/global/export-list-button";
 import { ProjectMobileCard } from "@/components/projects/project-mobile-card";
 import {
   MASTER_DEAL_STATUS_LABEL,
@@ -109,12 +110,15 @@ export default async function ProjectsListPage({
         accent="Master Deals"
         description="תצוגה ברמת הפרויקט. כל פרויקט מכיל היתר אחד או יותר. לחץ על שורה כדי לראות את ההיתרים תחתיו."
         action={
-          <Button asChild variant="cta" className="h-9">
-            <Link href="/permits/new">
-              <Plus className="size-3.5" />
-              פרויקט חדש
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportListButton kind="projects" />
+            <Button asChild variant="cta" className="h-9">
+              <Link href="/permits/new">
+                <Plus className="size-3.5" />
+                פרויקט חדש
+              </Link>
+            </Button>
+          </div>
         }
       />
 

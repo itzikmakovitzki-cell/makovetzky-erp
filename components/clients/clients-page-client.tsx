@@ -9,6 +9,7 @@ import { exportClientsCsv, importClientsCsv } from "@/app/actions/csv";
 import { CsvToolbar } from "@/components/global/csv-toolbar";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/global/page-header";
+import { ExportListButton } from "@/components/global/export-list-button";
 import { ClientFormDialog, type ClientFormInitial } from "./client-form-dialog";
 import { ClientMobileCard } from "./client-mobile-card";
 
@@ -73,6 +74,7 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
         description="כל הלקוחות העסקיים — חברות, עסקאות והיתרים שלהן."
         action={
           <>
+            <ExportListButton kind="clients" />
             <CsvToolbar
               entityLabel="לקוחות"
               helpText="עמודות חובה: שם החברה, איש קשר, טלפון"
