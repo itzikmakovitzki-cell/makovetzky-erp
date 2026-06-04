@@ -41,6 +41,15 @@ export function NewNoteForm({ permitId }: { permitId: string }) {
           ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onKeyDown={(e) => {
+            // Ctrl/Cmd+Enter submits without leaving the textarea.
+            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+              e.preventDefault();
+              if (canSubmit) {
+                handleSubmit(e as unknown as React.FormEvent);
+              }
+            }
+          }}
           placeholder="הקלד הערה. אפשר להשתמש ב-**מודגש** לטקסט מודגש."
           rows={3}
           className="w-full resize-y rounded border border-input bg-background px-2 py-1.5 text-[13px] leading-snug placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -54,7 +63,7 @@ export function NewNoteForm({ permitId }: { permitId: string }) {
               <span>
                 <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[9px]">Ctrl</kbd>+
                 <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[9px]">Enter</kbd>{" "}
-                לשליחה מהירה (בקרוב)
+                לשליחה מהירה
               </span>
             )}
           </div>

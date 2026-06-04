@@ -179,6 +179,59 @@ export async function setProjectWhatsAppDefaultRoute(args: {
   }
 }
 
+// Block 22: per-group "capture every message" toggle. When ON, the green-api
+// webhook ingests every inbound file/message in this group as a
+// PendingDocument, no @system mention required. Audit-logged on each flip.
+export async function setGroupCaptureAllFiles(args: {
+  masterDealId: string;
+  captureAllFiles: boolean;
+}): Promise<ConnectGroupResult> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const group = await prisma.projectWhatsAppGroup.findFirst({
+      where: { masterDealId: args.masterDealId, isActive: true },
+      select: {
+        id: true,
+        groupChatId: true,
+        captureAllFiles: true
+      }
+    });
+    if (!group) return { ok: false, error: "אין קבוצת WhatsApp מחוברת לפרויקט" };
+    if (group.captureAllFiles === args.captureAllFiles) return { ok: true };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.projectWhatsAppGroup.update({
+        where: { id: group.id },
+        data: { captureAllFiles: args.captureAllFiles }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.MASTER_DEAL,
+        entityId: args.masterDealId,
+        action: AuditAction.UPDATE,
+        oldValue: {
+          event: "whatsapp_group_capture_all",
+          captureAllFiles: group.captureAllFiles
+        },
+        newValue: {
+          event: "whatsapp_group_capture_all",
+          groupChatId: group.groupChatId,
+          captureAllFiles: args.captureAllFiles
+        },
+        userId: me.id
+      });
+    });
+    revalidatePath(`/projects/${args.masterDealId}/whatsapp`);
+    revalidatePath(`/projects/${args.masterDealId}`);
+    revalidatePath("/settings/whatsapp");
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "עדכון מצב לכידה נכשל"
+    };
+  }
+}
+
 export type SendProjectGroupResult =
   | { ok: true; via: "green-api"; idMessage: string }
   | { ok: false; error: string };

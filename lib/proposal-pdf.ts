@@ -529,13 +529,16 @@ export async function renderPdfBuffer(html: string): Promise<Buffer> {
 
   if (onVercel) {
     const [{ default: chromium }, puppeteer] = await Promise.all([
-      import("@sparticuz/chromium"),
+      import("@sparticuz/chromium-min"),
       import("puppeteer-core")
     ]);
-    // Force "shell" headless mode — required for the bundled chromium binary
-    // and avoids the new-headless dependency on libs that aren't always
-    // present on Vercel's runtime.
-    chromium.setHeadlessMode = true;
+    // chromium-min downloads the binary on first cold start and caches it
+    // in /tmp for the remainder of the lambda's life. Switched from
+    // @sparticuz/chromium because the bundled binary repeatedly tripped on
+    // libnss3.so on Vercel's AL2023 runtime.
+    const CHROMIUM_PACK_URL =
+      process.env.CHROMIUM_PACK_URL ||
+      "https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.x64.tar";
     const browser = await puppeteer.launch({
       args: [
         ...chromium.args,
@@ -543,9 +546,9 @@ export async function renderPdfBuffer(html: string): Promise<Buffer> {
         "--disable-web-security",
         "--font-render-hinting=none"
       ],
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless
+      defaultViewport: { width: 1280, height: 720 },
+      executablePath: await chromium.executablePath(CHROMIUM_PACK_URL),
+      headless: true
     });
     try {
       const page = await browser.newPage();

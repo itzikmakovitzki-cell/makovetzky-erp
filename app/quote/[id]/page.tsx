@@ -1,5 +1,11 @@
 import Image from "next/image";
-import { AlertTriangle, CheckCircle2, Download, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Download,
+  XCircle
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -40,6 +46,13 @@ export default async function PublicQuotePage({
   if (proposal.templateVersion >= 2) {
     const isSigned = proposal.status === "SIGNED";
     const isRejected = proposal.status === "REJECTED";
+    // 14-day soft expiry: once expiresAt is past, the public page locks the
+    // signing form (admin can extend by re-marking as SENT or editing).
+    const isExpired =
+      !!proposal.expiresAt &&
+      !isSigned &&
+      !isRejected &&
+      proposal.expiresAt.getTime() < Date.now();
     // Pre-signature: serve the HTML view (no chromium needed — fast & reliable
     // even when the puppeteer runtime on Vercel is having a bad day). The HTML
     // is styled for A4 so it looks identical to what the customer will sign.
@@ -150,6 +163,20 @@ export default async function PublicQuotePage({
                 </div>
               )}
             </div>
+          ) : isExpired ? (
+            <div className="rounded-md border border-amber-500/40 bg-amber-50/50 p-4 dark:bg-amber-500/5">
+              <div className="flex items-center gap-2">
+                <Clock className="size-5 text-amber-600" />
+                <h2 className="text-[14px] font-semibold">תוקף ההצעה פג</h2>
+              </div>
+              <div className="mt-2 text-[12px] text-muted-foreground">
+                ההצעה הייתה תקפה ל-14 ימים, ופג תוקפה בתאריך{" "}
+                <span className="tabular-nums">
+                  {formatDateTime(proposal.expiresAt)}
+                </span>
+                . ניתן לפנות אלינו לקבלת הצעה מחודשת.
+              </div>
+            </div>
           ) : (
             <section className="rounded-md border bg-card p-4">
               <h2 className="mb-1 text-[14px] font-semibold">אישור וחתימה</h2>
@@ -157,6 +184,15 @@ export default async function PublicQuotePage({
                 לאחר קריאת המסמך לעיל, מלא את הפרטים וחתום. החתימה תוטמע במסמך
                 ה-PDF, ועותק חתום יישמר אצלנו במערכת ויישלח אליך.
               </p>
+              {proposal.expiresAt && (
+                <p className="mb-3 inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                  <Clock className="size-3" />
+                  ההצעה תקפה עד{" "}
+                  <span className="tabular-nums">
+                    {formatDateTime(proposal.expiresAt)}
+                  </span>
+                </p>
+              )}
               <SignAndRejectV2
                 proposalId={proposal.id}
                 proposalPhone={proposal.customerPhone}

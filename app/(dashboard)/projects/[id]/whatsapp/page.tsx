@@ -57,6 +57,7 @@ export default async function ProjectWhatsAppPage({
             groupName: true,
             connectedAt: true,
             isActive: true,
+            captureAllFiles: true,
             connectedBy: { select: { name: true } }
           }
         }
@@ -262,7 +263,8 @@ export default async function ProjectWhatsAppPage({
                 groupName: deal.whatsappGroup.groupName,
                 connectedAt: deal.whatsappGroup.connectedAt,
                 isActive: deal.whatsappGroup.isActive,
-                connectedByName: deal.whatsappGroup.connectedBy?.name ?? null
+                connectedByName: deal.whatsappGroup.connectedBy?.name ?? null,
+                captureAllFiles: deal.whatsappGroup.captureAllFiles
               }
             : null
         }

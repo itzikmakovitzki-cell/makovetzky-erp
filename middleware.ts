@@ -33,6 +33,12 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // Vercel cron + scheduled tasks. The handlers themselves enforce a
+  // shared-secret check on the Authorization header / ?secret= param.
+  if (pathname.startsWith("/api/cron/")) {
+    return NextResponse.next();
+  }
+
   // Check session.user.id directly — Auth.js v5 can return a session shell
   // object that is truthy but has no user when there is no JWT in the edge
   // runtime, so a bare `if (session)` would let unauthenticated traffic through.

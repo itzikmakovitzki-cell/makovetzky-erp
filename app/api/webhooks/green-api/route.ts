@@ -61,7 +61,8 @@ async function upsertGroupRow(args: {
       id: true,
       masterDealId: true,
       groupChatId: true,
-      groupName: true
+      groupName: true,
+      captureAllFiles: true
     }
   });
 }
@@ -153,11 +154,19 @@ export async function POST(req: NextRequest) {
     // Spec §4.1 trigger: ingest when EITHER an @mention of the system is in
     // the body OR the user replied to a previous system message. The reply
     // path piggybacks on Green API's `quotedParticipant`, so we can detect it
-    // without storing every outbound idMessage server-side. We don't yet
-    // support the future per-group "ingest every file" toggle.
+    // without storing every outbound idMessage server-side.
+    //
+    // Per-group `captureAllFiles` override (Block 22): when admin has flipped
+    // this on for the group, skip the mention check entirely and ingest every
+    // message. The suggestedTaskName is intentionally null in that mode —
+    // there's no natural language signal saying "this becomes a task".
     const tokens = readSystemMentionTokens();
     const subject = normalized.text ?? normalized.media?.caption ?? "";
     mention = parseSystemMention(subject, tokens);
+
+    if (groupRow.captureAllFiles && !mention.mentioned) {
+      mention = { mentioned: true, suggestedTaskName: null };
+    }
 
     if (!mention.mentioned) {
       // Reply-to-system fallback: even without a textual @mention, a reply

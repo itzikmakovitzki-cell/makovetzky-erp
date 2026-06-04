@@ -2,10 +2,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowRight,
+  Bell,
   CheckCircle2,
+  Clock,
   Download,
   FileText,
   Pencil,
+  Send,
   XCircle
 } from "lucide-react";
 import { auth } from "@/auth";
@@ -15,7 +18,7 @@ import {
   PROPOSAL_STATUS_LABEL,
   PROPOSAL_STATUS_VARIANT
 } from "@/lib/status-maps";
-import { formatDate, formatILS } from "@/lib/utils";
+import { formatDate, formatDateTime, formatILS } from "@/lib/utils";
 import { ShareButtons } from "@/components/proposals/share-buttons";
 import { ConvertButton } from "@/components/proposals/convert-button";
 import { DeleteProposalButton } from "@/components/proposals/delete-proposal-button";
@@ -150,6 +153,30 @@ export default async function ProposalDetailPage({
               <p className="text-[10px] text-muted-foreground">
                 קישור חתימה: <code className="rounded bg-muted px-1 py-0.5 text-[10px]">/quote/{proposal.id}</code>
               </p>
+            </div>
+          )}
+          {/* V2 lifecycle stamps — visible to admin so they know what state
+              the quote is in, when reminders went out, etc. */}
+          {proposal.templateVersion >= 2 && (isSent || isDraft) && (
+            <div className="mt-3 grid grid-cols-1 gap-1 border-t pt-2 text-[10px] text-muted-foreground sm:grid-cols-2">
+              {proposal.sentAt && (
+                <div className="inline-flex items-center gap-1">
+                  <Send className="size-2.5" />
+                  נשלחה ב-{formatDateTime(proposal.sentAt)}
+                </div>
+              )}
+              {proposal.expiresAt && (
+                <div className="inline-flex items-center gap-1">
+                  <Clock className="size-2.5" />
+                  תקפה עד {formatDateTime(proposal.expiresAt)}
+                </div>
+              )}
+              {proposal.reminderSentAt && (
+                <div className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                  <Bell className="size-2.5" />
+                  תזכורת ללקוח נשלחה ב-{formatDateTime(proposal.reminderSentAt)}
+                </div>
+              )}
             </div>
           )}
         </div>

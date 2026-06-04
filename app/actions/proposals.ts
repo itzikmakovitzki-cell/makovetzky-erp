@@ -16,6 +16,15 @@ import {
   buildProposalStoragePath,
   uploadToStorage
 } from "@/lib/supabase-storage";
+import {
+  isGreenApiConfigured,
+  sendWhatsAppMessage
+} from "@/lib/green-api";
+import { formatDateTime, formatILS } from "@/lib/utils";
+
+// V2 quote validity window — used by markProposalSent to stamp expiresAt and
+// by the public page to lock signing once exceeded.
+const PROPOSAL_VALIDITY_DAYS = 14;
 
 type ActionResult<T = void> = { ok: boolean; error: string | null; data?: T };
 type FormState = { ok: boolean; error: string | null; id?: string };
@@ -299,17 +308,29 @@ export async function markProposalSent(
       return { ok: true, error: null }; // already sent / signed — no-op
     }
 
+    const sentAt = new Date();
+    const expiresAt = new Date(
+      sentAt.getTime() + PROPOSAL_VALIDITY_DAYS * 24 * 60 * 60 * 1000
+    );
     await prisma.$transaction(async (tx) => {
       await tx.proposal.update({
         where: { id: proposalId },
-        data: { status: ProposalStatus.SENT }
+        data: {
+          status: ProposalStatus.SENT,
+          sentAt,
+          expiresAt
+        }
       });
       await logAudit(tx, {
         entityType: AuditEntity.PROPOSAL,
         entityId: proposalId,
         action: AuditAction.STATUS_CHANGE,
         oldValue: { status: ProposalStatus.DRAFT },
-        newValue: { status: ProposalStatus.SENT },
+        newValue: {
+          status: ProposalStatus.SENT,
+          sentAt: sentAt.toISOString(),
+          expiresAt: expiresAt.toISOString()
+        },
         userId: me.id
       });
     });
@@ -517,6 +538,13 @@ export async function signProposal(
       });
     });
 
+    // Fire-and-forget admin notifications (don't fail the sign on a Green API
+    // hiccup — the signature itself is already persisted). Errors get logged
+    // but never bubble up.
+    notifyAdminsOfSignature(proposalId).catch((err) => {
+      console.warn("[signProposal] admin notification failed:", err);
+    });
+
     revalidatePath(`/quote/${proposalId}`);
     revalidatePath(`/proposals/${proposalId}`);
     revalidatePath("/proposals");
@@ -527,6 +555,64 @@ export async function signProposal(
       error: e instanceof Error ? e.message : "שגיאה לא צפויה"
     };
   }
+}
+
+// Internal helper — sends a WhatsApp message to every admin user with a
+// phone on file announcing a customer signature. Best-effort, no return.
+async function notifyAdminsOfSignature(proposalId: string): Promise<void> {
+  if (!isGreenApiConfigured()) return;
+  const proposal = await prisma.proposal.findUnique({
+    where: { id: proposalId },
+    select: {
+      id: true,
+      customerName: true,
+      customerPhone: true,
+      projectLocation: true,
+      totalAmount: true,
+      pricesIncludeVat: true,
+      signedName: true,
+      signedAt: true,
+      adminNotifiedAt: true
+    }
+  });
+  if (!proposal || proposal.adminNotifiedAt) return;
+
+  const admins = await prisma.user.findMany({
+    where: {
+      role: "ADMIN",
+      isActive: true,
+      phone: { not: null }
+    },
+    select: { id: true, phone: true }
+  });
+  if (admins.length === 0) return;
+
+  const total = formatILS(proposal.totalAmount);
+  const vatNote = proposal.pricesIncludeVat ? "כולל מע״מ" : "לפני מע״מ";
+  const locationLine = proposal.projectLocation
+    ? `מיקום: ${proposal.projectLocation}\n`
+    : "";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const link = baseUrl ? `${baseUrl}/proposals/${proposal.id}` : "";
+  const message =
+    `🎉 הצעת מחיר נחתמה!\n\n` +
+    `לקוח: ${proposal.customerName}\n` +
+    `${locationLine}` +
+    `סכום: ${total} (${vatNote})\n` +
+    `חתם: ${proposal.signedName ?? "—"}\n` +
+    `מועד: ${formatDateTime(proposal.signedAt)}\n` +
+    (link ? `\n${link}` : "");
+
+  await Promise.allSettled(
+    admins.map((a) =>
+      a.phone ? sendWhatsAppMessage({ phone: a.phone, message }) : Promise.resolve()
+    )
+  );
+
+  await prisma.proposal.update({
+    where: { id: proposalId },
+    data: { adminNotifiedAt: new Date() }
+  });
 }
 
 export async function rejectProposal(

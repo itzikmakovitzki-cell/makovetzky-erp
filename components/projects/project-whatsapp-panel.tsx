@@ -17,6 +17,7 @@ import {
   connectGroupToProject,
   disconnectGroupFromProject,
   sendProjectGroupMessage,
+  setGroupCaptureAllFiles,
   setProjectWhatsAppDefaultRoute,
   type OrphanGroup
 } from "@/app/actions/whatsapp-groups";
@@ -34,6 +35,7 @@ type ConnectedGroup = {
   connectedAt: Date;
   isActive: boolean;
   connectedByName: string | null;
+  captureAllFiles: boolean;
 };
 
 export function ProjectWhatsAppPanel({
@@ -54,6 +56,12 @@ export function ProjectWhatsAppPanel({
   const [route, setRoute] = useState<WhatsAppDefaultRoute>(defaultRoute);
   const [savingRoute, startRouteSave] = useTransition();
   const [routeError, setRouteError] = useState<string | null>(null);
+  // Block 22: per-group capture-all toggle. Mirrors the connected group's flag.
+  const [captureAll, setCaptureAll] = useState<boolean>(
+    connectedGroup?.captureAllFiles ?? false
+  );
+  const [savingCapture, startCaptureSave] = useTransition();
+  const [captureError, setCaptureError] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [greenApiConfigured, setGreenApiConfigured] = useState<boolean | null>(null);
@@ -67,6 +75,22 @@ export function ProjectWhatsAppPanel({
       alive = false;
     };
   }, []);
+
+  const toggleCaptureAll = (next: boolean) => {
+    if (next === captureAll) return;
+    setCaptureError(null);
+    setCaptureAll(next);
+    startCaptureSave(async () => {
+      const r = await setGroupCaptureAllFiles({
+        masterDealId,
+        captureAllFiles: next
+      });
+      if (!r.ok) {
+        setCaptureAll(!next);
+        setCaptureError(r.error);
+      }
+    });
+  };
 
   const changeRoute = (next: WhatsAppDefaultRoute) => {
     if (next === route) return;
@@ -138,6 +162,41 @@ export function ProjectWhatsAppPanel({
                   חבר קבוצה אחרת
                 </button>
                 <DisconnectButton masterDealId={masterDealId} />
+              </div>
+              {/* Block 22 — capture-all toggle. Full-width row below the
+                  connection summary so it's prominent but doesn't crowd
+                  the action buttons. */}
+              <div className="mt-2 w-full rounded border border-input bg-muted/30 p-2 text-[11px]">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={captureAll}
+                    onChange={(e) => toggleCaptureAll(e.target.checked)}
+                    disabled={savingCapture || !connectedGroup.isActive}
+                    className="mt-0.5 accent-foreground"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">
+                      תפוס את כל הקבצים בקבוצה
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                      כשהאפשרות פעילה, כל קובץ או הודעה בקבוצה נכנסים לתיבת
+                      הנכנסים — בלי צורך לתייג את המערכת (@system) או להגיב
+                      להודעה שלנו. ברירת המחדל: כבוי.
+                    </div>
+                    {savingCapture && (
+                      <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Loader2 className="size-2.5 animate-spin" />
+                        שומר...
+                      </div>
+                    )}
+                    {captureError && (
+                      <div className="mt-0.5 text-[10px] text-red-600">
+                        {captureError}
+                      </div>
+                    )}
+                  </div>
+                </label>
               </div>
             </div>
           ) : (

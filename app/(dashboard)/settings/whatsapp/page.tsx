@@ -1,6 +1,8 @@
-import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, XCircle, AlertCircle, Link2, Link2Off } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { isWhatsAppConfigured, getWhatsAppConfig } from "@/lib/whatsapp";
+import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,41 @@ export default async function WhatsAppSettingsPage() {
       createdAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30) }
     }
   });
+
+  // Cross-project overview of every connected WhatsApp group. Lets admin
+  // see in one place which projects are wired, which have "capture all
+  // files" on, and which orphan groups are still waiting to be assigned.
+  const [connectedGroups, orphanGroups] = await Promise.all([
+    prisma.projectWhatsAppGroup.findMany({
+      where: { isActive: true, masterDealId: { not: null } },
+      select: {
+        id: true,
+        groupChatId: true,
+        groupName: true,
+        captureAllFiles: true,
+        connectedAt: true,
+        masterDeal: {
+          select: {
+            id: true,
+            name: true,
+            client: { select: { companyName: true } }
+          }
+        }
+      },
+      orderBy: { connectedAt: "desc" }
+    }),
+    prisma.projectWhatsAppGroup.findMany({
+      where: { isActive: true, masterDealId: null },
+      select: {
+        id: true,
+        groupChatId: true,
+        groupName: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20
+    })
+  ]);
 
   return (
     <div className="space-y-6">
@@ -57,6 +94,104 @@ export default async function WhatsAppSettingsPage() {
           <span className="font-medium text-foreground">משתני סביבה ב-Vercel:</span>{" "}
           <code>WHATSAPP_WEBHOOK_SECRET</code> — מחרוזת אקראית שאתה ממציא, מודבקת גם ב-URL כפרמטר <code>secret</code>.
         </div>
+      </section>
+
+      <section className="space-y-3 border-t pt-5">
+        <h3 className="text-sm font-semibold">
+          קבוצות WhatsApp מחוברות ({connectedGroups.length})
+        </h3>
+        <p className="text-[11px] text-muted-foreground">
+          כל הקבוצות שמחוברות לפרויקטים. לחץ על שם הפרויקט כדי לעבור לטאב
+          ה-WhatsApp של אותו פרויקט ולנהל את ההגדרות (תפוס הכל / יעד ברירת מחדל / שליחה).
+        </p>
+        {connectedGroups.length === 0 ? (
+          <div className="rounded border border-dashed border-input bg-muted/30 p-3 text-[11px] text-muted-foreground">
+            אין קבוצות מחוברות עדיין. אחרי שתחבר קבוצה לפרויקט הראשון, היא תופיע כאן.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-md border bg-card">
+            <table className="w-full text-[12px]">
+              <thead className="border-b bg-muted/40 text-[10px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-2 py-1.5 text-right">קבוצה</th>
+                  <th className="px-2 py-1.5 text-right">פרויקט</th>
+                  <th className="px-2 py-1.5 text-right">לקוח</th>
+                  <th className="px-2 py-1.5 text-center">תפוס הכל</th>
+                  <th className="px-2 py-1.5 text-right">חובר ב-</th>
+                </tr>
+              </thead>
+              <tbody>
+                {connectedGroups.map((g) => (
+                  <tr key={g.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                    <td className="px-2 py-1.5">
+                      <div className="font-medium">{g.groupName ?? "(ללא שם)"}</div>
+                      <div className="text-[10px] text-muted-foreground" dir="ltr">{g.groupChatId}</div>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {g.masterDeal ? (
+                        <Link
+                          href={`/projects/${g.masterDeal.id}/whatsapp`}
+                          className="inline-flex items-center gap-1 text-foreground hover:underline"
+                        >
+                          <Link2 className="size-3 text-emerald-600" />
+                          {g.masterDeal.name}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-muted-foreground">
+                      {g.masterDeal?.client.companyName ?? "—"}
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      {g.captureAllFiles ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+                          פעיל
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">כבוי</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-[10px] tabular-nums text-muted-foreground">
+                      {formatDate(g.connectedAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {orphanGroups.length > 0 && (
+          <details className="mt-3 rounded border border-dashed border-input bg-muted/20 p-2">
+            <summary className="cursor-pointer text-[11px] font-medium">
+              קבוצות ממתינות לשיוך לפרויקט ({orphanGroups.length})
+            </summary>
+            <ul className="mt-2 space-y-1 text-[11px]">
+              {orphanGroups.map((g) => (
+                <li key={g.id} className="flex items-center justify-between gap-2 rounded bg-card px-2 py-1">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{g.groupName ?? "(ללא שם)"}</div>
+                    <div className="truncate text-[10px] text-muted-foreground" dir="ltr">
+                      {g.groupChatId}
+                    </div>
+                  </div>
+                  <div className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Link2Off className="size-3" />
+                    {formatDate(g.createdAt)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              כדי לשייך קבוצה: היכנס לעמוד פרויקט →
+              <Link href="/projects" className="underline">
+                /projects
+              </Link>
+              → לשונית WhatsApp → "חבר קבוצה".
+            </p>
+          </details>
+        )}
       </section>
 
       <section className="space-y-3 border-t pt-5">

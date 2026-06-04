@@ -778,6 +778,11 @@ model ProjectWhatsAppGroup {
   connectedAt   DateTime @default(now())
   connectedById String?
   isActive      Boolean  @default(true)
+  // When true, the green-api webhook ingests *every* file/message in this
+  // group as a PendingDocument — no @system mention or reply required.
+  // Default false preserves the existing mention-only behavior for groups
+  // that were already connected before this toggle existed.
+  captureAllFiles Boolean @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -826,6 +831,16 @@ model Proposal {
   // V2 only: do the milestone amounts already include VAT, or is VAT added
   // on top? Drives label rendering + the VAT breakdown box in the PDF.
   pricesIncludeVat   Boolean  @default(true)
+  // V2 lifecycle markers — all null on V1 rows and on V2 drafts.
+  // sentAt: when admin marked the proposal as SENT (clicked share).
+  // expiresAt: sentAt + 14d; after this the public page locks signing.
+  // reminderSentAt: when the WhatsApp reminder to the customer went out
+  // (so the cron doesn't double-send). Null = no reminder yet.
+  // adminNotifiedAt: when the admin got the WhatsApp on-sign notification.
+  sentAt             DateTime?
+  expiresAt          DateTime?
+  reminderSentAt     DateTime?
+  adminNotifiedAt    DateTime?
   signedIdNumber     String?
   signedPhone        String?
   signedIp           String?
