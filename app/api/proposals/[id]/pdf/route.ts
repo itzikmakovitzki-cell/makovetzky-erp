@@ -14,12 +14,24 @@ export const dynamic = "force-dynamic";
 
 // Public endpoint. Same security model as `/quote/[id]` — the cuid is the
 // only secret. V1 proposals never had a PDF, so this route 404s for them.
+//
+// Modes:
+//  - default / `mode=html`    : serve the proposal as A4-styled HTML. Fast,
+//    no chromium needed — used by the customer-facing iframe + admin preview.
+//  - `mode=pdf`               : try to render a PDF on the fly (chromium).
+//  - `mode=signed`            : redirect to the stored signed PDF in storage.
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const mode = req.nextUrl.searchParams.get("mode") === "signed" ? "signed" : "preview";
+  const rawMode = req.nextUrl.searchParams.get("mode") ?? "html";
+  const mode: "html" | "pdf" | "signed" =
+    rawMode === "signed"
+      ? "signed"
+      : rawMode === "pdf"
+        ? "pdf"
+        : "html";
 
   const proposal = await prisma.proposal.findFirst({
     where: { id, deletedAt: null }
@@ -59,6 +71,8 @@ export async function GET(
     ? (proposal.milestones as unknown as ProposalMilestoneLite[])
     : [];
 
+  // Build the HTML once — it's used both for HTML mode and as the source
+  // document for PDF rendering.
   const html = buildProposalHtml(
     {
       id: proposal.id,
@@ -74,6 +88,18 @@ export async function GET(
     },
     { mode: "preview" }
   );
+
+  if (mode === "html") {
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        // Allow embedding in our own /quote/[id] page's iframe.
+        "X-Frame-Options": "SAMEORIGIN"
+      }
+    });
+  }
 
   try {
     const buf = await renderPdfBuffer(html);

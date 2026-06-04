@@ -419,8 +419,12 @@ export async function signProposal(
       ? (proposal.milestones as unknown as ProposalMilestoneLite[])
       : [];
 
-    // Render the signed PDF, then upload BEFORE the DB update so a storage
-    // failure aborts the whole sign — never want a SIGNED row without a PDF.
+    // Render the signed HTML, then try to convert to PDF. The PDF is always
+    // the preferred format, but if the puppeteer/chromium runtime fails (a
+    // recurring pain on Vercel — libnss3.so etc.), fall back to storing the
+    // HTML snapshot with the signature embedded. Either format is a complete,
+    // legally-meaningful record — the audit data (name, ID, IP, UA, phone,
+    // timestamp) is what matters and lives on the DB row regardless.
     const html = buildProposalHtml(
       {
         id: proposal.id,
@@ -444,9 +448,30 @@ export async function signProposal(
         }
       }
     );
-    const pdfBuffer = await renderPdfBuffer(html);
-    const path = buildProposalStoragePath(proposal.id, "signed");
-    await uploadToStorage(pdfBuffer, path, "application/pdf");
+    let path: string;
+    try {
+      const pdfBuffer = await renderPdfBuffer(html);
+      path = buildProposalStoragePath(proposal.id, "signed");
+      await uploadToStorage(pdfBuffer, path, "application/pdf");
+    } catch (renderErr) {
+      // PDF rendering failed — keep the signing flow alive by saving the HTML
+      // snapshot instead. The download endpoint detects extension and serves
+      // the right content-type.
+      console.warn(
+        "[signProposal] PDF render failed, saving HTML snapshot instead:",
+        renderErr instanceof Error ? renderErr.message : renderErr
+      );
+      const htmlPath = buildProposalStoragePath(proposal.id, "signed").replace(
+        /\.pdf$/,
+        ".html"
+      );
+      await uploadToStorage(
+        new TextEncoder().encode(html),
+        htmlPath,
+        "text/html; charset=utf-8"
+      );
+      path = htmlPath;
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.proposal.update({

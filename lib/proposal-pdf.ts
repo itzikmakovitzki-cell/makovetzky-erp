@@ -461,10 +461,20 @@ export async function renderPdfBuffer(html: string): Promise<Buffer> {
       import("@sparticuz/chromium"),
       import("puppeteer-core")
     ]);
+    // Force "shell" headless mode — required for the bundled chromium binary
+    // and avoids the new-headless dependency on libs that aren't always
+    // present on Vercel's runtime.
+    chromium.setHeadlessMode = true;
     const browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [
+        ...chromium.args,
+        "--hide-scrollbars",
+        "--disable-web-security",
+        "--font-render-hinting=none"
+      ],
+      defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
-      headless: true
+      headless: chromium.headless
     });
     try {
       const page = await browser.newPage();

@@ -40,12 +40,14 @@ export default async function PublicQuotePage({
   if (proposal.templateVersion >= 2) {
     const isSigned = proposal.status === "SIGNED";
     const isRejected = proposal.status === "REJECTED";
-    // PDF preview iframe always shows the latest preview render. After
-    // signing we switch to the stored signed PDF so the customer sees their
-    // own signature in the document.
+    // Pre-signature: serve the HTML view (no chromium needed — fast & reliable
+    // even when the puppeteer runtime on Vercel is having a bad day). The HTML
+    // is styled for A4 so it looks identical to what the customer will sign.
+    // Post-signature: switch to the stored signed PDF so they see their own
+    // signature burned into the document.
     const pdfSrc = isSigned
       ? `/api/proposals/${proposal.id}/pdf?mode=signed`
-      : `/api/proposals/${proposal.id}/pdf?mode=preview`;
+      : `/api/proposals/${proposal.id}/pdf?mode=html`;
 
     return (
       <PublicShell>
@@ -126,7 +128,7 @@ export default async function PublicQuotePage({
                 className="mt-3 inline-flex items-center gap-1.5 rounded border border-emerald-600 bg-emerald-600 px-4 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
               >
                 <Download className="size-3.5" />
-                הורד הצעה חתומה (PDF)
+                הורד הצעה חתומה
               </a>
             </div>
           ) : isRejected ? (

@@ -135,9 +135,22 @@ export default async function ProposalDetailPage({
             />
           )}
           {(isDraft || isSent) && (
-            <p className="mt-2 text-[10px] text-muted-foreground">
-              קישור חתימה: <code className="rounded bg-muted px-1 py-0.5 text-[10px]">/quote/{proposal.id}</code>
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {proposal.templateVersion >= 2 && (
+                <a
+                  href={`/quote/${proposal.id}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-0.5 text-[11px] hover:bg-accent"
+                >
+                  <FileText className="size-2.5" />
+                  תצוגה מקדימה כפי שהלקוח יראה
+                </a>
+              )}
+              <p className="text-[10px] text-muted-foreground">
+                קישור חתימה: <code className="rounded bg-muted px-1 py-0.5 text-[10px]">/quote/{proposal.id}</code>
+              </p>
+            </div>
           )}
         </div>
       )}
@@ -261,7 +274,7 @@ export default async function ProposalDetailPage({
                   className="inline-flex items-center gap-1.5 rounded border border-emerald-600 bg-emerald-600 px-3 py-1 text-[12px] font-medium text-white hover:opacity-90"
                 >
                   <Download className="size-3" />
-                  הורד הצעה חתומה (PDF)
+                  הורד הצעה חתומה
                 </a>
               </div>
             )}
