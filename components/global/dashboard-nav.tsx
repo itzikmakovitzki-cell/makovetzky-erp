@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   BookOpen,
+  Box,
   Building2,
   Calendar as CalendarIcon,
   ChevronDown,
@@ -12,12 +13,16 @@ import {
   FileCheck2,
   FileText,
   FolderKanban,
+  History,
   Inbox,
   LayoutDashboard,
   ListChecks,
   ListTodo,
+  MessageCircle,
   Settings as SettingsIcon,
+  Trash2,
   Truck,
+  Users,
   Wallet,
   Lock
 } from "lucide-react";
@@ -29,6 +34,10 @@ type NavItem = {
   label: string;
   icon: typeof FileCheck2;
   allowed: UserRole[];
+  // When present the row renders as a nested-accordion toggle:
+  // main row links to `href`, an inline chevron button expands/collapses
+  // the children below.
+  children?: NavItem[];
 };
 
 type NavGroup = {
@@ -37,7 +46,6 @@ type NavGroup = {
   items: NavItem[];
 };
 
-// Pinned rows render above the accordion and never collapse.
 const PINNED: NavItem[] = [
   { href: "/", label: "מבט-על", icon: LayoutDashboard, allowed: ["ADMIN", "EMPLOYEE"] },
   { href: "/calendar", label: "לוח שנה", icon: CalendarIcon, allowed: ["ADMIN", "EMPLOYEE"] }
@@ -82,16 +90,31 @@ const GROUPS: NavGroup[] = [
     label: "כללי ומנהלה",
     items: [
       { href: "/guides", label: "מדריכים", icon: BookOpen, allowed: ["ADMIN", "EMPLOYEE"] },
-      { href: "/settings", label: "הגדרות", icon: SettingsIcon, allowed: ["ADMIN"] }
+      {
+        href: "/settings",
+        label: "הגדרות",
+        icon: SettingsIcon,
+        allowed: ["ADMIN"],
+        children: [
+          { href: "/settings/users", label: "משתמשים", icon: Users, allowed: ["ADMIN"] },
+          { href: "/settings/authorities", label: "רשויות", icon: Building2, allowed: ["ADMIN"] },
+          { href: "/settings/building-types", label: "סוגי בניינים", icon: Box, allowed: ["ADMIN"] },
+          { href: "/settings/templates", label: "תבניות משימות", icon: ListTodo, allowed: ["ADMIN"] },
+          { href: "/settings/whatsapp", label: "WhatsApp", icon: MessageCircle, allowed: ["ADMIN"] },
+          { href: "/settings/audit-log", label: "יומן פעולות", icon: History, allowed: ["ADMIN"] },
+          { href: "/settings/recycle-bin", label: "סל המחזור", icon: Trash2, allowed: ["ADMIN"] }
+        ]
+      }
     ]
   }
 ];
 
-// User asked for "tasks" open on first paint.
 const DEFAULT_OPEN_GROUP = "tasks";
 
 function isItemActive(item: NavItem, pathname: string) {
-  // "/" and "/finances" need exact match — see original NAV_ITEMS comment.
+  // "/" and "/finances" need exact match. For items with children (e.g.
+  // /settings), the parent is "active" whenever any sub-path matches —
+  // which startsWith already handles.
   const isExactOnly = item.href === "/" || item.href === "/finances";
   return isExactOnly
     ? pathname === item.href
@@ -100,9 +123,24 @@ function isItemActive(item: NavItem, pathname: string) {
 
 function findActiveGroupId(pathname: string): string | null {
   for (const group of GROUPS) {
-    if (group.items.some((item) => isItemActive(item, pathname))) return group.id;
+    for (const item of group.items) {
+      if (isItemActive(item, pathname)) return group.id;
+      if (item.children?.some((c) => isItemActive(c, pathname))) return group.id;
+    }
   }
   return null;
+}
+
+function findInitialOpenSubmenus(pathname: string): Set<string> {
+  const s = new Set<string>();
+  for (const group of GROUPS) {
+    for (const item of group.items) {
+      if (item.children && pathname.startsWith(`${item.href}/`)) {
+        s.add(item.href);
+      }
+    }
+  }
+  return s;
 }
 
 export function DashboardNav({ role }: { role?: UserRole }) {
@@ -111,10 +149,11 @@ export function DashboardNav({ role }: { role?: UserRole }) {
   const [openGroup, setOpenGroup] = useState<string | null>(
     activeGroupId ?? DEFAULT_OPEN_GROUP
   );
+  const [openSubmenus, setOpenSubmenus] = useState<Set<string>>(() =>
+    findInitialOpenSubmenus(pathname)
+  );
 
-  // Route changed into a different group → snap that group open so the
-  // user can see where they landed. Manual collapses are NOT overridden
-  // (openGroup excluded from deps on purpose).
+  // Snap the relevant category open when the route lands inside it.
   useEffect(() => {
     if (activeGroupId && activeGroupId !== openGroup) {
       setOpenGroup(activeGroupId);
@@ -122,19 +161,46 @@ export function DashboardNav({ role }: { role?: UserRole }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGroupId]);
 
+  // Snap a submenu open if the user navigates into a sub-path of it
+  // (e.g. lands on /settings/users → make sure the הגדרות sub-menu is open).
+  useEffect(() => {
+    const needed = findInitialOpenSubmenus(pathname);
+    if (needed.size === 0) return;
+    setOpenSubmenus((prev) => {
+      let next = prev;
+      let changed = false;
+      for (const href of needed) {
+        if (!next.has(href)) {
+          if (!changed) {
+            next = new Set(next);
+            changed = true;
+          }
+          next.add(href);
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [pathname]);
+
+  const toggleSubmenu = (href: string) => {
+    setOpenSubmenus((prev) => {
+      const next = new Set(prev);
+      if (next.has(href)) next.delete(href);
+      else next.add(href);
+      return next;
+    });
+  };
+
   return (
     <nav className="flex flex-col gap-0.5 text-[13px]" aria-label="ניווט ראשי">
-      {/* Pinned rows — always visible */}
       <div className="flex flex-col gap-0.5">
         {PINNED.map((item) => (
           <NavRow key={item.href} item={item} pathname={pathname} role={role} />
         ))}
       </div>
 
-      {/* Hairline separator between pinned and accordion */}
       <div className="my-1.5 border-t border-white/10" aria-hidden />
 
-      {/* Accordion groups — single-open. Click open category to collapse it. */}
       <div className="flex flex-col gap-0.5">
         {GROUPS.map((group) => {
           const isOpen = openGroup === group.id;
@@ -158,9 +224,6 @@ export function DashboardNav({ role }: { role?: UserRole }) {
                 />
                 <span className="flex-1 truncate">{group.label}</span>
               </button>
-              {/* CSS grid-rows trick: animates from 0fr → 1fr smoothly, no JS
-                  height measurement, works with dynamic content. The inner
-                  overflow-hidden is required for the clip during transition. */}
               <div
                 id={panelId}
                 className={cn(
@@ -170,14 +233,25 @@ export function DashboardNav({ role }: { role?: UserRole }) {
               >
                 <div className="overflow-hidden">
                   <div className="mt-0.5 flex flex-col gap-0.5 ps-2">
-                    {group.items.map((item) => (
-                      <NavRow
-                        key={item.href}
-                        item={item}
-                        pathname={pathname}
-                        role={role}
-                      />
-                    ))}
+                    {group.items.map((item) =>
+                      item.children ? (
+                        <ExpandableNavRow
+                          key={item.href}
+                          item={item}
+                          pathname={pathname}
+                          role={role}
+                          isExpanded={openSubmenus.has(item.href)}
+                          onToggle={() => toggleSubmenu(item.href)}
+                        />
+                      ) : (
+                        <NavRow
+                          key={item.href}
+                          item={item}
+                          pathname={pathname}
+                          role={role}
+                        />
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -238,5 +312,115 @@ function NavRow({
       />
       <span className="flex-1 truncate">{item.label}</span>
     </Link>
+  );
+}
+
+// Split-row pattern (GitHub-style): the row body is a Link that navigates
+// to the parent route; the inline chevron button toggles the nested
+// sub-menu without navigating.
+function ExpandableNavRow({
+  item,
+  pathname,
+  role,
+  isExpanded,
+  onToggle
+}: {
+  item: NavItem;
+  pathname: string;
+  role?: UserRole;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const isAllowed = role ? item.allowed.includes(role) : true;
+  const isActive = isItemActive(item, pathname);
+  const panelId = `nav-sub-${item.href.replace(/\//g, "-")}`;
+
+  if (!isAllowed) {
+    return (
+      <span
+        className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2.5 py-1.5 text-white/30"
+        title="אין הרשאה — מיועד למנהל"
+      >
+        <item.icon className="size-4 shrink-0" strokeWidth={1.75} />
+        <span className="flex-1 truncate">{item.label}</span>
+        <Lock className="size-3 shrink-0" />
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-col">
+      <div
+        className={cn(
+          "group/expandable relative flex items-stretch gap-0.5 rounded-md transition-colors",
+          isActive ? "" : "hover:bg-white/5"
+        )}
+      >
+        <Link
+          href={item.href}
+          aria-current={isActive ? "page" : undefined}
+          className={cn(
+            "relative flex flex-1 items-center gap-2.5 rounded-md px-2.5 py-1.5 transition-all duration-150",
+            isActive
+              ? "bg-primary font-medium text-primary-foreground shadow-sm"
+              : "text-white/75 hover:bg-white/10 hover:text-white"
+          )}
+        >
+          {isActive && (
+            <span
+              className="absolute inset-y-1 start-0 w-0.5 rounded-full bg-primary-foreground/60"
+              aria-hidden
+            />
+          )}
+          <item.icon
+            className={cn(
+              "size-4 shrink-0 transition-transform duration-150",
+              isActive ? "scale-110" : "text-white/60 group-hover/expandable:text-white"
+            )}
+            strokeWidth={isActive ? 2.25 : 1.75}
+          />
+          <span className="flex-1 truncate">{item.label}</span>
+        </Link>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isExpanded}
+          aria-controls={panelId}
+          aria-label={isExpanded ? `סגור תפריט משנה — ${item.label}` : `פתח תפריט משנה — ${item.label}`}
+          className="flex items-center justify-center rounded-md px-1.5 text-white/55 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <ChevronDown
+            className={cn(
+              "size-3.5 transition-transform duration-200 ease-out",
+              isExpanded ? "rotate-0" : "-rotate-90"
+            )}
+            strokeWidth={2}
+            aria-hidden
+          />
+        </button>
+      </div>
+      <div
+        id={panelId}
+        className={cn(
+          "grid transition-[grid-template-rows] duration-200 ease-out",
+          isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        )}
+      >
+        <div className="overflow-hidden">
+          {/* ps-5 = parent icon (size-4) + gap (gap-2.5) ≈ 28-30px; visually
+              hangs the children off the parent's label axis. */}
+          <div className="mt-0.5 flex flex-col gap-0.5 ps-5">
+            {item.children?.map((child) => (
+              <NavRow
+                key={child.href}
+                item={child}
+                pathname={pathname}
+                role={role}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
