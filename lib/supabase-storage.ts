@@ -58,6 +58,17 @@ export function buildPendingStoragePath(fileName: string): string {
   return `pending/${ts}-${rand}-${safe}`;
 }
 
+// Block 30 polish: supplier logos live under their own prefix so the
+// /portal/partners grid can cheaply enumerate logos without scanning the
+// rest of the document tree. Same bucket as the rest — RLS isn't a worry
+// because admin-only writes + signed-URL reads at render time.
+export function buildSupplierLogoStoragePath(supplierId: string, fileName: string): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const safe = fileName.replace(/[^A-Za-z0-9._-]/g, "_");
+  return `suppliers/${supplierId}/logo-${ts}-${rand}-${safe}`;
+}
+
 export async function uploadToStorage(
   buffer: ArrayBuffer | Uint8Array,
   path: string,

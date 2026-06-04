@@ -81,7 +81,7 @@ export function SupplierFormDialog({
       }}
       className="w-[560px] max-w-[calc(100vw-2rem)] rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40"
     >
-      <form action={formAction} dir="rtl">
+      <form action={formAction} dir="rtl" encType="multipart/form-data">
         {mode === "edit" && initial?.id && (
           <input type="hidden" name="supplierId" value={initial.id} />
         )}
@@ -307,15 +307,26 @@ export function SupplierFormDialog({
                   className={`${inputClass} resize-y`}
                 />
               </Label>
-              <Label text="קישור ללוגו (URL מלא או נתיב Storage)">
+              <Label text="קישור ללוגו (URL מלא — אופציונלי)">
                 <input
                   type="text"
                   name="logoUrl"
                   maxLength={500}
-                  placeholder="https://… או suppliers/<id>/logo.png"
+                  placeholder="https://… (להשאיר ריק אם מעלים קובץ)"
                   defaultValue={initial?.logoUrl ?? ""}
                   className={inputClass}
                 />
+              </Label>
+              <Label text="או העלאת קובץ לוגו (PNG/JPG/WEBP/SVG, עד 5MB)">
+                <input
+                  type="file"
+                  name="logoFile"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                  className="block w-full text-[12px] file:me-2 file:rounded file:border file:border-input file:bg-background file:px-2 file:py-1 file:text-[12px] file:font-medium file:text-foreground hover:file:bg-accent"
+                />
+                <span className="mt-1 block text-[10px] text-muted-foreground">
+                  אם תעלה קובץ, הוא יחליף את הקישור למעלה.
+                </span>
               </Label>
             </div>
           </fieldset>

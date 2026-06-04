@@ -5,6 +5,48 @@ import { AuditAction, Prisma, SupplierCommissionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import {
+  buildSupplierLogoStoragePath,
+  uploadToStorage
+} from "@/lib/supabase-storage";
+
+// Block 30 polish — logos can come in two flavours:
+//   * a typed URL (existing field, kept for back-compat + external CDNs)
+//   * a file upload (new — uploaded to Supabase Storage under
+//     suppliers/<id>/logo-<ts>-<rand>-<name>, path saved to logoUrl).
+// The portal/grid renderer already resolves Storage paths via signed URLs
+// and external URLs verbatim, so the consumer side needs no changes.
+const ALLOWED_LOGO_MIMES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/svg+xml",
+  "image/gif"
+]);
+const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB
+
+type LogoUploadInput =
+  | { kind: "file"; file: File }
+  | { kind: "none" };
+
+function readLogoUpload(formData: FormData): LogoUploadInput | { kind: "error"; error: string } {
+  const raw = formData.get("logoFile");
+  if (!(raw instanceof File) || raw.size === 0) return { kind: "none" };
+  if (!ALLOWED_LOGO_MIMES.has(raw.type)) {
+    return { kind: "error", error: "סוג קובץ לא נתמך — חייב להיות PNG/JPG/WEBP/SVG/GIF" };
+  }
+  if (raw.size > MAX_LOGO_BYTES) {
+    return { kind: "error", error: "הקובץ גדול מ-5MB" };
+  }
+  return { kind: "file", file: raw };
+}
+
+async function persistLogoFile(supplierId: string, file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const path = buildSupplierLogoStoragePath(supplierId, file.name);
+  await uploadToStorage(buffer, path, file.type);
+  return path;
+}
 
 export type SupplierFormState = { error: string | null; ok: boolean };
 type DeleteResult = { ok: true } | { ok: false; error: string };
@@ -94,22 +136,65 @@ export async function submitSupplier(
     const commission = parseCommission(formData);
     if (!commission.ok) return { error: commission.error, ok: false };
 
+    const logoUpload = readLogoUpload(formData);
+    if (logoUpload.kind === "error") return { error: logoUpload.error, ok: false };
+
+    // Insert first to obtain the id, then (if file present) upload + update.
+    // Two-phase write: any storage failure after insert leaves the supplier
+    // with the typed URL (if any) — never a stale path. Same audit row
+    // captures the final state after the upload completes.
+    const created = await prisma.supplier.create({
+      data: {
+        ...fields,
+        defaultCommissionType: commission.type,
+        defaultCommissionValue: commission.value
+          ? new Prisma.Decimal(commission.value)
+          : null
+      },
+      select: { id: true }
+    });
+
+    let finalLogoUrl = fields.logoUrl;
+    if (logoUpload.kind === "file") {
+      try {
+        finalLogoUrl = await persistLogoFile(created.id, logoUpload.file);
+        await prisma.supplier.update({
+          where: { id: created.id },
+          data: { logoUrl: finalLogoUrl }
+        });
+      } catch (e) {
+        // Don't roll back the supplier — admins can re-upload from the edit
+        // form. Surface the error so they see the upload failed.
+        await prisma.$transaction(async (tx) => {
+          await logAudit(tx, {
+            entityType: AuditEntity.SUPPLIER,
+            entityId: created.id,
+            action: AuditAction.CREATE,
+            newValue: {
+              ...fields,
+              defaultCommissionType: commission.type,
+              defaultCommissionValue: commission.value,
+              logoUploadError: e instanceof Error ? e.message : "unknown"
+            },
+            userId: me.id
+          });
+        });
+        revalidatePath("/suppliers");
+        return {
+          error: `הספק נשמר, אך העלאת הלוגו נכשלה: ${e instanceof Error ? e.message : "שגיאה"}`,
+          ok: false
+        };
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
-      const s = await tx.supplier.create({
-        data: {
-          ...fields,
-          defaultCommissionType: commission.type,
-          defaultCommissionValue: commission.value
-            ? new Prisma.Decimal(commission.value)
-            : null
-        }
-      });
       await logAudit(tx, {
         entityType: AuditEntity.SUPPLIER,
-        entityId: s.id,
+        entityId: created.id,
         action: AuditAction.CREATE,
         newValue: {
           ...fields,
+          logoUrl: finalLogoUrl,
           defaultCommissionType: commission.type,
           defaultCommissionValue: commission.value
         },
@@ -118,6 +203,8 @@ export async function submitSupplier(
     });
 
     revalidatePath("/suppliers");
+    revalidatePath("/portal/partners");
+    revalidatePath("/partners");
     return { error: null, ok: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "שגיאה לא צפויה", ok: false };
@@ -147,11 +234,30 @@ export async function updateSupplier(
     const commission = parseCommission(formData);
     if (!commission.ok) return { error: commission.error, ok: false };
 
+    const logoUpload = readLogoUpload(formData);
+    if (logoUpload.kind === "error") return { error: logoUpload.error, ok: false };
+
+    // Edit path: we already have the id so we can upload before the DB
+    // write. If upload fails the transaction never runs — supplier stays
+    // exactly as it was.
+    let finalLogoUrl = fields.logoUrl;
+    if (logoUpload.kind === "file") {
+      try {
+        finalLogoUrl = await persistLogoFile(supplierId, logoUpload.file);
+      } catch (e) {
+        return {
+          error: `העלאת הלוגו נכשלה: ${e instanceof Error ? e.message : "שגיאה"}`,
+          ok: false
+        };
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.supplier.update({
         where: { id: supplierId },
         data: {
           ...fields,
+          logoUrl: finalLogoUrl,
           defaultCommissionType: commission.type,
           defaultCommissionValue: commission.value
             ? new Prisma.Decimal(commission.value)
@@ -180,6 +286,7 @@ export async function updateSupplier(
         },
         newValue: {
           ...fields,
+          logoUrl: finalLogoUrl,
           defaultCommissionType: commission.type,
           defaultCommissionValue: commission.value
         },
@@ -189,6 +296,8 @@ export async function updateSupplier(
 
     revalidatePath("/suppliers");
     revalidatePath(`/suppliers?supplier=${supplierId}`);
+    revalidatePath("/portal/partners");
+    revalidatePath("/partners");
     return { error: null, ok: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "שגיאה לא צפויה", ok: false };
