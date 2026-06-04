@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Link
           href="/"
           aria-label="מקובצקי — לדף הבית"
-          className="mb-4 flex shrink-0 items-center justify-center rounded-md bg-brand-cream px-3 py-2 shadow-sm transition-opacity hover:opacity-95"
+          className="mb-4 flex shrink-0 items-center justify-center rounded-md border-2 border-primary bg-brand-cream px-3 py-2 shadow-sm transition-opacity hover:opacity-95"
         >
           <Image
             src="/logo-horizontal.png"
