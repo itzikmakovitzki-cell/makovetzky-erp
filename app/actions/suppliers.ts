@@ -58,6 +58,12 @@ function readSupplierForm(formData: FormData) {
   const defaultPaymentTerms =
     String(formData.get("defaultPaymentTerms") || "").trim() || null;
   const notes = String(formData.get("notes") || "").trim() || null;
+  // Block 30 (Partners Marketplace) — opt-in publishing + client-facing copy.
+  // Checkbox submits "true" when checked, absent when not.
+  const isPublic = String(formData.get("isPublic") || "") === "true";
+  const marketingDescription =
+    String(formData.get("marketingDescription") || "").trim() || null;
+  const logoUrl = String(formData.get("logoUrl") || "").trim() || null;
   return {
     name,
     type,
@@ -67,7 +73,10 @@ function readSupplierForm(formData: FormData) {
     website,
     services,
     defaultPaymentTerms,
-    notes
+    notes,
+    isPublic,
+    marketingDescription,
+    logoUrl
   };
 }
 
@@ -164,7 +173,10 @@ export async function updateSupplier(
           defaultCommissionType: existing.defaultCommissionType,
           defaultCommissionValue: existing.defaultCommissionValue?.toString() ?? null,
           defaultPaymentTerms: existing.defaultPaymentTerms,
-          notes: existing.notes
+          notes: existing.notes,
+          isPublic: existing.isPublic,
+          marketingDescription: existing.marketingDescription,
+          logoUrl: existing.logoUrl
         },
         newValue: {
           ...fields,

@@ -155,7 +155,10 @@ async function SupplierDetail({
       defaultCommissionType: true,
       defaultCommissionValue: true,
       defaultPaymentTerms: true,
-      notes: true
+      notes: true,
+      isPublic: true,
+      marketingDescription: true,
+      logoUrl: true
     }
   });
 
@@ -260,7 +263,10 @@ async function SupplierDetail({
                     defaultCommissionValue:
                       supplier.defaultCommissionValue?.toString() ?? null,
                     defaultPaymentTerms: supplier.defaultPaymentTerms,
-                    notes: supplier.notes
+                    notes: supplier.notes,
+                    isPublic: supplier.isPublic,
+                    marketingDescription: supplier.marketingDescription,
+                    logoUrl: supplier.logoUrl
                   }}
                   typeSuggestions={typeSuggestions}
                 />
@@ -280,7 +286,17 @@ async function SupplierDetail({
             )
           }
         >
-          <div className="text-sm font-semibold">{supplier.name}</div>
+          <div className="flex items-center gap-1.5">
+            <div className="text-sm font-semibold">{supplier.name}</div>
+            {supplier.isPublic && (
+              <span
+                className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+                title="ספק מפורסם ב-Partners Marketplace בפורטל הלקוחות"
+              >
+                פורסם
+              </span>
+            )}
+          </div>
           {supplier.type && (
             <div className="text-[11px] text-muted-foreground">{supplier.type}</div>
           )}

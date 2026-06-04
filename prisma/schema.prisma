@@ -608,12 +608,22 @@ model Supplier {
   // Free-text payment terms ("שוטף+30", "מקדמה 50%", "במזומן בסיום").
   defaultPaymentTerms    String?
   notes                  String?
+  // Block 30 (Partners Marketplace). isPublic = surface in the client portal
+  // marketplace at /portal/partners + the PM "הזמן ספק" dialog on the permit
+  // page. marketingDescription is the client-facing pitch (kept separate from
+  // `services` which is back-office shorthand). logoUrl is either a Supabase
+  // storage path or an absolute URL; resolved at render time via the same
+  // signed-URL helper used for documents.
+  isPublic               Boolean  @default(false)
+  marketingDescription   String?
+  logoUrl                String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   taskAssignments SupplierTaskAssignment[]
 
   @@index([name])
+  @@index([isPublic])
 }
 
 // Powers the cross-project "Bulk View" of open work per supplier.
