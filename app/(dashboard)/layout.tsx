@@ -19,16 +19,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 flex-col border-l border-white/10 bg-brand-navy px-3 py-4 text-brand-navy-foreground md:flex md:sticky md:top-0 md:h-screen">
+        {/* Horizontal logo art is light-bg; mount it on a brand-cream chip so
+            it stays brand-correct against the dark navy sidebar (same pattern
+            as the mobile top bar). */}
         <Link
           href="/"
           aria-label="מקובצקי — לדף הבית"
-          className="mb-4 flex shrink-0 items-center justify-center transition-opacity hover:opacity-90"
+          className="mb-4 flex shrink-0 items-center justify-center rounded-md bg-brand-cream px-3 py-2 shadow-sm transition-opacity hover:opacity-95"
         >
           <Image
-            src="/logo-dark.png"
+            src="/logo-horizontal.png"
             alt="מקובצקי — ניהול פרויקטים · הביורוקרטיה — עלינו"
             width={600}
-            height={600}
+            height={300}
             priority
             className="h-auto w-full object-contain"
           />
