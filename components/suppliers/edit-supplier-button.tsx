@@ -11,10 +11,12 @@ import {
 // dialog pre-filled with the supplier's current values.
 export function EditSupplierButton({
   supplier,
-  typeSuggestions
+  typeSuggestions,
+  categoryOptions
 }: {
   supplier: SupplierInitialValues & { id: string; name: string };
   typeSuggestions: string[];
+  categoryOptions: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -32,6 +34,7 @@ export function EditSupplierButton({
           mode="edit"
           initial={supplier}
           typeSuggestions={typeSuggestions}
+          categoryOptions={categoryOptions}
           onClose={() => setOpen(false)}
         />
       )}

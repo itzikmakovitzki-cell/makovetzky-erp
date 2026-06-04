@@ -27,7 +27,8 @@ export const AuditEntity = {
   PORTAL_ACCESS: "PORTAL_ACCESS",
   PROPOSAL: "PROPOSAL",
   DEAL_MILESTONE: "DEAL_MILESTONE",
-  AUTHORITY_SUBMISSION: "AUTHORITY_SUBMISSION"
+  AUTHORITY_SUBMISSION: "AUTHORITY_SUBMISSION",
+  PARTNER_CATEGORY: "PARTNER_CATEGORY"
 } as const;
 
 export type AuditEntityValue = (typeof AuditEntity)[keyof typeof AuditEntity] | (string & {});

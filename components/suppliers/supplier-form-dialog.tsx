@@ -33,17 +33,23 @@ export type SupplierInitialValues = {
   isPublic?: boolean | null;
   marketingDescription?: string | null;
   logoUrl?: string | null;
+  categoryId?: string | null;
 };
 
 export function SupplierFormDialog({
   mode,
   initial,
   typeSuggestions,
+  categoryOptions,
   onClose
 }: {
   mode: "create" | "edit";
   initial?: SupplierInitialValues;
   typeSuggestions: string[];
+  // PartnerCategory rows in display order — drives the dropdown next to
+  // the back-office `type` field. Empty list = admin has no categories
+  // configured yet (we surface a link to /settings/partner-categories).
+  categoryOptions: { id: string; name: string }[];
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -128,6 +134,47 @@ export function SupplierFormDialog({
               </datalist>
             </Label>
           </div>
+
+          {/* Marketplace category — broader than the back-office `type` field.
+              Drives the filter pills on /partners + /portal/partners. Free
+              to leave empty for a supplier that doesn't fit any bucket. */}
+          <Label text="קטגוריית מאגר השותפים">
+            {categoryOptions.length === 0 ? (
+              <div className="rounded border border-dashed bg-muted/30 px-2 py-1.5 text-[11px] text-muted-foreground">
+                לא הוגדרו קטגוריות עדיין —{" "}
+                <a
+                  href="/settings/partner-categories"
+                  className="underline-offset-2 hover:underline"
+                >
+                  צור את הראשונה
+                </a>
+                .
+              </div>
+            ) : (
+              <select
+                name="categoryId"
+                defaultValue={initial?.categoryId ?? ""}
+                className={inputClass}
+              >
+                <option value="">— ללא קטגוריה —</option>
+                {categoryOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <span className="mt-1 block text-[10px] text-muted-foreground">
+              הקטגוריה מופיעה כפילטר ב-/partners. לניהול הקטגוריות:{" "}
+              <a
+                href="/settings/partner-categories"
+                className="underline-offset-2 hover:underline"
+              >
+                הגדרות → קטגוריות שותפים
+              </a>
+              .
+            </span>
+          </Label>
 
           <Label text='שירותים שהספק נותן (תיאור חופשי — "בדיקות חשמל ובניית ת.ת")'>
             <textarea
