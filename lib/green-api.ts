@@ -249,6 +249,13 @@ export function deriveGreenApiFileName(typeMessage: string, mimeType: string | n
 const SEND_URL_TEMPLATE =
   "https://api.green-api.com/waInstance{idInstance}/sendMessage/{apiTokenInstance}";
 
+// sendFileByUrl: Green API pulls a file from a publicly-fetchable URL and
+// posts it as a WhatsApp media message. The URL doesn't need to be public
+// in the search-engine sense — a Supabase signed URL works because it's
+// just an HTTPS GET that anyone with the link can resolve.
+const SEND_FILE_URL_TEMPLATE =
+  "https://api.green-api.com/waInstance{idInstance}/sendFileByUrl/{apiTokenInstance}";
+
 export function isGreenApiConfigured(): boolean {
   return (
     !!process.env.GREEN_API_ID_INSTANCE &&
@@ -297,6 +304,71 @@ export async function sendWhatsAppMessage(args: {
       // 15s upper bound — Green API normally responds in well under 2s.
       // Without this a hanging connection would freeze the server action.
       signal: AbortSignal.timeout(15_000)
+    });
+    if (!res.ok) {
+      let bodyText = "";
+      try {
+        bodyText = await res.text();
+      } catch {
+        // ignore — error already surfaces via status
+      }
+      return {
+        ok: false,
+        error: `Green API החזיר ${res.status}${bodyText ? ` — ${bodyText.slice(0, 200)}` : ""}`
+      };
+    }
+    const body = (await res.json()) as { idMessage?: string };
+    if (!body.idMessage) {
+      return { ok: false, error: "Green API החזיר תגובה ללא idMessage" };
+    }
+    return { ok: true, idMessage: body.idMessage };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `שגיאת רשת מול Green API: ${msg}` };
+  }
+}
+
+// Sends a media file (image / pdf / doc / etc.) via Green API. Accepts a URL
+// Green API can fetch — typically a Supabase signed URL from our private
+// bucket. Optional caption is rendered as the WhatsApp message text under
+// the media. The chatId can be a `*@c.us` (1-on-1) or `*@g.us` (group).
+export async function sendWhatsAppFile(args: {
+  chatId?: string;
+  phone?: string;
+  fileUrl: string;
+  fileName: string;
+  caption?: string;
+}): Promise<GreenApiSendResult> {
+  const idInstance = process.env.GREEN_API_ID_INSTANCE;
+  const apiTokenInstance = process.env.GREEN_API_TOKEN_INSTANCE;
+  if (!idInstance || !apiTokenInstance) {
+    return { ok: false, error: "Green API לא מוגדר במערכת" };
+  }
+  const chatId = args.chatId ?? (args.phone ? phoneToChatId(args.phone) : null);
+  if (!chatId) {
+    return { ok: false, error: "chatId / מספר טלפון לא תקין" };
+  }
+  if (!args.fileUrl) {
+    return { ok: false, error: "fileUrl חסר" };
+  }
+
+  const url = SEND_FILE_URL_TEMPLATE
+    .replace("{idInstance}", idInstance)
+    .replace("{apiTokenInstance}", apiTokenInstance);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chatId,
+        urlFile: args.fileUrl,
+        fileName: args.fileName,
+        caption: args.caption ?? undefined
+      }),
+      // Green API needs to download the file from urlFile before responding,
+      // so the upper bound here is more generous than the text-send timeout.
+      signal: AbortSignal.timeout(45_000)
     });
     if (!res.ok) {
       let bodyText = "";

@@ -3,7 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
-      bodySizeLimit: "25mb"
+      // 70mb leaves headroom over the 64mb WhatsApp media cap so we can
+      // reject the file gracefully at the action level instead of the proxy
+      // truncating mid-upload.
+      bodySizeLimit: "70mb"
     }
   },
   // Puppeteer + the Sparticuz chromium binary can't be bundled — they're loaded

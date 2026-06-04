@@ -8,14 +8,17 @@ import {
   Link2Off,
   Loader2,
   MessageCircle,
+  Paperclip,
   ShieldOff,
-  Unplug
+  Unplug,
+  X
 } from "lucide-react";
 import type { WhatsAppDefaultRoute } from "@prisma/client";
 import {
   checkGreenApiConfiguredForGroups,
   connectGroupToProject,
   disconnectGroupFromProject,
+  sendProjectGroupFile,
   sendProjectGroupMessage,
   setGroupCaptureAllFiles,
   setProjectWhatsAppDefaultRoute,
@@ -431,25 +434,55 @@ function GroupComposeDialog({
   onClose: () => void;
 }) {
   const [text, setText] = useState(`עדכון בנושא הפרויקט ${dealName}\n\n`);
+  const [file, setFile] = useState<File | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
+  const onPickFile = (f: File | null) => {
+    setError(null);
+    if (!f) {
+      setFile(null);
+      return;
+    }
+    if (f.size > 64 * 1024 * 1024) {
+      setError("הקובץ גדול מ-64MB");
+      return;
+    }
+    setFile(f);
+    // Default the caption to empty (rather than the long boilerplate from
+    // text-only sends) so the file stands on its own unless admin types.
+    if (!text.trim() || text.trim() === `עדכון בנושא הפרויקט ${dealName}`) {
+      setText("");
+    }
+  };
+
   const send = () => {
     setError(null);
     const trimmed = text.trim();
-    if (!trimmed) {
-      setError("ההודעה ריקה");
+    if (!file && !trimmed) {
+      setError("ההודעה ריקה — הוסף טקסט או בחר קובץ");
       return;
     }
     const proceed = window.confirm(
-      `לשלוח את ההודעה לקבוצה "${groupName}"?\n\nכולם בקבוצה יקבלו אותה. ההודעה תצא מהמערכת מיד דרך Green API.`
+      file
+        ? `לשלוח את הקובץ "${file.name}" לקבוצה "${groupName}"?\n\nכולם בקבוצה יקבלו אותו.`
+        : `לשלוח את ההודעה לקבוצה "${groupName}"?\n\nכולם בקבוצה יקבלו אותה. ההודעה תצא מהמערכת מיד דרך Green API.`
     );
     if (!proceed) return;
     startTransition(async () => {
-      const r = await sendProjectGroupMessage({ masterDealId, message: trimmed });
+      let r: { ok: boolean; error?: string };
+      if (file) {
+        const fd = new FormData();
+        fd.set("masterDealId", masterDealId);
+        fd.set("caption", trimmed);
+        fd.set("file", file);
+        r = await sendProjectGroupFile(fd);
+      } else {
+        r = await sendProjectGroupMessage({ masterDealId, message: trimmed });
+      }
       if (!r.ok) {
-        setError(r.error);
+        setError(r.error ?? "שליחה נכשלה");
         return;
       }
       setSent(true);
@@ -471,15 +504,50 @@ function GroupComposeDialog({
         <div className="space-y-2 px-3 py-3">
           <p className="text-[10.5px] text-muted-foreground">
             ההודעה תישלח דרך Green API לכל חברי הקבוצה ברגע שתאשר.
+            ניתן לצרף קובץ (תמונה, PDF, וידאו וכו') עד 64MB.
           </p>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={6}
-            placeholder="הקלד את ההודעה לקבוצה…"
+            rows={file ? 3 : 6}
+            placeholder={file ? "הוסף תיאור לקובץ (לא חובה)…" : "הקלד את ההודעה לקבוצה…"}
             className="w-full resize-y rounded border border-input bg-background px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
             autoFocus
           />
+
+          {/* File attachment row */}
+          {file ? (
+            <div className="flex items-center justify-between gap-2 rounded border border-input bg-muted/30 px-2 py-1.5 text-[11px]">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Paperclip className="size-3 shrink-0 text-emerald-600" />
+                <span className="truncate font-medium">{file.name}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onPickFile(null)}
+                disabled={pending}
+                title="הסר קובץ"
+                className="inline-flex items-center justify-center rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-red-600 disabled:opacity-50"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ) : (
+            <label className="inline-flex cursor-pointer items-center gap-1 rounded border border-dashed border-input bg-muted/20 px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/40">
+              <Paperclip className="size-3" />
+              צרף קובץ
+              <input
+                type="file"
+                className="hidden"
+                onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+                disabled={pending}
+              />
+            </label>
+          )}
+
           {error && (
             <p className="inline-flex items-center gap-1 text-[11px] text-red-700">
               <AlertTriangle className="size-3" />
@@ -512,10 +580,12 @@ function GroupComposeDialog({
               <Loader2 className="size-3 animate-spin" />
             ) : sent ? (
               <CheckCircle2 className="size-3" />
+            ) : file ? (
+              <Paperclip className="size-3" />
             ) : (
               <MessageCircle className="size-3" />
             )}
-            📤 שלח עכשיו
+            {file ? "📎 שלח קובץ" : "📤 שלח עכשיו"}
           </button>
         </div>
       </div>

@@ -74,7 +74,33 @@ export function PendingDocMobileCard({
       </CardHeader>
 
       <CardContent className="text-[11px]">
-        {doc.senderInfo && <div className="text-foreground">{doc.senderInfo}</div>}
+        {doc.sourceProjectId && doc.sourceProjectName && (
+          <Link
+            href={`/projects/${doc.sourceProjectId}/whatsapp`}
+            className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-200"
+            title={`קבוצה: ${doc.groupName ?? doc.groupChatId}`}
+          >
+            מפרויקט: {doc.sourceProjectName}
+          </Link>
+        )}
+        {!doc.sourceProjectId && doc.groupChatId && (
+          <div className="text-[10px] text-amber-700 dark:text-amber-300">
+            קבוצה לא מקושרת: {doc.groupName ?? "(ללא שם)"}
+          </div>
+        )}
+        {doc.authorName && (
+          <div className="text-foreground">
+            {doc.authorName}
+            {doc.authorPhone && (
+              <span className="ms-1 text-[10px] text-muted-foreground tabular-nums" dir="ltr">
+                {doc.authorPhone}
+              </span>
+            )}
+          </div>
+        )}
+        {!doc.authorName && doc.senderInfo && (
+          <div className="text-foreground">{doc.senderInfo}</div>
+        )}
         {doc.rawMessage && (
           <div className="italic text-muted-foreground line-clamp-2">
             &ldquo;{doc.rawMessage}&rdquo;

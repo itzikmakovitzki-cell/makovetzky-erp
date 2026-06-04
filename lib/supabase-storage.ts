@@ -38,6 +38,19 @@ export function buildProposalStoragePath(
   return `proposals/${proposalId}/${kind}-${ts}-${rand}.pdf`;
 }
 
+// Path for files we upload before forwarding the signed URL to Green API
+// for outbound WhatsApp media. Lives under the same bucket as the rest of
+// the documents so signed-URL plumbing is uniform.
+export function buildWhatsAppOutgoingStoragePath(
+  masterDealId: string,
+  fileName: string
+): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const safe = fileName.replace(/[^A-Za-z0-9._-]/g, "_");
+  return `whatsapp-outgoing/${masterDealId}/${ts}-${rand}-${safe}`;
+}
+
 export function buildPendingStoragePath(fileName: string): string {
   const ts = Date.now();
   const rand = Math.random().toString(36).slice(2, 8);

@@ -7,8 +7,14 @@ import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 import {
   isGreenApiConfigured,
+  sendWhatsAppFile,
   sendWhatsAppMessage
 } from "@/lib/green-api";
+import {
+  buildWhatsAppOutgoingStoragePath,
+  createSignedUrl,
+  uploadToStorage
+} from "@/lib/supabase-storage";
 
 // Spec: docs/spec-whatsapp-groups.md (PR-2).
 // Outbound to a project's WhatsApp group + admin wiring of orphan groups
@@ -375,6 +381,136 @@ export async function sendProjectGroupMessage(args: {
     });
     revalidatePath(`/projects/${args.masterDealId}/whatsapp`);
     return { ok: true, via: "green-api", idMessage: body.idMessage };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "השליחה נכשלה"
+    };
+  }
+}
+
+// Same as sendProjectGroupMessage, but for media. Accepts a FormData with
+// `masterDealId`, optional `caption`, and a `file` Blob. The file is uploaded
+// to Supabase Storage under a `whatsapp-outgoing/{masterDealId}/...` path;
+// the signed URL (1h TTL — plenty for Green API to fetch on its side) is
+// then handed to Green API's sendFileByUrl endpoint. Per spec §5.1 the
+// transport is Green API only — no wa.me deeplink fallback.
+export async function sendProjectGroupFile(
+  formData: FormData
+): Promise<SendProjectGroupResult> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const masterDealId = String(formData.get("masterDealId") || "").trim();
+    const caption = String(formData.get("caption") || "").trim();
+    const file = formData.get("file");
+    if (!masterDealId) return { ok: false, error: "מזהה הפרויקט חסר" };
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, error: "לא נבחר קובץ" };
+    }
+    // Guardrail — Green API hard-limits uploads at ~64 MB. Reject early with
+    // a friendlier error instead of letting the upstream complain.
+    if (file.size > 64 * 1024 * 1024) {
+      return { ok: false, error: "הקובץ גדול מ-64MB" };
+    }
+
+    const deal = await prisma.masterDeal.findFirst({
+      where: { id: masterDealId, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        whatsappDefaultRoute: true,
+        whatsappGroup: {
+          select: {
+            id: true,
+            groupChatId: true,
+            groupName: true,
+            isActive: true
+          }
+        }
+      }
+    });
+    if (!deal) return { ok: false, error: "הפרויקט לא נמצא" };
+    if (deal.whatsappDefaultRoute === "NONE") {
+      return { ok: false, error: "שליחת WhatsApp כבויה לפרויקט הזה" };
+    }
+    const group = deal.whatsappGroup;
+    if (!group || !group.isActive) {
+      return { ok: false, error: "לא קיימת קבוצה פעילה משויכת לפרויקט" };
+    }
+    if (!isGreenApiConfigured()) {
+      return {
+        ok: false,
+        error: "Green API לא מוגדר — שליחה לקבוצה אפשרית רק דרך Green API"
+      };
+    }
+
+    // Upload → signed URL → Green API. If Green API fails we leave the file
+    // in storage (cheap, lets the admin retry without re-uploading).
+    const fileName = file.name || `file-${Date.now()}`;
+    const path = buildWhatsAppOutgoingStoragePath(masterDealId, fileName);
+    const buffer = new Uint8Array(await file.arrayBuffer());
+    await uploadToStorage(buffer, path, file.type || "application/octet-stream");
+    // 1-hour TTL on the signed URL — Green API typically pulls the file in
+    // seconds, but allow margin for retries.
+    const signedUrl = await createSignedUrl(path, 3600);
+
+    const result = await sendWhatsAppFile({
+      chatId: group.groupChatId,
+      fileUrl: signedUrl,
+      fileName,
+      caption: caption || undefined
+    });
+
+    if (!result.ok) {
+      await prisma.$transaction(async (tx) => {
+        await logAudit(tx, {
+          entityType: AuditEntity.MASTER_DEAL,
+          entityId: masterDealId,
+          action: AuditAction.UPDATE,
+          newValue: {
+            event: "whatsapp_group_send_failed",
+            transport: "green-api",
+            kind: "media",
+            groupChatId: group.groupChatId,
+            groupName: group.groupName,
+            error: result.error,
+            fileName,
+            mimeType: file.type,
+            sizeBytes: file.size,
+            caption: caption || null,
+            storagePath: path,
+            dealName: deal.name
+          },
+          userId: me.id
+        });
+      });
+      return { ok: false, error: result.error };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await logAudit(tx, {
+        entityType: AuditEntity.MASTER_DEAL,
+        entityId: masterDealId,
+        action: AuditAction.UPDATE,
+        newValue: {
+          event: "whatsapp_group_sent",
+          transport: "green-api",
+          kind: "media",
+          idMessage: result.idMessage,
+          groupChatId: group.groupChatId,
+          groupName: group.groupName,
+          fileName,
+          mimeType: file.type,
+          sizeBytes: file.size,
+          caption: caption || null,
+          storagePath: path,
+          dealName: deal.name
+        },
+        userId: me.id
+      });
+    });
+    revalidatePath(`/projects/${masterDealId}/whatsapp`);
+    return { ok: true, via: "green-api", idMessage: result.idMessage };
   } catch (e) {
     return {
       ok: false,

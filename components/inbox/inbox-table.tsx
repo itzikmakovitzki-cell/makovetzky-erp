@@ -34,6 +34,17 @@ export type PendingDocRow = PendingDocForDialog & {
   assignedPermitName: string | null;
   assignedTaskId: string | null;
   assignedTaskName: string | null;
+  // WhatsApp source provenance — null on non-group rows (email, manual,
+  // 1-on-1 messages). When the doc came from a project's group, surface the
+  // group name + the linked project so the admin sees "X sent this from
+  // project Y" without expanding the row.
+  groupChatId: string | null;
+  groupName: string | null;
+  authorName: string | null;
+  authorPhone: string | null;
+  suggestedTaskName: string | null;
+  sourceProjectId: string | null;
+  sourceProjectName: string | null;
 };
 
 const STATUS_LABEL: Record<PendingDocumentStatus, string> = {
@@ -214,9 +225,38 @@ export function InboxTable({
                       )}
                     </div>
                   </td>
-                  <td className="text-xs">{d.sourceChannel}</td>
+                  <td className="text-xs">
+                    <div>{d.sourceChannel}</div>
+                    {d.sourceProjectId && d.sourceProjectName && (
+                      <Link
+                        href={`/projects/${d.sourceProjectId}/whatsapp`}
+                        className="mt-0.5 inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1 py-0.5 text-[9px] font-medium text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-200"
+                        title={`קבוצה: ${d.groupName ?? d.groupChatId}`}
+                      >
+                        {d.sourceProjectName}
+                      </Link>
+                    )}
+                    {!d.sourceProjectId && d.groupChatId && (
+                      <span
+                        className="mt-0.5 block text-[9px] text-amber-700 dark:text-amber-300"
+                        title="הקבוצה לא מקושרת לפרויקט"
+                      >
+                        קבוצה: {d.groupName ?? "(ללא שם)"}
+                      </span>
+                    )}
+                  </td>
                   <td className="text-[11px]">
-                    {d.senderInfo && <div>{d.senderInfo}</div>}
+                    {d.authorName && (
+                      <div className="font-medium">{d.authorName}</div>
+                    )}
+                    {d.senderInfo && !d.authorName && (
+                      <div>{d.senderInfo}</div>
+                    )}
+                    {d.authorPhone && (
+                      <div className="text-[10px] text-muted-foreground tabular-nums" dir="ltr">
+                        {d.authorPhone}
+                      </div>
+                    )}
                     {d.rawMessage && (
                       <div className="italic text-muted-foreground line-clamp-1">
                         &ldquo;{d.rawMessage}&rdquo;
