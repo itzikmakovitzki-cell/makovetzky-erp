@@ -30,6 +30,11 @@ export type PortalTaskRowData = {
   needsAttention: boolean;
   responsibility: TaskResponsibility | null;
   documents: PortalTaskDoc[];
+  // Block 30: contractors now see all tasks for a permit, but read-only
+  // on those not assigned to them. When false → upload button hidden +
+  // visual dim. Defaults to true so admin / direct-assignee rendering
+  // is unchanged.
+  isReadOnly?: boolean;
 };
 
 const STATUS_ICON: Record<TaskStatus, React.ComponentType<{ className?: string }>> = {
@@ -51,14 +56,16 @@ export function PortalTaskRow({
 }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const Icon = STATUS_ICON[task.status];
-  const canUpload = !permitLocked && task.status !== "COMPLETED";
+  const canUpload = !permitLocked && task.status !== "COMPLETED" && !task.isReadOnly;
 
   return (
     <li
       className={
-        task.needsAttention
-          ? "rounded-md border border-amber-500/50 bg-amber-50/50 p-3 dark:bg-amber-500/5"
-          : "rounded-md border bg-card p-3"
+        task.isReadOnly
+          ? "rounded-md border border-dashed bg-muted/20 p-3 opacity-75"
+          : task.needsAttention
+            ? "rounded-md border border-amber-500/50 bg-amber-50/50 p-3 dark:bg-amber-500/5"
+            : "rounded-md border bg-card p-3"
       }
     >
       <div className="flex items-start gap-2">
@@ -90,9 +97,14 @@ export function PortalTaskRow({
                 באיחור
               </span>
             )}
-            {task.needsAttention && (
+            {task.needsAttention && !task.isReadOnly && (
               <span className="rounded border border-amber-500/50 bg-amber-100/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
                 דורש את תשומת ליבך
+              </span>
+            )}
+            {task.isReadOnly && (
+              <span className="rounded border border-muted-foreground/30 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                לצפייה בלבד
               </span>
             )}
           </div>

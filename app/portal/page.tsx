@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Building2, Inbox, Lock } from "lucide-react";
+import { ArrowLeft, Building2, Inbox, Lock, Briefcase } from "lucide-react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -71,13 +71,24 @@ export default async function PortalDashboardPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-base font-semibold sm:text-lg">שלום, {session.user.name}</h1>
-        <p className="mt-0.5 text-[12px] text-muted-foreground">
-          {noAccess
-            ? "עוד לא הוקצתה לך גישה לפרויקטים. צוות מקובצקי יחבר אותך בקרוב."
-            : `${permits.length} ${permits.length === 1 ? "היתר זמין" : "היתרים זמינים"} לצפייה.`}
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h1 className="text-base font-semibold sm:text-lg">שלום, {session.user.name}</h1>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
+            {noAccess
+              ? "עוד לא הוקצתה לך גישה לפרויקטים. צוות מקובצקי יחבר אותך בקרוב."
+              : `${permits.length} ${permits.length === 1 ? "היתר זמין" : "היתרים זמינים"} לצפייה.`}
+          </p>
+        </div>
+        {/* Block 30: surface the Partners Marketplace entry from the landing
+            page so clients discover the supplier directory without hunting. */}
+        <Link
+          href="/portal/partners"
+          className="inline-flex items-center gap-1.5 rounded-full border border-input bg-card px-3 py-1 text-[12px] font-medium text-foreground hover:bg-accent"
+        >
+          <Briefcase className="size-3" />
+          מאגר ספקים ושותפים
+        </Link>
       </header>
 
       {noAccess && (

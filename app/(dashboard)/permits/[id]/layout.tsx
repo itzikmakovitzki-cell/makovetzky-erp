@@ -8,6 +8,7 @@ import { SheetButton } from "@/components/global/sheet-button";
 import { FinanceSummary } from "@/components/permit/finance-summary";
 import { DocumentsSummary } from "@/components/permit/documents-summary";
 import { CompletionBanner } from "@/components/permit/completion-banner";
+import { InvitePartnerButton } from "@/components/permit/invite-partner-button";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +33,18 @@ export default async function PermitLayout({
 
   if (!permit) notFound();
 
-  const [taskTotal, taskCompleted, financeCount, docsCount, notesCount] = await Promise.all([
+  const [taskTotal, taskCompleted, financeCount, docsCount, notesCount, partnerSuppliers] = await Promise.all([
     prisma.task.count({ where: { permitId: id, deletedAt: null } }),
     prisma.task.count({ where: { permitId: id, status: "COMPLETED", deletedAt: null } }),
     prisma.billingMilestone.count({ where: { permitId: id } }),
     prisma.document.count({ where: { permitId: id, deletedAt: null } }),
-    prisma.note.count({ where: { permitId: id } })
+    prisma.note.count({ where: { permitId: id } }),
+    // Block 30: public suppliers feed the "הזמן ספק" dialog in the action row.
+    prisma.supplier.findMany({
+      where: { isPublic: true },
+      select: { id: true, name: true, type: true, marketingDescription: true },
+      orderBy: { name: "asc" }
+    })
   ]);
 
   const progressPercent = taskTotal === 0 ? 0 : Math.round((taskCompleted / taskTotal) * 100);
@@ -85,7 +92,12 @@ export default async function PermitLayout({
           inside the "ניהול פיננסי" side drawer, so the permit screen is safe to
           present to a client at any time. */}
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <InvitePartnerButton
+            permitId={id}
+            permitLabel={permit.name}
+            suppliers={partnerSuppliers}
+          />
           <SheetButton
             label="ניהול פיננסי"
             title={`ניהול פיננסי — ${permit.name}`}
