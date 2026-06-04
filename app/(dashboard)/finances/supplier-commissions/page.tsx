@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Coins, AlertCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Coins, AlertCircle, ListTodo } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/global/page-header";
 import { CommissionsPeriodFilter } from "@/components/finances/commissions-period-filter";
 import { CommissionsExportButton } from "@/components/finances/commissions-export-button";
+import { MarkPaidButton } from "@/components/finances/mark-paid-button";
 import {
   isValidPreset,
   resolveCommissionAmount,
   resolvePeriod
 } from "@/lib/commissions";
-import { cn, formatILS } from "@/lib/utils";
+import { cn, formatDate, formatILS } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -165,6 +166,89 @@ export default async function SupplierCommissionsPage({
 
   const buckets = [...bySupplier.values()].sort(
     (a, b) => b.outstandingAmount - a.outstandingAmount
+  );
+
+  // Phase 2.5: flat list of every outstanding commission across the whole
+  // business — completed work, still unpaid. Period-independent (this is
+  // about open liability, not "what happened this month"). Newest at top so
+  // recent debts surface first; the admin can mark each paid inline.
+  const outstandingAssignments = await prisma.supplierTaskAssignment.findMany({
+    where: {
+      status: "COMPLETED",
+      commissionPaidAt: null,
+      task: { deletedAt: null, permit: { deletedAt: null } }
+    },
+    select: {
+      id: true,
+      amount: true,
+      commissionType: true,
+      commissionValue: true,
+      completedAt: true,
+      dueDate: true,
+      supplier: {
+        select: {
+          id: true,
+          name: true,
+          defaultCommissionType: true,
+          defaultCommissionValue: true
+        }
+      },
+      task: {
+        select: {
+          id: true,
+          name: true,
+          permit: {
+            select: {
+              id: true,
+              name: true,
+              masterDeal: {
+                select: {
+                  id: true,
+                  name: true,
+                  client: { select: { companyName: true } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }]
+  });
+
+  const outstandingRows = outstandingAssignments
+    .map((a) => ({
+      assignmentId: a.id,
+      supplierId: a.supplier.id,
+      supplierName: a.supplier.name,
+      taskName: a.task.name,
+      permitName: a.task.permit.name,
+      permitId: a.task.permit.id,
+      dealId: a.task.permit.masterDeal.id,
+      dealName: a.task.permit.masterDeal.name,
+      clientName: a.task.permit.masterDeal.client.companyName,
+      completedAt: a.completedAt,
+      dueDate: a.dueDate,
+      commission: resolveCommissionAmount({
+        override: {
+          type: a.commissionType,
+          value: a.commissionValue !== null ? Number(a.commissionValue) : null
+        },
+        supplierDefault: {
+          type: a.supplier.defaultCommissionType,
+          value:
+            a.supplier.defaultCommissionValue !== null
+              ? Number(a.supplier.defaultCommissionValue)
+              : null
+        },
+        baseAmount: a.amount !== null ? Number(a.amount) : null
+      })
+    }))
+    .filter((r) => r.commission !== null && r.commission > 0);
+
+  const outstandingTotal = outstandingRows.reduce(
+    (s, r) => s + (r.commission ?? 0),
+    0
   );
 
   return (
@@ -413,6 +497,111 @@ export default async function SupplierCommissionsPage({
           )}
         </table>
       </div>
+
+      {/* Flat outstanding list — period-independent. Surfaces every unpaid
+          commission across the business so the admin sees the bill they owe
+          without drilling into each supplier first. */}
+      <section className="mt-2 rounded-md border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
+          <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <ListTodo className="size-3.5 text-amber-600" />
+            עמלות פתוחות — דרגברית
+          </h2>
+          <div className="text-[11px]">
+            סה״כ:{" "}
+            <span className="font-semibold tabular-nums text-amber-700 dark:text-amber-300">
+              {formatILS(outstandingTotal)}
+            </span>
+            <span className="ms-1 text-muted-foreground">
+              ({outstandingRows.length})
+            </span>
+          </div>
+        </div>
+        {outstandingRows.length === 0 ? (
+          <div className="px-3 py-4 text-center text-[12px] text-muted-foreground">
+            אין עמלות פתוחות. כל הכבוד.
+          </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th>ספק</th>
+                    <th>משימה</th>
+                    <th>פרויקט / לקוח</th>
+                    <th className="w-28">הושלמה ב-</th>
+                    <th className="w-32 text-end">סכום</th>
+                    <th className="w-32 text-center">פעולה</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outstandingRows.map((r) => (
+                    <tr key={r.assignmentId}>
+                      <td className="text-[12px]">
+                        <Link
+                          href={`/suppliers?supplier=${r.supplierId}&all=true`}
+                          className="text-foreground hover:underline"
+                        >
+                          {r.supplierName}
+                        </Link>
+                      </td>
+                      <td className="text-[12px]">{r.taskName}</td>
+                      <td className="text-[11px] text-muted-foreground">
+                        <Link
+                          href={`/projects/${r.dealId}`}
+                          className="hover:underline"
+                        >
+                          {r.dealName}
+                        </Link>
+                        <span className="mx-1">·</span>
+                        {r.clientName}
+                      </td>
+                      <td className="text-[11px] tabular-nums text-muted-foreground">
+                        {r.completedAt ? formatDate(r.completedAt) : "—"}
+                      </td>
+                      <td className="text-end text-[12px] font-medium tabular-nums text-amber-700 dark:text-amber-300">
+                        {formatILS(r.commission)}
+                      </td>
+                      <td className="text-center">
+                        <MarkPaidButton assignmentId={r.assignmentId} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y">
+              {outstandingRows.map((r) => (
+                <div key={r.assignmentId} className="space-y-1.5 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium">{r.supplierName}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {r.taskName}
+                      </div>
+                    </div>
+                    <div className="text-end text-[13px] font-semibold tabular-nums text-amber-700 dark:text-amber-300">
+                      {formatILS(r.commission)}
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {r.dealName} · {r.clientName}
+                    {r.completedAt && (
+                      <> · הושלמה {formatDate(r.completedAt)}</>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <MarkPaidButton assignmentId={r.assignmentId} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
     </section>
   );
 }
