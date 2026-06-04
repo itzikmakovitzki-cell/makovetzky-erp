@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRight, Lock, Building2, Upload as UploadIcon } from "lucide-react";
+import { ArrowRight, Lock, Building2, FileText, ExternalLink, ListChecks, FolderOpen } from "lucide-react";
 import type { TaskStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { PERMIT_STATUS_LABEL, PERMIT_STATUS_VARIANT } from "@/lib/status-maps";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { createSignedUrlsSafe, isStoragePath } from "@/lib/supabase-storage";
 import {
   assertPortalAccessToPermit,
@@ -32,15 +32,23 @@ const STATUS_GROUP_ORDER: TaskStatus[] = [
 ];
 
 export default async function PortalPermitDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
   const user = { id: session.user.id, role: session.user.role };
 
   const { id: permitId } = await params;
+  const sp = await searchParams;
+  // Block 30: two server-rendered tabs on this page — "timeline" (default,
+  // tasks) and "docs" (construction documents archive). Anything other
+  // than "docs" snaps back to the timeline so a stray URL never lands the
+  // contractor on a blank screen.
+  const activeTab: "timeline" | "docs" = sp.tab === "docs" ? "docs" : "timeline";
 
   // Access check first — throws if no PortalAccess (and not admin).
   try {
@@ -76,15 +84,13 @@ export default async function PortalPermitDetailPage({
   });
   if (!permit) notFound();
 
-  // Contractors only see tasks assigned to them personally — admins viewing
-  // the portal (for support) still see everything.
-  const taskWhere = {
-    permitId,
-    deletedAt: null,
-    ...(user.role === "CONTRACTOR" ? { assigneeId: user.id } : {})
-  };
+  // Block 30: contractors now see every task on the permit, not just the
+  // ones assigned to them. Tasks where they're not the assignee render
+  // read-only (no upload button, dimmed) — the security boundary stays:
+  // PortalAccess gates the *permit*, the per-task assignee flag drives
+  // what they can *modify*.
   const tasks = await prisma.task.findMany({
-    where: taskWhere,
+    where: { permitId, deletedAt: null },
     select: {
       id: true,
       name: true,
@@ -94,6 +100,7 @@ export default async function PortalPermitDetailPage({
       frozen: true,
       isSpotlight: true,
       responsibility: true,
+      assigneeId: true,
       documents: {
         where: { deletedAt: null },
         select: { id: true, fileName: true, fileUrl: true, createdAt: true },
@@ -103,11 +110,29 @@ export default async function PortalPermitDetailPage({
     orderBy: [{ createdAt: "asc" }]
   });
 
+  // Block 30: the "docs" tab also surfaces permit-level documents (those
+  // not bound to a specific task — general construction archive). Pulled
+  // here so the signed-URL batch covers both task-level docs and archive
+  // docs in one Supabase round-trip.
+  const archiveDocs = await prisma.document.findMany({
+    where: { permitId, taskId: null, deletedAt: null },
+    select: {
+      id: true,
+      fileName: true,
+      fileUrl: true,
+      createdAt: true,
+      mimeType: true,
+      sizeBytes: true
+    },
+    orderBy: { createdAt: "desc" }
+  });
+
   // One-shot signed-URL batch so each attached document gets a clickable
   // link. External URLs in legacy seeds pass through unchanged.
-  const storagePaths = tasks
-    .flatMap((t) => t.documents.map((d) => d.fileUrl))
-    .filter(isStoragePath);
+  const storagePaths = [
+    ...tasks.flatMap((t) => t.documents.map((d) => d.fileUrl)),
+    ...archiveDocs.map((d) => d.fileUrl)
+  ].filter(isStoragePath);
   const signed = await createSignedUrlsSafe(storagePaths);
   const previewUrlFor = (fileUrl: string): string | null => {
     if (!fileUrl) return null;
@@ -131,6 +156,11 @@ export default async function PortalPermitDetailPage({
       t.status !== "COMPLETED" &&
       t.dueDate !== null &&
       new Date(t.dueDate).getTime() < now.getTime();
+    // Read-only for contractors when the task isn't assigned to them.
+    // Admins / employees keep full control (they're viewing the portal
+    // for support).
+    const isReadOnly =
+      user.role === "CONTRACTOR" && t.assigneeId !== user.id;
     return {
       id: t.id,
       name: t.name,
@@ -138,14 +168,15 @@ export default async function PortalPermitDetailPage({
       status: t.status,
       dueDate: t.dueDate ? t.dueDate.toISOString() : null,
       isOverdue,
-      needsAttention,
+      needsAttention: needsAttention && !isReadOnly,
       responsibility: t.responsibility,
       documents: docs.map((d) => ({
         id: d.id,
         fileName: d.fileName,
         previewUrl: previewUrlFor(d.fileUrl),
         uploadedAt: d.createdAt.toISOString()
-      }))
+      })),
+      isReadOnly
     };
   });
 
@@ -214,39 +245,157 @@ export default async function PortalPermitDetailPage({
         </div>
       </header>
 
-      <section className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[13px] font-semibold">משימות בהיתר</h2>
-        {!isLocked && (
-          <PortalUploadDialogTrigger permitId={permit.id} />
-        )}
-      </section>
+      {/* Tabs — server-rendered via search params so we keep zero client-
+          side state on the portal page. Two views: ציר זמן (default) and
+          מסמכי בנייה (Block 30 archive). */}
+      <nav
+        role="tablist"
+        aria-label="תצוגת היתר"
+        className="flex items-center gap-1 border-b"
+      >
+        <PortalTab
+          href={`/portal/permit/${permit.id}`}
+          active={activeTab === "timeline"}
+          icon={<ListChecks className="size-3.5" />}
+          label="ציר זמן ומשימות"
+        />
+        <PortalTab
+          href={`/portal/permit/${permit.id}?tab=docs`}
+          active={activeTab === "docs"}
+          icon={<FolderOpen className="size-3.5" />}
+          label={`מסמכי בנייה (${archiveDocs.length})`}
+        />
+      </nav>
 
-      {grouped.length === 0 ? (
-        <div className="rounded-md border bg-card p-6 text-center text-[12px] text-muted-foreground">
-          טרם הוגדרו משימות בהיתר זה.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {grouped.map((g) => (
-            <section key={g.status} className="space-y-2">
-              <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                {sectionLabel(g.status)} <span className="tabular-nums">({g.rows.length})</span>
-              </h3>
-              <ul className="space-y-2">
-                {g.rows.map((row) => (
-                  <PortalTaskRow
-                    key={row.id}
-                    task={row}
-                    permitId={permit.id}
-                    permitLocked={isLocked}
-                  />
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+      {activeTab === "timeline" && (
+        <>
+          <section className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[13px] font-semibold">משימות בהיתר</h2>
+            {!isLocked && (
+              <PortalUploadDialogTrigger permitId={permit.id} />
+            )}
+          </section>
+
+          {grouped.length === 0 ? (
+            <div className="rounded-md border bg-card p-6 text-center text-[12px] text-muted-foreground">
+              טרם הוגדרו משימות בהיתר זה.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {grouped.map((g) => (
+                <section key={g.status} className="space-y-2">
+                  <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {sectionLabel(g.status)} <span className="tabular-nums">({g.rows.length})</span>
+                  </h3>
+                  <ul className="space-y-2">
+                    {g.rows.map((row) => (
+                      <PortalTaskRow
+                        key={row.id}
+                        task={row}
+                        permitId={permit.id}
+                        permitLocked={isLocked}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === "docs" && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-[13px] font-semibold">ארכיון מסמכי בנייה</h2>
+              <p className="text-[11px] text-muted-foreground">
+                מסמכים כלליים של הפרויקט — טפסי בדיקות, אישורי תקן, היתרים,
+                ומה שהקבלן צריך להעלות לתיק. מסמכים שמוצמדים למשימה ספציפית
+                מוצגים בלשונית &quot;ציר זמן ומשימות&quot;.
+              </p>
+            </div>
+            {!isLocked && (
+              <PortalUploadDialogTrigger permitId={permit.id} />
+            )}
+          </div>
+
+          {archiveDocs.length === 0 ? (
+            <div className="rounded-md border bg-card p-6 text-center text-[12px] text-muted-foreground">
+              עוד לא הועלו מסמכי בנייה. הקלק על &quot;העלאת מסמך כללי&quot;
+              כדי להוסיף.
+            </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {archiveDocs.map((d) => {
+                const url = previewUrlFor(d.fileUrl);
+                return (
+                  <li
+                    key={d.id}
+                    className="flex items-center gap-2 rounded-md border bg-card px-3 py-2"
+                  >
+                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      {url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-w-0 items-center gap-1 text-[12px] font-medium underline-offset-2 hover:underline"
+                        >
+                          <span className="truncate">{d.fileName}</span>
+                          <ExternalLink className="size-2.5 shrink-0 text-muted-foreground" />
+                        </a>
+                      ) : (
+                        <span className="text-[12px] font-medium">{d.fileName}</span>
+                      )}
+                      <div className="text-[10px] text-muted-foreground">
+                        {formatDate(d.createdAt)}
+                        {d.sizeBytes != null && (
+                          <span className="ms-1">
+                            · {Math.max(1, Math.round(d.sizeBytes / 1024))} KB
+                          </span>
+                        )}
+                        {d.mimeType && <span className="ms-1">· {d.mimeType}</span>}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       )}
     </div>
+  );
+}
+
+function PortalTab({
+  href,
+  active,
+  icon,
+  label
+}: {
+  href: string;
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      role="tab"
+      aria-selected={active}
+      className={cn(
+        "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-[12px] transition-colors",
+        active
+          ? "border-foreground font-semibold text-foreground"
+          : "border-transparent text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {icon}
+      {label}
+    </Link>
   );
 }
 
