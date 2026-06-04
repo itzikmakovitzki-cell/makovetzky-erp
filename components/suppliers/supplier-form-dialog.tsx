@@ -30,6 +30,9 @@ export type SupplierInitialValues = {
   defaultCommissionValue?: string | number | null;
   defaultPaymentTerms?: string | null;
   notes?: string | null;
+  isPublic?: boolean | null;
+  marketingDescription?: string | null;
+  logoUrl?: string | null;
 };
 
 export function SupplierFormDialog({
@@ -267,6 +270,55 @@ export function SupplierFormDialog({
               className={`${inputClass} resize-y`}
             />
           </Label>
+
+          {/* Partners Marketplace (Block 30). Off by default — admin opts in
+              explicitly. When on, this supplier shows up in /portal/partners
+              and on the PM "הזמן ספק" dialog. The marketing copy + logo are
+              kept separate from `services` / `notes` so the public view never
+              accidentally leaks internal shorthand. */}
+          <fieldset className="rounded border bg-muted/20 px-2 py-2">
+            <legend className="px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              חשיפה ב-Partners Marketplace
+            </legend>
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                name="isPublic"
+                value="true"
+                defaultChecked={!!initial?.isPublic}
+                className="mt-1 size-3.5 cursor-pointer accent-primary"
+              />
+              <span className="text-[11px] leading-tight">
+                פרסם את הספק בפורטל הלקוחות והפעל את כפתור &quot;בקש שירות&quot;.
+                <span className="block text-[10px] text-muted-foreground">
+                  כשמסומן, הספק מופיע ב-<code>/portal/partners</code> ובדיאלוג
+                  &quot;הזמן ספק&quot; בעמוד ההיתר.
+                </span>
+              </span>
+            </label>
+            <div className="mt-2 space-y-2">
+              <Label text="תיאור שיווקי (לעיני הלקוחות)">
+                <textarea
+                  name="marketingDescription"
+                  rows={2}
+                  maxLength={500}
+                  placeholder="לדוגמה: מעבדה מורשית לבדיקות חשמל, מענה תוך 24 שעות, ניסיון של 15 שנים."
+                  defaultValue={initial?.marketingDescription ?? ""}
+                  className={`${inputClass} resize-y`}
+                />
+              </Label>
+              <Label text="קישור ללוגו (URL מלא או נתיב Storage)">
+                <input
+                  type="text"
+                  name="logoUrl"
+                  maxLength={500}
+                  placeholder="https://… או suppliers/<id>/logo.png"
+                  defaultValue={initial?.logoUrl ?? ""}
+                  className={inputClass}
+                />
+              </Label>
+            </div>
+          </fieldset>
 
           {state.error && (
             <div className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-700 dark:text-red-300">
