@@ -23,6 +23,7 @@ import type {
   TaskNotesViewer
 } from "@/components/tasks/task-notes-panel";
 import { TaskQuickNotesTrigger } from "@/components/tasks/task-quick-notes-dialog";
+import { GenerateFormButton } from "@/components/tasks/generate-form-button";
 import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT
@@ -214,6 +215,13 @@ export function PermitTaskMobileCard({
 
       <CardFooter className="ps-5">
         <div className="flex items-center gap-0.5">
+          {task.status !== "COMPLETED" && (
+            <GenerateFormButton
+              taskId={task.id}
+              taskName={task.name}
+              variant="compact"
+            />
+          )}
           <SnoozeButton taskId={task.id} />
           <TaskEditButton
             task={{
