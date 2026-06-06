@@ -75,11 +75,11 @@ export async function PartnersMarketplace({
       select: {
         id: true,
         name: true,
-        type: true,
+        // `type` keyword search still applies (see supplierWhere above) but
+        // we don't display the raw type badge on the public card — category
+        // already covers the "what kind of supplier" job.
         marketingDescription: true,
         logoUrl: true,
-        website: true,
-        categoryId: true,
         category: { select: { id: true, name: true } }
       },
       orderBy: [{ name: "asc" }]
@@ -269,27 +269,10 @@ export async function PartnersMarketplace({
                   <div className="text-[15px] font-semibold leading-tight text-foreground">
                     {s.name}
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1">
-                    {s.category && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                        {s.category.name}
-                      </span>
-                    )}
-                    {s.type && (
-                      <span className="rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        {s.type}
-                      </span>
-                    )}
-                  </div>
-                  {s.website && (
-                    <a
-                      href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-block text-[10px] text-muted-foreground underline-offset-2 hover:underline"
-                    >
-                      {s.website}
-                    </a>
+                  {s.category && (
+                    <span className="mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                      {s.category.name}
+                    </span>
                   )}
                 </div>
               </div>
@@ -300,10 +283,12 @@ export async function PartnersMarketplace({
                 </p>
               )}
 
-              <div className="mt-auto flex items-center justify-between gap-2 pt-4">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-primary">
-                  הטבת חברים
-                </span>
+              {/* Block 31 cleanup: card body is intentionally minimal —
+                  Name + Category + marketingDescription + CTA. The
+                  legacy `type` badge, raw `website` URL, and "הטבת
+                  חברים" pill were stripped to keep the grid uniform
+                  and professional when descriptions vary in length. */}
+              <div className="mt-auto flex items-center justify-end pt-4">
                 <PartnerRequestDialog
                   supplierId={s.id}
                   supplierName={s.name}
