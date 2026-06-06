@@ -1,6 +1,6 @@
 "use client";
 
-import { Hourglass, Lock, Star } from "lucide-react";
+import { Hourglass, Lock, MessageSquare, Star } from "lucide-react";
 import type { Prisma, TaskResponsibility } from "@prisma/client";
 import { deleteTask } from "@/app/actions/tasks";
 import { Badge } from "@/components/ui/badge";
@@ -18,11 +18,15 @@ import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { MagicLinkButton } from "@/components/permit/magic-link-button";
 import { TaskEditButton } from "@/components/permit/task-edit-dialog";
 import { TaskBulkCheckbox } from "@/components/tasks/task-bulk-checkbox";
+import type {
+  TaskNoteItem,
+  TaskNotesViewer
+} from "@/components/tasks/task-notes-panel";
 import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT
 } from "@/lib/status-maps";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 
 export type PermitTaskMobileData = Prisma.TaskGetPayload<{
   include: {
@@ -34,6 +38,16 @@ export type PermitTaskMobileData = Prisma.TaskGetPayload<{
         dependsOn: { select: { id: true; name: true; status: true } };
       };
     };
+    notes: {
+      select: {
+        id: true;
+        content: true;
+        createdAt: true;
+        updatedAt: true;
+        authorId: true;
+        author: { select: { name: true } };
+      };
+    };
   };
 }>;
 
@@ -42,14 +56,25 @@ export function PermitTaskMobileCard({
   assignees,
   categorySuggestions,
   isAdmin,
+  viewer,
   now
 }: {
   task: PermitTaskMobileData;
   assignees: { id: string; name: string }[];
   categorySuggestions: string[];
   isAdmin: boolean;
+  viewer: TaskNotesViewer;
   now: Date;
 }) {
+  const noteItems: TaskNoteItem[] = task.notes.map((n) => ({
+    id: n.id,
+    content: n.content,
+    createdAt: n.createdAt.toISOString(),
+    updatedAt: n.updatedAt.toISOString(),
+    authorId: n.authorId,
+    authorName: n.author?.name ?? null
+  }));
+  const latest = task.notes[0] ?? null;
   const isCompleted = task.status === "COMPLETED";
   const isOverdue =
     !!task.dueDate && !task.frozen && !isCompleted && new Date(task.dueDate) < now;
@@ -177,6 +202,26 @@ export function PermitTaskMobileCard({
             ממתין לתשובת רשות — תאריך יעד מוקפא
           </div>
         )}
+        {latest && (
+          <div className="flex items-start gap-1 rounded border border-dashed bg-muted/30 px-2 py-1 text-[11px] text-muted-foreground">
+            <MessageSquare className="size-3 shrink-0 translate-y-[2px]" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1 text-[10px]">
+                <span className="font-medium text-foreground/80">
+                  {latest.author?.name ?? "—"}
+                </span>
+                <span>·</span>
+                <span className="tabular-nums">{formatDateTime(latest.createdAt)}</span>
+                {task.notes.length > 1 && (
+                  <span className="rounded bg-muted px-1 text-[9px]">
+                    +{task.notes.length - 1}
+                  </span>
+                )}
+              </div>
+              <div className="line-clamp-2">{latest.content}</div>
+            </div>
+          </div>
+        )}
       </CardContent>
 
       <CardFooter className="ps-5">
@@ -196,6 +241,8 @@ export function PermitTaskMobileCard({
             }}
             assignees={assignees}
             categorySuggestions={categorySuggestions}
+            notes={noteItems}
+            viewer={viewer}
           />
           <MagicLinkButton taskId={task.id} taskName={task.name} />
           {isAdmin && (

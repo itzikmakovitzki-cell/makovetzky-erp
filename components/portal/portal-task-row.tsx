@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, AlertTriangle, CheckCircle2, Hourglass, FileText, ExternalLink, Circle } from "lucide-react";
+import {
+  Upload,
+  AlertTriangle,
+  CheckCircle2,
+  Hourglass,
+  FileText,
+  ExternalLink,
+  Circle,
+  MessageSquare,
+  ChevronDown,
+  ChevronLeft
+} from "lucide-react";
 import type { TaskResponsibility, TaskStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,6 +23,11 @@ import {
 } from "@/lib/status-maps";
 import { formatDate } from "@/lib/utils";
 import { PortalUploadDialog } from "./portal-upload-dialog";
+import {
+  TaskNotesPanel,
+  type TaskNoteItem,
+  type TaskNotesViewer
+} from "@/components/tasks/task-notes-panel";
 
 export type PortalTaskDoc = {
   id: string;
@@ -35,6 +51,9 @@ export type PortalTaskRowData = {
   // visual dim. Defaults to true so admin / direct-assignee rendering
   // is unchanged.
   isReadOnly?: boolean;
+  // Block 34: progress notes log. Already ordered newest-first by the
+  // page query.
+  notes: TaskNoteItem[];
 };
 
 const STATUS_ICON: Record<TaskStatus, React.ComponentType<{ className?: string }>> = {
@@ -48,15 +67,19 @@ const STATUS_ICON: Record<TaskStatus, React.ComponentType<{ className?: string }
 export function PortalTaskRow({
   task,
   permitId,
-  permitLocked
+  permitLocked,
+  viewer
 }: {
   task: PortalTaskRowData;
   permitId: string;
   permitLocked: boolean;
+  viewer: TaskNotesViewer;
 }) {
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const Icon = STATUS_ICON[task.status];
   const canUpload = !permitLocked && task.status !== "COMPLETED" && !task.isReadOnly;
+  const latestNote = task.notes[0] ?? null;
 
   return (
     <li
@@ -143,6 +166,43 @@ export function PortalTaskRow({
               ))}
             </ul>
           )}
+
+          {/* Block 34 — progress notes log. Collapsed by default so the
+              timeline stays scannable; click to expand the full thread and
+              add a new entry. */}
+          <div className="mt-2 border-t border-dashed pt-2">
+            <button
+              type="button"
+              onClick={() => setNotesOpen((v) => !v)}
+              className="flex w-full items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+              aria-expanded={notesOpen}
+            >
+              {notesOpen ? (
+                <ChevronDown className="size-3 shrink-0" />
+              ) : (
+                <ChevronLeft className="size-3 shrink-0" />
+              )}
+              <MessageSquare className="size-3 shrink-0" />
+              <span className="font-medium">
+                הערות{task.notes.length > 0 ? ` (${task.notes.length})` : ""}
+              </span>
+              {!notesOpen && latestNote && (
+                <span className="min-w-0 truncate text-muted-foreground/80">
+                  · {latestNote.authorName ?? "—"}: {latestNote.content}
+                </span>
+              )}
+            </button>
+            {notesOpen && (
+              <div className="mt-2">
+                <TaskNotesPanel
+                  taskId={task.id}
+                  notes={task.notes}
+                  viewer={viewer}
+                  emptyHint="עוד אין הערות במשימה זו. כתוב את הראשונה."
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {canUpload && (

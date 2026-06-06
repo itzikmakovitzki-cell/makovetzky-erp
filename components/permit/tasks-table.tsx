@@ -1,10 +1,15 @@
 import { Fragment } from "react";
-import { Star, Lock, Hourglass } from "lucide-react";
+import { Star, Lock, Hourglass, MessageSquare } from "lucide-react";
 import type { Prisma, TaskResponsibility } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { deleteTask } from "@/app/actions/tasks";
 import { Badge } from "@/components/ui/badge";
+import type {
+  TaskNoteItem,
+  TaskNotesViewer
+} from "@/components/tasks/task-notes-panel";
+import { formatDateTime } from "@/lib/utils";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { InlineAssignee } from "@/components/tasks/inline-assignee";
 import { InlineDueDate } from "@/components/tasks/inline-due-date";
@@ -44,6 +49,14 @@ export async function TasksTable({
 }) {
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";
+  // Viewer identity for the notes panel — drives per-row edit/delete
+  // affordances client-side. Server actions re-verify.
+  const viewer: TaskNotesViewer | null = session?.user?.id
+    ? {
+        id: session.user.id,
+        role: session.user.role as TaskNotesViewer["role"]
+      }
+    : null;
 
   const taskWhere: Prisma.TaskWhereInput = {
     permitId,
@@ -62,6 +75,19 @@ export async function TasksTable({
           include: {
             dependsOn: { select: { id: true, name: true, status: true } }
           }
+        },
+        // Block 34 — task notes ordered newest-first so the inline cell
+        // can show the latest entry without re-sorting client-side.
+        notes: {
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            updatedAt: true,
+            authorId: true,
+            author: { select: { name: true } }
+          },
+          orderBy: { createdAt: "desc" }
         }
       },
       orderBy: [{ isSpotlight: "desc" }, { priority: "desc" }, { dueDate: "asc" }]
@@ -133,6 +159,7 @@ export async function TasksTable({
                   assignees={assignees}
                   categorySuggestions={categorySuggestions}
                   isAdmin={isAdmin}
+                  viewer={viewer ?? { id: "anon", role: "EMPLOYEE" }}
                   now={now}
                 />
               </Fragment>
@@ -303,29 +330,32 @@ export async function TasksTable({
                   </div>
                 </td>
                 <td className="text-[11px] text-muted-foreground">
-                  {isBlockedByDeps ? (
-                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                      <span className="inline-flex items-center gap-1">
-                        <Lock className="size-3 shrink-0" />
-                        <span>חסום ע״י:</span>
-                      </span>
-                      {unmetDeps.map((d, i) => (
-                        <span key={d.dependsOn.id} className="inline-flex items-center gap-1">
-                          <span>{d.dependsOn.name}</span>
-                          <DependencyOverride
-                            taskId={t.id}
-                            dependsOnTaskId={d.dependsOn.id}
-                            dependsOnName={d.dependsOn.name}
-                          />
-                          {i < unmetDeps.length - 1 && (
-                            <span className="text-muted-foreground/50">·</span>
-                          )}
+                  <div className="flex flex-col gap-1">
+                    {isBlockedByDeps ? (
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                        <span className="inline-flex items-center gap-1">
+                          <Lock className="size-3 shrink-0" />
+                          <span>חסום ע״י:</span>
                         </span>
-                      ))}
-                    </div>
-                  ) : t.frozen ? (
-                    <span>ממתין לתשובת רשות — תאריך יעד מוקפא</span>
-                  ) : null}
+                        {unmetDeps.map((d, i) => (
+                          <span key={d.dependsOn.id} className="inline-flex items-center gap-1">
+                            <span>{d.dependsOn.name}</span>
+                            <DependencyOverride
+                              taskId={t.id}
+                              dependsOnTaskId={d.dependsOn.id}
+                              dependsOnName={d.dependsOn.name}
+                            />
+                            {i < unmetDeps.length - 1 && (
+                              <span className="text-muted-foreground/50">·</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    ) : t.frozen ? (
+                      <span>ממתין לתשובת רשות — תאריך יעד מוקפא</span>
+                    ) : null}
+                    <LatestNotePreview notes={t.notes} totalCount={t.notes.length} />
+                  </div>
                 </td>
                 <td className="p-0">
                   <div className="flex items-center justify-center gap-0.5">
@@ -344,6 +374,10 @@ export async function TasksTable({
                       }}
                       assignees={assignees}
                       categorySuggestions={categorySuggestions}
+                      notes={t.notes.map(toNoteItem)}
+                      viewer={
+                        viewer ?? { id: "anon", role: "EMPLOYEE" }
+                      }
                     />
                     <MagicLinkButton taskId={t.id} taskName={t.name} />
                     {isAdmin && (
@@ -364,6 +398,59 @@ export async function TasksTable({
       </table>
       </div>
     </BulkSelectionProvider>
+  );
+}
+
+// Block 34 — shape the Prisma row into the panel's serializable item
+// (Dates → ISO strings so the prop crosses the client boundary cleanly).
+type RawTaskNote = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  authorId: string | null;
+  author: { name: string } | null;
+};
+
+function toNoteItem(n: RawTaskNote): TaskNoteItem {
+  return {
+    id: n.id,
+    content: n.content,
+    createdAt: n.createdAt.toISOString(),
+    updatedAt: n.updatedAt.toISOString(),
+    authorId: n.authorId,
+    authorName: n.author?.name ?? null
+  };
+}
+
+// Compact one-line preview of the latest note ("בת אור · 04/06 12:30 ·
+// שלחתי מייל…"). Click pencil on the row → opens dialog → full thread.
+function LatestNotePreview({
+  notes,
+  totalCount
+}: {
+  notes: RawTaskNote[];
+  totalCount: number;
+}) {
+  if (totalCount === 0) return null;
+  const latest = notes[0];
+  return (
+    <div className="flex items-start gap-1 text-[10px] text-muted-foreground">
+      <MessageSquare className="size-3 shrink-0 translate-y-[1px]" />
+      <div className="min-w-0">
+        <div className="flex items-center gap-1">
+          <span className="font-medium text-foreground/80">
+            {latest.author?.name ?? "—"}
+          </span>
+          <span>·</span>
+          <span className="tabular-nums">{formatDateTime(latest.createdAt)}</span>
+          {totalCount > 1 && (
+            <span className="rounded bg-muted px-1 text-[9px]">+{totalCount - 1}</span>
+          )}
+        </div>
+        <div className="truncate" title={latest.content}>{latest.content}</div>
+      </div>
+    </div>
   );
 }
 

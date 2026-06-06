@@ -189,6 +189,8 @@ model User {
   passwordResetTokens      PasswordResetToken[]
   // Block 33: ProjectContacts this user added (back-office or portal).
   createdProjectContacts   ProjectContact[]      @relation("ProjectContactCreator")
+  // Block 34: TaskNote entries this user authored (progress log).
+  authoredTaskNotes        TaskNote[]            @relation("TaskNoteAuthor")
 
   @@index([role])
 }
@@ -557,6 +559,10 @@ model Task {
   milestone           BillingMilestone?
   magicLinks          MagicLink[]
   pendingDocs         PendingDocument[]
+  // Block 34: per-task progress notes (authored by PM, employee, or contractor
+  // via the portal). Lightweight running log — "sent for signature 02/06",
+  // "called architect, waiting for revised plan", etc.
+  notes               TaskNote[]
 
   @@index([permitId, status])
   @@index([assigneeId, status])
@@ -771,6 +777,30 @@ model Note {
   author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([permitId, isPinned, createdAt])
+}
+
+// Block 34 — per-task progress notes.
+//
+// Lightweight running log on a Task ("בת אור שלחה מייל, ממתינה למסמך",
+// "סומן בנייה — נשלח לחתימת אדריכלית 02/06"). Distinct from Task.description
+// (the static brief) and from the permit-level Note (project-wide context).
+// Visible in the back-office TaskEditDialog, inline on the tasks table, and
+// on the portal contractor view so each role can document an action they
+// took. Authorship is preserved (`authorId` SET NULL on user delete) so the
+// audit trail survives offboardings.
+model TaskNote {
+  id        String   @id @default(cuid())
+  taskId    String
+  content   String
+  authorId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task   Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User? @relation("TaskNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+  @@index([authorId])
 }
 
 // Immutable: do not expose UPDATE or DELETE operations at the application layer.
