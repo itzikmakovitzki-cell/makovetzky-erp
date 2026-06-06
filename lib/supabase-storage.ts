@@ -69,6 +69,19 @@ export function buildSupplierLogoStoragePath(supplierId: string, fileName: strin
   return `suppliers/${supplierId}/logo-${ts}-${rand}-${safe}`;
 }
 
+// Block 38: general supplier documents (service catalogs, contracts,
+// rate sheets). Separate subdirectory from logo so the partners grid can
+// keep enumerating only `suppliers/<id>/logo-*` without touching docs.
+export function buildSupplierDocumentStoragePath(
+  supplierId: string,
+  fileName: string
+): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const safe = fileName.replace(/[^A-Za-z0-9._-]/g, "_");
+  return `suppliers/${supplierId}/docs/${ts}-${rand}-${safe}`;
+}
+
 export async function uploadToStorage(
   buffer: ArrayBuffer | Uint8Array,
   path: string,

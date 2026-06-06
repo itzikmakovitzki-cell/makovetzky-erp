@@ -32,7 +32,9 @@ export const AuditEntity = {
   // Block 33 — per-permit contacts directory.
   PROJECT_CONTACT: "PROJECT_CONTACT",
   // Block 34 — per-task progress notes.
-  TASK_NOTE: "TASK_NOTE"
+  TASK_NOTE: "TASK_NOTE",
+  // Block 38 — files attached to a Supplier (catalog / contract / etc.).
+  SUPPLIER_DOCUMENT: "SUPPLIER_DOCUMENT"
 } as const;
 
 export type AuditEntityValue = (typeof AuditEntity)[keyof typeof AuditEntity] | (string & {});
