@@ -21,6 +21,7 @@
   "dependencies": {
     "@prisma/client": "^6.2.1",
     "@radix-ui/react-slot": "^1.1.1",
+    "@react-pdf/renderer": "^4.5.1",
     "@sparticuz/chromium-min": "^149.0.0",
     "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^2.4.3",

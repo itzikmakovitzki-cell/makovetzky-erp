@@ -28,6 +28,7 @@ import {
   type TaskNoteItem,
   type TaskNotesViewer
 } from "@/components/tasks/task-notes-panel";
+import { GenerateFormButton } from "@/components/tasks/generate-form-button";
 
 export type PortalTaskDoc = {
   id: string;
@@ -206,16 +207,25 @@ export function PortalTaskRow({
           </div>
         </div>
 
-        {canUpload && (
-          <button
-            type="button"
-            onClick={() => setUploadOpen(true)}
-            className="inline-flex shrink-0 items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
-          >
-            <Upload className="size-3" />
-            <span className="hidden sm:inline">העלה מסמך</span>
-          </button>
-        )}
+        <div className="flex shrink-0 flex-col items-stretch gap-1">
+          {/* Block 40 — Magic button. Visible for any task that isn't
+              completed, regardless of read-only state — the form is
+              useful for the contractor to print even when they can't
+              modify the task. */}
+          {task.status !== "COMPLETED" && (
+            <GenerateFormButton taskId={task.id} taskName={task.name} variant="labeled" />
+          )}
+          {canUpload && (
+            <button
+              type="button"
+              onClick={() => setUploadOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
+            >
+              <Upload className="size-3" />
+              <span className="hidden sm:inline">העלה מסמך</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {uploadOpen && (

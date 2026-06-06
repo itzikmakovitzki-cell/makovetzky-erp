@@ -10,6 +10,7 @@ import type {
   TaskNotesViewer
 } from "@/components/tasks/task-notes-panel";
 import { TaskQuickNotesTrigger } from "@/components/tasks/task-quick-notes-dialog";
+import { GenerateFormButton } from "@/components/tasks/generate-form-button";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { InlineAssignee } from "@/components/tasks/inline-assignee";
 import { InlineDueDate } from "@/components/tasks/inline-due-date";
@@ -389,6 +390,13 @@ export async function TasksTable({
                 </td>
                 <td className="p-0">
                   <div className="flex items-center justify-center gap-0.5">
+                    {t.status !== "COMPLETED" && (
+                      <GenerateFormButton
+                        taskId={t.id}
+                        taskName={t.name}
+                        variant="compact"
+                      />
+                    )}
                     <SnoozeButton taskId={t.id} />
                     <TaskEditButton
                       task={{
