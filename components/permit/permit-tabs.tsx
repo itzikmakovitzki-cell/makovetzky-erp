@@ -8,6 +8,7 @@ const TABS = [
   { segment: "tasks", label: "משימות" },
   { segment: "finances", label: "כספים" },
   { segment: "documents", label: "מסמכים" },
+  { segment: "contacts", label: "אנשי קשר" },
   { segment: "notes", label: "הערות" },
   { segment: "audit", label: "יומן שינויים" }
 ];

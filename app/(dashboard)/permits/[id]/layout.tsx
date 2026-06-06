@@ -33,12 +33,14 @@ export default async function PermitLayout({
 
   if (!permit) notFound();
 
-  const [taskTotal, taskCompleted, financeCount, docsCount, notesCount, partnerSuppliers] = await Promise.all([
+  const [taskTotal, taskCompleted, financeCount, docsCount, notesCount, contactsCount, partnerSuppliers] = await Promise.all([
     prisma.task.count({ where: { permitId: id, deletedAt: null } }),
     prisma.task.count({ where: { permitId: id, status: "COMPLETED", deletedAt: null } }),
     prisma.billingMilestone.count({ where: { permitId: id } }),
     prisma.document.count({ where: { permitId: id, deletedAt: null } }),
     prisma.note.count({ where: { permitId: id } }),
+    // Block 33: per-permit phonebook count for the new "אנשי קשר" tab pill.
+    prisma.projectContact.count({ where: { permitId: id } }),
     // Block 30: public suppliers feed the "הזמן ספק" dialog in the action row.
     prisma.supplier.findMany({
       where: { isPublic: true },
@@ -85,6 +87,7 @@ export default async function PermitLayout({
           tasks: taskTotal,
           finances: financeCount,
           documents: docsCount,
+          contacts: contactsCount,
           notes: notesCount
         }}
       />

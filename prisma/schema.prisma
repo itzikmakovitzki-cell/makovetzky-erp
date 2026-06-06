@@ -187,6 +187,8 @@ model User {
   // Block 28: self-service "forgot password" tokens. Sent over WhatsApp
   // to the user's `phone` and consumed by /reset-password/[token].
   passwordResetTokens      PasswordResetToken[]
+  // Block 33: ProjectContacts this user added (back-office or portal).
+  createdProjectContacts   ProjectContact[]      @relation("ProjectContactCreator")
 
   @@index([role])
 }
@@ -338,12 +340,43 @@ model Permit {
   magicLinks       MagicLink[]
   pendingDocuments PendingDocument[]
   authoritySubmissions AuthoritySubmission[]
+  projectContacts  ProjectContact[]
 
   @@index([masterDealId])
   @@index([authorityId])
   @@index([status])
   @@index([expectedCloseDate])
   @@index([deletedAt])
+}
+
+// Block 33 — Project Contacts Directory ("ספר טלפונים").
+// Per-permit phonebook surfaced both in the back-office permit dashboard
+// and the client portal, so PMs can chase signatures and clients can
+// reach their professional team without hunting through email. Portal
+// users can ADD entries (crowdsourced data collection), but edit/delete
+// is back-office only — see app/actions/project-contacts.ts.
+model ProjectContact {
+  id          String   @id @default(cuid())
+  permitId    String
+  // Free-text fields — same shape as Supplier, deliberately not enum'd:
+  // role labels evolve faster than we'd want to migrate ("אדריכל",
+  // "מפקח", "מהנדס אינסטלציה", "ראש צוות גמרים"…).
+  name        String
+  role        String
+  phone       String
+  email       String?
+  notes       String?
+  // Tagged so the UI can render "נוסף ע"י לקוח" badges. Nullable to
+  // survive a User deletion.
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permit    Permit @relation(fields: [permitId], references: [id], onDelete: Cascade)
+  createdBy User?  @relation("ProjectContactCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([permitId])
+  @@index([createdById])
 }
 
 // Block 26: one row per (permit, category) — tracks the authority-side

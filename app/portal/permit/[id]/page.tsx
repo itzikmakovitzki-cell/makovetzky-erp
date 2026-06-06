@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRight, Lock, Building2, FileText, ExternalLink, ListChecks, FolderOpen, Sparkles } from "lucide-react";
+import { ArrowRight, Lock, Building2, FileText, ExternalLink, ListChecks, FolderOpen, Sparkles, Users } from "lucide-react";
+import { ContactsGrid } from "@/components/contacts/contacts-grid";
 import type { TaskStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -44,11 +45,12 @@ export default async function PortalPermitDetailPage({
 
   const { id: permitId } = await params;
   const sp = await searchParams;
-  // Block 30: two server-rendered tabs on this page — "timeline" (default,
-  // tasks) and "docs" (construction documents archive). Anything other
-  // than "docs" snaps back to the timeline so a stray URL never lands the
-  // contractor on a blank screen.
-  const activeTab: "timeline" | "docs" = sp.tab === "docs" ? "docs" : "timeline";
+  // Block 33: three server-rendered tabs on this page — "timeline"
+  // (default, tasks), "docs" (construction documents archive), and
+  // "contacts" (Project Contacts Directory). Anything else snaps back to
+  // the timeline so a stray URL never lands the user on a blank screen.
+  const activeTab: "timeline" | "docs" | "contacts" =
+    sp.tab === "docs" ? "docs" : sp.tab === "contacts" ? "contacts" : "timeline";
 
   // Access check first — throws if no PortalAccess (and not admin).
   try {
@@ -257,12 +259,13 @@ export default async function PortalPermitDetailPage({
       </header>
 
       {/* Tabs — server-rendered via search params so we keep zero client-
-          side state on the portal page. Two views: ציר זמן (default) and
-          מסמכי בנייה (Block 30 archive). */}
+          side state on the portal page. Three views: ציר זמן (default),
+          מסמכי בנייה (Block 30 archive), and אנשי קשר (Block 33
+          directory). */}
       <nav
         role="tablist"
         aria-label="תצוגת היתר"
-        className="flex items-center gap-1 border-b"
+        className="flex flex-wrap items-center gap-1 border-b"
       >
         <PortalTab
           href={`/portal/permit/${permit.id}`}
@@ -275,6 +278,12 @@ export default async function PortalPermitDetailPage({
           active={activeTab === "docs"}
           icon={<FolderOpen className="size-3.5" />}
           label={`מסמכי בנייה (${archiveDocs.length})`}
+        />
+        <PortalTab
+          href={`/portal/permit/${permit.id}?tab=contacts`}
+          active={activeTab === "contacts"}
+          icon={<Users className="size-3.5" />}
+          label="אנשי קשר"
         />
       </nav>
 
@@ -376,6 +385,13 @@ export default async function PortalPermitDetailPage({
             </ul>
           )}
         </section>
+      )}
+
+      {activeTab === "contacts" && (
+        /* Portal-side directory: same renderer the back-office uses.
+           canManage is hard-false here so contractors can add but not
+           edit/delete — Block 33 brief. */
+        <ContactsGrid permitId={permit.id} canManage={false} variant="embedded" />
       )}
     </div>
   );
