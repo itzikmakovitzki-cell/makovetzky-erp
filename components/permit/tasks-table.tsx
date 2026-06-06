@@ -91,7 +91,19 @@ export async function TasksTable({
           orderBy: { createdAt: "desc" }
         }
       },
-      orderBy: [{ isSpotlight: "desc" }, { priority: "desc" }, { dueDate: "asc" }]
+      // Block 37: sort by category FIRST so the visual category bands
+      // (showBand = current category differs from previous) draw exactly
+      // one band per distinct category. Within a category, the existing
+      // spotlight → priority → dueDate ordering is preserved. Null
+      // categories fall to the end ("nulls: 'last'") so uncategorised
+      // tasks form an implicit trailing group instead of splitting the
+      // table.
+      orderBy: [
+        { category: { sort: "asc", nulls: "last" } },
+        { isSpotlight: "desc" },
+        { priority: "desc" },
+        { dueDate: "asc" }
+      ]
     }),
     prisma.user.findMany({
       // Block 20: contractors are valid assignment targets.
