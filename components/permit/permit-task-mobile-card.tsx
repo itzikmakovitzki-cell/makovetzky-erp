@@ -1,6 +1,6 @@
 "use client";
 
-import { Hourglass, Lock, MessageSquare, Star } from "lucide-react";
+import { Hourglass, Lock, Star } from "lucide-react";
 import type { Prisma, TaskResponsibility } from "@prisma/client";
 import { deleteTask } from "@/app/actions/tasks";
 import { Badge } from "@/components/ui/badge";
@@ -22,11 +22,12 @@ import type {
   TaskNoteItem,
   TaskNotesViewer
 } from "@/components/tasks/task-notes-panel";
+import { TaskQuickNotesTrigger } from "@/components/tasks/task-quick-notes-dialog";
 import {
   TASK_RESPONSIBILITY_LABEL,
   TASK_RESPONSIBILITY_VARIANT
 } from "@/lib/status-maps";
-import { cn, formatDateTime } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export type PermitTaskMobileData = Prisma.TaskGetPayload<{
   include: {
@@ -74,7 +75,6 @@ export function PermitTaskMobileCard({
     authorId: n.authorId,
     authorName: n.author?.name ?? null
   }));
-  const latest = task.notes[0] ?? null;
   const isCompleted = task.status === "COMPLETED";
   const isOverdue =
     !!task.dueDate && !task.frozen && !isCompleted && new Date(task.dueDate) < now;
@@ -202,26 +202,14 @@ export function PermitTaskMobileCard({
             ממתין לתשובת רשות — תאריך יעד מוקפא
           </div>
         )}
-        {latest && (
-          <div className="flex items-start gap-1 rounded border border-dashed bg-muted/30 px-2 py-1 text-[11px] text-muted-foreground">
-            <MessageSquare className="size-3 shrink-0 translate-y-[2px]" />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1 text-[10px]">
-                <span className="font-medium text-foreground/80">
-                  {latest.author?.name ?? "—"}
-                </span>
-                <span>·</span>
-                <span className="tabular-nums">{formatDateTime(latest.createdAt)}</span>
-                {task.notes.length > 1 && (
-                  <span className="rounded bg-muted px-1 text-[9px]">
-                    +{task.notes.length - 1}
-                  </span>
-                )}
-              </div>
-              <div className="line-clamp-2">{latest.content}</div>
-            </div>
-          </div>
-        )}
+        <div className="rounded border border-dashed bg-muted/30 px-2 py-1">
+          <TaskQuickNotesTrigger
+            taskId={task.id}
+            taskName={task.name}
+            notes={noteItems}
+            viewer={viewer}
+          />
+        </div>
       </CardContent>
 
       <CardFooter className="ps-5">
