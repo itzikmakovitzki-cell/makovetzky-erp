@@ -22,6 +22,11 @@ import { AssignmentMobileList } from "@/components/suppliers/assignment-mobile-l
 import { PageHeader } from "@/components/global/page-header";
 import { ExportListButton } from "@/components/global/export-list-button";
 import {
+  SupplierDocumentsPanel,
+  type SupplierDocumentItem
+} from "@/components/suppliers/supplier-documents-panel";
+import { createSignedUrlsSafe, isStoragePath } from "@/lib/supabase-storage";
+import {
   SUPPLIER_ASSIGNMENT_STATUS_LABEL,
   SUPPLIER_ASSIGNMENT_STATUS_VARIANT,
   TASK_STATUS_LABEL,
@@ -255,6 +260,37 @@ async function SupplierDetail({
     .filter((a) => a.status === "OPEN" || a.status === "IN_PROGRESS")
     .reduce((s, a) => s + (a.amount ? Number(a.amount.toString()) : 0), 0);
 
+  // Block 38: supplier documents. One Storage round-trip to resolve all
+  // signed URLs in batch — same pattern as the portal permit page.
+  const rawDocs = await prisma.supplierDocument.findMany({
+    where: { supplierId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      fileName: true,
+      fileUrl: true,
+      mimeType: true,
+      sizeBytes: true,
+      description: true,
+      createdAt: true,
+      uploadedBy: { select: { name: true } }
+    }
+  });
+  const docStoragePaths = rawDocs.map((d) => d.fileUrl).filter(isStoragePath);
+  const signedDocUrls = await createSignedUrlsSafe(docStoragePaths);
+  const documents: SupplierDocumentItem[] = rawDocs.map((d) => ({
+    id: d.id,
+    fileName: d.fileName,
+    previewUrl: isStoragePath(d.fileUrl)
+      ? signedDocUrls.get(d.fileUrl) ?? null
+      : d.fileUrl,
+    mimeType: d.mimeType,
+    sizeBytes: d.sizeBytes,
+    description: d.description,
+    uploadedAt: d.createdAt.toISOString(),
+    uploaderName: d.uploadedBy?.name ?? null
+  }));
+
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -381,6 +417,17 @@ async function SupplierDetail({
             משימות פתוחות
           </div>
         </SupplierCard>
+      </div>
+
+      {/* Block 38 — supplier documents (service catalog, contract, etc.).
+          Only admins can upload/delete; everyone else gets a read-only
+          file list with signed download links. */}
+      <div className="rounded-md border bg-card px-3 py-2">
+        <SupplierDocumentsPanel
+          supplierId={supplier.id}
+          documents={documents}
+          canManage={isAdmin}
+        />
       </div>
 
       <div className="rounded-md border bg-card">

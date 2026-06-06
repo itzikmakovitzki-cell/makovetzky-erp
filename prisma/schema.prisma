@@ -191,6 +191,8 @@ model User {
   createdProjectContacts   ProjectContact[]      @relation("ProjectContactCreator")
   // Block 34: TaskNote entries this user authored (progress log).
   authoredTaskNotes        TaskNote[]            @relation("TaskNoteAuthor")
+  // Block 38: SupplierDocument files this user uploaded.
+  uploadedSupplierDocuments SupplierDocument[]   @relation("SupplierDocumentUploader")
 
   @@index([role])
 }
@@ -684,6 +686,10 @@ model Supplier {
 
   taskAssignments SupplierTaskAssignment[]
   category        PartnerCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  // Block 38: free-form documents attached to a supplier (service catalog,
+  // contract, capabilities PDF, …). Surfaced in the back-office supplier
+  // card. Distinct from Document — those are tied to a permit.
+  documents       SupplierDocument[]
 
   @@index([name])
   @@index([isPublic])
@@ -762,6 +768,33 @@ model Document {
   @@index([buildingId])
   @@index([taskId])
   @@index([deletedAt])
+}
+
+// Block 38 — files attached to a Supplier (not a Permit).
+//
+// Use case: storing the supplier's service catalog / capabilities PDF /
+// rate sheet / signed engagement letter so the PM can review what the
+// supplier does without leaving the CRM. Distinct from `Document` — that
+// model is hard-tied to a permitId (work product); this one is metadata
+// about the supplier itself. Hard delete + storage cleanup; no version-
+// ing (supplier files are reference material, not versioned deliverables).
+model SupplierDocument {
+  id           String   @id @default(cuid())
+  supplierId   String
+  fileName     String
+  fileUrl      String   // Supabase Storage path (under suppliers/<id>/docs/)
+  mimeType     String?
+  sizeBytes    Int?
+  // Optional short caption — "מפרט שירותים", "חוזה התקשרות", "תעריפים".
+  description  String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  uploadedBy User?    @relation("SupplierDocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([supplierId, createdAt])
 }
 
 model Note {
