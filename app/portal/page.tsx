@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft, Building2, Inbox, Lock, Briefcase } from "lucide-react";
+import { ArrowLeft, Building2, Inbox, Lock } from "lucide-react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { PERMIT_STATUS_LABEL, PERMIT_STATUS_VARIANT } from "@/lib/status-maps";
 import { getPortalScope, permitClientFilter } from "@/lib/portal-access";
+import { MarketplacePromoBanner } from "@/components/portal/marketplace-promo-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -69,27 +70,31 @@ export default async function PortalDashboardPage() {
         ).map((row) => [row.permitId, row._count._all])
       );
 
+  // Block 31: live count for the VIP banner. Cheap COUNT — no joins, no
+  // payload bloat — so the banner doesn't lie about "X ספקים פעילים".
+  const publicSupplierCount = await prisma.supplier.count({
+    where: { isPublic: true }
+  });
+
   return (
     <div className="space-y-4">
-      <header className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-base font-semibold sm:text-lg">שלום, {session.user.name}</h1>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">
-            {noAccess
-              ? "עוד לא הוקצתה לך גישה לפרויקטים. צוות מקובצקי יחבר אותך בקרוב."
-              : `${permits.length} ${permits.length === 1 ? "היתר זמין" : "היתרים זמינים"} לצפייה.`}
-          </p>
-        </div>
-        {/* Block 30: surface the Partners Marketplace entry from the landing
-            page so clients discover the supplier directory without hunting. */}
-        <Link
-          href="/portal/partners"
-          className="inline-flex items-center gap-1.5 rounded-full border border-input bg-card px-3 py-1 text-[12px] font-medium text-foreground hover:bg-accent"
-        >
-          <Briefcase className="size-3" />
-          מאגר ספקים ושותפים
-        </Link>
+      <header>
+        <h1 className="text-base font-semibold sm:text-lg">שלום, {session.user.name}</h1>
+        <p className="mt-0.5 text-[12px] text-muted-foreground">
+          {noAccess
+            ? "עוד לא הוקצתה לך גישה לפרויקטים. צוות מקובצקי יחבר אותך בקרוב."
+            : `${permits.length} ${permits.length === 1 ? "היתר זמין" : "היתרים זמינים"} לצפייה.`}
+        </p>
       </header>
+
+      {/* Block 31: replaces the small outline button above. Full-width
+          promotional banner sits between the greeting and the permits
+          grid — high visual weight so clients can't miss the marketplace
+          entry. */}
+      <MarketplacePromoBanner
+        href="/portal/partners"
+        supplierCount={publicSupplierCount}
+      />
 
       {noAccess && (
         <div className="rounded-md border bg-card p-6 text-center">
