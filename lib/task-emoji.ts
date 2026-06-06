@@ -10,6 +10,7 @@ const RULES: EmojiRule[] = [
   { emoji: "🪖", needles: ['[הג"א]', "[הג״א]"] },
   { emoji: "🚒", needles: ["[כיבוי אש]"] },
   { emoji: "💧", needles: ["[יובלים]", "[תאגיד מים]"] },
+  { emoji: "⚡", needles: ["[חברת חשמל]", "[חשמל]"] },
   { emoji: "📄", needles: ["[טפסים]"] }
 ];
 

@@ -19,6 +19,9 @@ import {
   type PortalTaskRowData
 } from "@/components/portal/portal-task-row";
 import { PortalUploadDialogTrigger } from "@/components/portal/portal-upload-trigger";
+import { PortalBlockerAlert } from "@/components/portal/portal-blocker-alert";
+import { PortalAuthorityTrafficLight } from "@/components/portal/portal-authority-traffic-light";
+import { scanPermitAuthorities } from "@/lib/portal-authority-scan";
 import type { TaskNotesViewer } from "@/components/tasks/task-notes-panel";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +106,8 @@ export default async function PortalPermitDetailPage({
       frozen: true,
       isSpotlight: true,
       responsibility: true,
+      // Block 39: category drives the authority traffic light scan.
+      category: true,
       assigneeId: true,
       documents: {
         where: { deletedAt: null },
@@ -210,6 +215,38 @@ export default async function PortalPermitDetailPage({
     role: user.role as TaskNotesViewer["role"]
   };
 
+  // Block 39 — "Next action" blocker. Pick the first OPEN / IN_PROGRESS
+  // task assigned to the logged-in user, ordered by due date (overdue
+  // first → soonest), then creation. Admins viewing the portal don't
+  // have a personal queue here, so they get the "all clear" message
+  // rather than someone else's blocker leaking up.
+  const blocker =
+    user.role === "CONTRACTOR"
+      ? (() => {
+          const mine = tasks
+            .filter(
+              (t) =>
+                t.assigneeId === user.id &&
+                (t.status === "OPEN" || t.status === "IN_PROGRESS")
+            )
+            .sort((a, b) => {
+              const ad = a.dueDate?.getTime() ?? Number.POSITIVE_INFINITY;
+              const bd = b.dueDate?.getTime() ?? Number.POSITIVE_INFINITY;
+              return ad - bd;
+            });
+          return mine[0] ? { id: mine[0].id, name: mine[0].name } : null;
+        })()
+      : null;
+
+  // Block 39 — authority readiness traffic light. Pure derivation from
+  // task name + category (real seed data parks the authority on category
+  // — "הג\"א", "תאגיד מים — מני\"ב"; older seeds may also embed the tag
+  // in the name). Authorities not represented in the permit don't
+  // render a card.
+  const authorities = scanPermitAuthorities(
+    tasks.map((t) => ({ name: t.name, status: t.status, category: t.category }))
+  );
+
   const grouped = STATUS_GROUP_ORDER.map((s) => ({
     status: s,
     rows: rows.filter((r) => r.status === s)
@@ -285,6 +322,19 @@ export default async function PortalPermitDetailPage({
           </div>
         </div>
       </header>
+
+      {/* Block 39 — Smart dashboard prelude. The blocker alert tells the
+          contractor what to do RIGHT NOW; the authority traffic light
+          tells them which gates are open / pending. Both render above
+          the tabs so they're visible regardless of which view the user
+          lands on. Only relevant for the timeline tab really, but the
+          context is light and helps orient the user. */}
+      {activeTab === "timeline" && (
+        <div className="space-y-2">
+          {user.role === "CONTRACTOR" && <PortalBlockerAlert blocker={blocker} />}
+          <PortalAuthorityTrafficLight authorities={authorities} />
+        </div>
+      )}
 
       {/* Tabs — server-rendered via search params so we keep zero client-
           side state on the portal page. Three views: ציר זמן (default),
