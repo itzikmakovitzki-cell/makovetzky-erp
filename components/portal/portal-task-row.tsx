@@ -83,6 +83,7 @@ export function PortalTaskRow({
 
   return (
     <li
+      id={`portal-task-${task.id}`}
       className={
         task.isReadOnly
           ? "rounded-md border border-dashed bg-muted/20 p-3 opacity-75"
