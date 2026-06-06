@@ -394,6 +394,130 @@ export async function updateTaskMetadata(
 }
 
 // ----------------------------------------------------------------------------
+// Block 35: Manual single-task creation. Until now tasks only entered the
+// system via template-driven permit creation (app/actions/projects.ts) or
+// the xlsx bulk import — there was no way to add an ad-hoc task to an
+// existing permit through the UI. This action mirrors updateTaskMetadata's
+// validation but creates a row, audits it, and recalculates permit progress
+// so the parent's % stays consistent.
+// ----------------------------------------------------------------------------
+export type CreateTaskInput = {
+  permitId: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  responsibility?: TaskResponsibility | null;
+  tags?: readonly string[];
+  dueDate?: Date | null;
+  priority?: TaskPriority;
+  assigneeId?: string | null;
+};
+
+export type CreateTaskResult =
+  | { ok: true; taskId: string }
+  | { ok: false; error: string };
+
+export async function createTask(
+  input: CreateTaskInput
+): Promise<CreateTaskResult> {
+  try {
+    const me = await requireRole(["ADMIN", "EMPLOYEE"]);
+
+    const name = String(input.name ?? "").trim();
+    if (!name) return { ok: false, error: "שם המשימה חובה" };
+    if (name.length > 200) {
+      return { ok: false, error: "שם המשימה ארוך מדי (מקסימום 200 תווים)" };
+    }
+
+    const permit = await prisma.permit.findFirst({
+      where: { id: input.permitId, deletedAt: null },
+      select: { id: true, status: true }
+    });
+    if (!permit) return { ok: false, error: "ההיתר לא נמצא" };
+    await assertPermitOpenForEdits(input.permitId);
+
+    const responsibility = input.responsibility ?? null;
+    if (responsibility !== null && !VALID_RESPONSIBILITIES.has(responsibility)) {
+      return { ok: false, error: "אחריות לא חוקית" };
+    }
+
+    const priority: TaskPriority = input.priority ?? "NORMAL";
+    if (!VALID_PRIORITIES.has(priority)) {
+      return { ok: false, error: "עדיפות לא חוקית" };
+    }
+
+    const description =
+      input.description == null ? null : String(input.description).trim() || null;
+    const category =
+      input.category == null ? null : String(input.category).trim() || null;
+    const tags = normalizeTags(input.tags ?? []);
+    const dueDate = input.dueDate ?? null;
+    const assigneeId = input.assigneeId ?? null;
+
+    if (assigneeId) {
+      const assignee = await prisma.user.findFirst({
+        where: {
+          id: assigneeId,
+          isActive: true,
+          role: { in: ["ADMIN", "EMPLOYEE", "CONTRACTOR"] }
+        },
+        select: { id: true }
+      });
+      if (!assignee) return { ok: false, error: "האחראי שנבחר לא קיים" };
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const t = await tx.task.create({
+        data: {
+          permitId: input.permitId,
+          name,
+          description,
+          category,
+          responsibility,
+          tags,
+          dueDate,
+          priority,
+          assigneeId
+        },
+        select: { id: true }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.TASK,
+        entityId: t.id,
+        action: AuditAction.CREATE,
+        newValue: {
+          permitId: input.permitId,
+          name,
+          description,
+          category,
+          responsibility,
+          tags,
+          dueDate: dueDate?.toISOString() ?? null,
+          priority,
+          assigneeId
+        },
+        userId: me.id
+      });
+      // New tasks land OPEN, so percentage-trigger milestones may flip
+      // DUE → PENDING if the denominator grew enough. Recalc inside the
+      // same tx so the milestone state and the task state commit together.
+      await recalcPermitProgress(tx, input.permitId, me.id);
+      return t;
+    });
+
+    revalidatePath(`/permits/${input.permitId}`, "layout");
+    revalidatePath("/tasks");
+    revalidatePath("/my-tasks");
+    return { ok: true, taskId: created.id };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "שגיאה לא צפויה"
+    };
+  }
+}
+
+// ----------------------------------------------------------------------------
 // Block 25: Snooze. Pushes the due date forward by 1 or 7 days and increments
 // snoozeCount so chronic slippage is visible. Base date is the later of "today"
 // and the current due date, so snoozing an already-overdue task moves it
