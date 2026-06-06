@@ -30,7 +30,9 @@ export const AuditEntity = {
   AUTHORITY_SUBMISSION: "AUTHORITY_SUBMISSION",
   PARTNER_CATEGORY: "PARTNER_CATEGORY",
   // Block 33 — per-permit contacts directory.
-  PROJECT_CONTACT: "PROJECT_CONTACT"
+  PROJECT_CONTACT: "PROJECT_CONTACT",
+  // Block 34 — per-task progress notes.
+  TASK_NOTE: "TASK_NOTE"
 } as const;
 
 export type AuditEntityValue = (typeof AuditEntity)[keyof typeof AuditEntity] | (string & {});

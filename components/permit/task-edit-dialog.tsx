@@ -5,6 +5,11 @@ import { Loader2, Pencil, X } from "lucide-react";
 import type { TaskPriority, TaskResponsibility } from "@prisma/client";
 import { updateTaskMetadata } from "@/app/actions/tasks";
 import { TASK_RESPONSIBILITY_LABEL } from "@/lib/status-maps";
+import {
+  TaskNotesPanel,
+  type TaskNoteItem,
+  type TaskNotesViewer
+} from "@/components/tasks/task-notes-panel";
 
 const RESPONSIBILITY_OPTIONS: TaskResponsibility[] = [
   "INTERNAL",
@@ -45,11 +50,15 @@ function parseTagInput(raw: string): string[] {
 export function TaskEditButton({
   task,
   assignees,
-  categorySuggestions
+  categorySuggestions,
+  notes,
+  viewer
 }: {
   task: TaskEditableValues;
   assignees: { id: string; name: string }[];
   categorySuggestions: string[];
+  notes: TaskNoteItem[];
+  viewer: TaskNotesViewer;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -69,6 +78,8 @@ export function TaskEditButton({
           task={task}
           assignees={assignees}
           categorySuggestions={categorySuggestions}
+          notes={notes}
+          viewer={viewer}
           onClose={() => setOpen(false)}
         />
       )}
@@ -80,11 +91,15 @@ function TaskEditDialog({
   task,
   assignees,
   categorySuggestions,
+  notes,
+  viewer,
   onClose
 }: {
   task: TaskEditableValues;
   assignees: { id: string; name: string }[];
   categorySuggestions: string[];
+  notes: TaskNoteItem[];
+  viewer: TaskNotesViewer;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -138,19 +153,21 @@ function TaskEditDialog({
       }}
       className="w-[520px] max-w-[calc(100vw-2rem)] rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40"
     >
-      <form onSubmit={handleSubmit}>
-        <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
-          <h2 className="text-sm font-semibold">עריכת משימה</h2>
-          <button
-            type="button"
-            onClick={() => dialogRef.current?.close()}
-            className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="סגור"
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
+      <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
+        <h2 className="text-sm font-semibold">עריכת משימה</h2>
+        <button
+          type="button"
+          onClick={() => dialogRef.current?.close()}
+          className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="סגור"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
 
+      {/* Metadata form — kept separate so the notes panel below can host
+          its own server-action forms (HTML disallows nested <form>). */}
+      <form onSubmit={handleSubmit}>
         <div className="space-y-3 px-3 py-3">
           <label className="block">
             <span className="mb-0.5 block text-[11px] font-medium">
@@ -287,6 +304,20 @@ function TaskEditDialog({
           </button>
         </div>
       </form>
+
+      {/* Block 34 — progress notes log. Outside the metadata <form> so the
+          panel's own server-action forms aren't nested (invalid HTML). */}
+      <div className="border-t bg-muted/10 px-3 py-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            הערות משימה
+          </h3>
+          <span className="text-[10px] text-muted-foreground tabular-nums">
+            {notes.length}
+          </span>
+        </div>
+        <TaskNotesPanel taskId={task.id} notes={notes} viewer={viewer} />
+      </div>
     </dialog>
   );
 }

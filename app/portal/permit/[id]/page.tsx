@@ -19,6 +19,7 @@ import {
   type PortalTaskRowData
 } from "@/components/portal/portal-task-row";
 import { PortalUploadDialogTrigger } from "@/components/portal/portal-upload-trigger";
+import type { TaskNotesViewer } from "@/components/tasks/task-notes-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,19 @@ export default async function PortalPermitDetailPage({
         where: { deletedAt: null },
         select: { id: true, fileName: true, fileUrl: true, createdAt: true },
         orderBy: { createdAt: "desc" }
+      },
+      // Block 34 — per-task progress log. Newest first so the row's
+      // collapsed preview shows the most recent entry.
+      notes: {
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          updatedAt: true,
+          authorId: true,
+          author: { select: { name: true } }
+        },
+        orderBy: { createdAt: "desc" }
       }
     },
     orderBy: [{ createdAt: "asc" }]
@@ -178,9 +192,23 @@ export default async function PortalPermitDetailPage({
         previewUrl: previewUrlFor(d.fileUrl),
         uploadedAt: d.createdAt.toISOString()
       })),
-      isReadOnly
+      isReadOnly,
+      notes: t.notes.map((n) => ({
+        id: n.id,
+        content: n.content,
+        createdAt: n.createdAt.toISOString(),
+        updatedAt: n.updatedAt.toISOString(),
+        authorId: n.authorId,
+        authorName: n.author?.name ?? null
+      }))
     };
   });
+
+  // Viewer identity for the notes panel (mirrors the back-office wiring).
+  const viewer: TaskNotesViewer = {
+    id: user.id,
+    role: user.role as TaskNotesViewer["role"]
+  };
 
   const grouped = STATUS_GROUP_ORDER.map((s) => ({
     status: s,
@@ -314,6 +342,7 @@ export default async function PortalPermitDetailPage({
                         task={row}
                         permitId={permit.id}
                         permitLocked={isLocked}
+                        viewer={viewer}
                       />
                     ))}
                   </ul>
