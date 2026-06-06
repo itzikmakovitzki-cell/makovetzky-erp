@@ -28,7 +28,9 @@ export const AuditEntity = {
   PROPOSAL: "PROPOSAL",
   DEAL_MILESTONE: "DEAL_MILESTONE",
   AUTHORITY_SUBMISSION: "AUTHORITY_SUBMISSION",
-  PARTNER_CATEGORY: "PARTNER_CATEGORY"
+  PARTNER_CATEGORY: "PARTNER_CATEGORY",
+  // Block 33 — per-permit contacts directory.
+  PROJECT_CONTACT: "PROJECT_CONTACT"
 } as const;
 
 export type AuditEntityValue = (typeof AuditEntity)[keyof typeof AuditEntity] | (string & {});
