@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRight, Lock, Building2, FileText, ExternalLink, ListChecks, FolderOpen } from "lucide-react";
+import { ArrowRight, Lock, Building2, FileText, ExternalLink, ListChecks, FolderOpen, Sparkles } from "lucide-react";
 import type { TaskStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -192,13 +192,24 @@ export default async function PortalPermitDetailPage({
 
   return (
     <div className="space-y-4">
-      <div>
+      {/* Block 32: contextual marketplace entry. The back-link stays on the
+          right (RTL leading edge), the marketplace CTA mirrors it on the
+          left so clients deep inside a permit still see the partners
+          shortcut without scrolling back out to /portal. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Link
           href="/portal"
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
         >
           <ArrowRight className="size-3" />
           חזרה לכל ההיתרים
+        </Link>
+        <Link
+          href="/portal/partners"
+          className="group inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-[11.5px] font-semibold text-primary transition-all hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/10 hover:shadow-sm"
+        >
+          <Sparkles className="size-3 transition-transform group-hover:rotate-12" />
+          למאגר השותפים וההטבות
         </Link>
       </div>
 
