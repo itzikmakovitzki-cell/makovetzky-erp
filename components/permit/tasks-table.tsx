@@ -23,6 +23,7 @@ import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { MagicLinkButton } from "@/components/permit/magic-link-button";
 import { PermitTasksXlsxToolbar } from "@/components/permit/permit-tasks-xlsx-toolbar";
 import { TaskEditButton } from "@/components/permit/task-edit-dialog";
+import { CreateTaskButton } from "@/components/permit/task-create-dialog";
 import { TasksCategoryFilter } from "@/components/permit/tasks-category-filter";
 import { PermitTaskMobileCard } from "@/components/permit/permit-task-mobile-card";
 import { BulkTaskActionBar } from "@/components/tasks/bulk-task-action-bar";
@@ -134,10 +135,17 @@ export async function TasksTable({
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             משימות ({tasks.length})
           </h2>
-          <TasksCategoryFilter
-            categories={permitCategories}
-            current={categoryFilter ?? null}
-          />
+          <div className="flex items-center gap-2">
+            <TasksCategoryFilter
+              categories={permitCategories}
+              current={categoryFilter ?? null}
+            />
+            <CreateTaskButton
+              permitId={permitId}
+              assignees={assignees}
+              categorySuggestions={categorySuggestions}
+            />
+          </div>
         </div>
         {tasks.length === 0 ? (
           <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
@@ -188,6 +196,11 @@ export async function TasksTable({
               <Star className="size-3 fill-yellow-500 text-yellow-500" /> Managerial Spotlight
             </span>
           </div>
+          <CreateTaskButton
+            permitId={permitId}
+            assignees={assignees}
+            categorySuggestions={categorySuggestions}
+          />
           <PermitTasksXlsxToolbar permitId={permitId} canImport={isAdmin} />
         </div>
       </div>
