@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Star, Lock, Hourglass, MessageSquare } from "lucide-react";
+import { Star, Lock, Hourglass } from "lucide-react";
 import type { Prisma, TaskResponsibility } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +9,7 @@ import type {
   TaskNoteItem,
   TaskNotesViewer
 } from "@/components/tasks/task-notes-panel";
-import { formatDateTime } from "@/lib/utils";
+import { TaskQuickNotesTrigger } from "@/components/tasks/task-quick-notes-dialog";
 import { TaskStatusControl } from "@/components/permit/task-status-control";
 import { InlineAssignee } from "@/components/tasks/inline-assignee";
 import { InlineDueDate } from "@/components/tasks/inline-due-date";
@@ -367,7 +367,12 @@ export async function TasksTable({
                     ) : t.frozen ? (
                       <span>ממתין לתשובת רשות — תאריך יעד מוקפא</span>
                     ) : null}
-                    <LatestNotePreview notes={t.notes} totalCount={t.notes.length} />
+                    <TaskQuickNotesTrigger
+                      taskId={t.id}
+                      taskName={t.name}
+                      notes={t.notes.map(toNoteItem)}
+                      viewer={viewer ?? { id: "anon", role: "EMPLOYEE" }}
+                    />
                   </div>
                 </td>
                 <td className="p-0">
@@ -434,37 +439,6 @@ function toNoteItem(n: RawTaskNote): TaskNoteItem {
     authorId: n.authorId,
     authorName: n.author?.name ?? null
   };
-}
-
-// Compact one-line preview of the latest note ("בת אור · 04/06 12:30 ·
-// שלחתי מייל…"). Click pencil on the row → opens dialog → full thread.
-function LatestNotePreview({
-  notes,
-  totalCount
-}: {
-  notes: RawTaskNote[];
-  totalCount: number;
-}) {
-  if (totalCount === 0) return null;
-  const latest = notes[0];
-  return (
-    <div className="flex items-start gap-1 text-[10px] text-muted-foreground">
-      <MessageSquare className="size-3 shrink-0 translate-y-[1px]" />
-      <div className="min-w-0">
-        <div className="flex items-center gap-1">
-          <span className="font-medium text-foreground/80">
-            {latest.author?.name ?? "—"}
-          </span>
-          <span>·</span>
-          <span className="tabular-nums">{formatDateTime(latest.createdAt)}</span>
-          {totalCount > 1 && (
-            <span className="rounded bg-muted px-1 text-[9px]">+{totalCount - 1}</span>
-          )}
-        </div>
-        <div className="truncate" title={latest.content}>{latest.content}</div>
-      </div>
-    </div>
-  );
 }
 
 function LegendDot({ color, label }: { color: string; label: string }) {
