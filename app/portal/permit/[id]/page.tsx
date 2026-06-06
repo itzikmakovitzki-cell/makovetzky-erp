@@ -22,6 +22,7 @@ import { PortalUploadDialogTrigger } from "@/components/portal/portal-upload-tri
 import { PortalBlockerAlert } from "@/components/portal/portal-blocker-alert";
 import { PortalAuthorityTrafficLight } from "@/components/portal/portal-authority-traffic-light";
 import { scanPermitAuthorities } from "@/lib/portal-authority-scan";
+import { GenerateBinderButton } from "@/components/permits/generate-binder-button";
 import type { TaskNotesViewer } from "@/components/tasks/task-notes-panel";
 
 export const dynamic = "force-dynamic";
@@ -414,9 +415,12 @@ export default async function PortalPermitDetailPage({
                 מוצגים בלשונית &quot;ציר זמן ומשימות&quot;.
               </p>
             </div>
-            {!isLocked && (
-              <PortalUploadDialogTrigger permitId={permit.id} />
-            )}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* Block 41 — same binder endpoint, ghost variant so the
+                  upload trigger stays the primary action for the client. */}
+              <GenerateBinderButton permitId={permit.id} variant="ghost" />
+              {!isLocked && <PortalUploadDialogTrigger permitId={permit.id} />}
+            </div>
           </div>
 
           {archiveDocs.length === 0 ? (

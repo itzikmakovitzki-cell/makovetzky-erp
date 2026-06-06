@@ -134,6 +134,18 @@ export async function deleteFromStorage(path: string): Promise<void> {
   if (error) throw new Error(`מחיקת קובץ מאחסון נכשלה: ${error.message}`);
 }
 
+// Block 41 — direct buffer download for server-side bundling (the binder
+// ZIP generator). Bypasses signed URLs since we're inside the same Node
+// process; saves the round-trip + the TTL guarantee.
+export async function downloadFromStorage(path: string): Promise<ArrayBuffer> {
+  const supabase = adminClient();
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(path);
+  if (error || !data) {
+    throw new Error(`הורדת קובץ מאחסון נכשלה: ${error?.message ?? "unknown"}`);
+  }
+  return await data.arrayBuffer();
+}
+
 // Heuristic: in Mock mode, fileUrl is a full URL. In real Storage mode, it's a path
 // like "permits/<id>/<ts>-<filename>". This lets us keep legacy seed data working.
 export function isStoragePath(fileUrl: string): boolean {
