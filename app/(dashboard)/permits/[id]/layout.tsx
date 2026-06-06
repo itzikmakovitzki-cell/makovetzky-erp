@@ -9,6 +9,7 @@ import { FinanceSummary } from "@/components/permit/finance-summary";
 import { DocumentsSummary } from "@/components/permit/documents-summary";
 import { CompletionBanner } from "@/components/permit/completion-banner";
 import { InvitePartnerButton } from "@/components/permit/invite-partner-button";
+import { GenerateBinderButton } from "@/components/permits/generate-binder-button";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,10 @@ export default async function PermitLayout({
           present to a client at any time. */}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {/* Block 41 — 1-click municipality binder. The headline action
+              for the PM; sits left of the partner / finance / docs
+              utilities so it's the first thing the eye lands on. */}
+          <GenerateBinderButton permitId={id} variant="primary" />
           <InvitePartnerButton
             permitId={id}
             permitLabel={permit.name}
