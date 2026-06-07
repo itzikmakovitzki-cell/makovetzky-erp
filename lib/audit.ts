@@ -34,7 +34,10 @@ export const AuditEntity = {
   // Block 34 — per-task progress notes.
   TASK_NOTE: "TASK_NOTE",
   // Block 38 — files attached to a Supplier (catalog / contract / etc.).
-  SUPPLIER_DOCUMENT: "SUPPLIER_DOCUMENT"
+  SUPPLIER_DOCUMENT: "SUPPLIER_DOCUMENT",
+  // Block 43 — admin impersonation start/stop events. The entityId is
+  // the target user being impersonated; userId is the admin doing it.
+  IMPERSONATION: "IMPERSONATION"
 } as const;
 
 export type AuditEntityValue = (typeof AuditEntity)[keyof typeof AuditEntity] | (string & {});

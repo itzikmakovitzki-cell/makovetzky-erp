@@ -3,6 +3,15 @@ import Link from "next/link";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { auth } from "@/auth";
 import { signOutAction } from "@/app/actions/auth";
+import { ImpersonationBanner } from "@/components/global/impersonation-banner";
+
+// Hebrew role labels mirror impersonation-launcher.tsx so the banner
+// reads the same wherever it shows up.
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: "אדמין",
+  EMPLOYEE: "עובד",
+  CONTRACTOR: "קבלן/לקוח"
+};
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +19,12 @@ export default async function PortalLayout({ children }: { children: React.React
   const session = await auth();
   const user = session?.user;
   const isAdmin = user?.role === "ADMIN";
+  // Block 43: when an admin impersonates a contractor they land in the
+  // portal — the dashboard banner doesn't get rendered, so we need to
+  // mount it here too. The launcher itself stays out of the portal
+  // (the impersonated session isn't ADMIN, so it can't start a new
+  // impersonation anyway).
+  const impersonating = session?.impersonating ?? null;
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">
@@ -52,6 +67,13 @@ export default async function PortalLayout({ children }: { children: React.React
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-4 sm:px-4 sm:py-6">
+        {impersonating && user && (
+          <ImpersonationBanner
+            impersonatedName={user.name ?? "—"}
+            impersonatedRole={ROLE_LABEL[user.role] ?? user.role}
+            originalName={impersonating.originalName || "מקור"}
+          />
+        )}
         {children}
       </main>
 

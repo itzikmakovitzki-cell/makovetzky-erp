@@ -8,7 +8,7 @@ import { authConfig } from "./auth.config";
 // Full auth instance. Imports Prisma + bcryptjs (Node-only) — never use this
 // from middleware or any Edge-runtime context. Middleware uses authConfig
 // directly via `NextAuth(authConfig)` in middleware.ts.
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   ...authConfig,
   callbacks: {
     ...authConfig.callbacks,
@@ -24,7 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // there can lag for ~one navigation after a role change. That's fine
     // — role changes are rare and the next request through Node will
     // catch up.
-    jwt: async ({ token, user }) => {
+    jwt: async ({ token, user, trigger, session }) => {
       // Sign-in path: seed the token from the credentials user object.
       if (user) {
         token.id = (user as { id: string }).id;
@@ -33,9 +33,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.email = user.email;
       }
 
+      // Block 43 — impersonation hooks. `update()` from the client triggers
+      // this callback with `trigger === "update"` and the new session
+      // object as `session`. We trust the server action that gates
+      // role + audit (app/actions/impersonation.ts) and just mutate
+      // the token here. The DB refresh below picks up the impersonated
+      // user's name/email/role automatically.
+      if (trigger === "update" && session) {
+        const action = (session as { action?: string }).action;
+        if (action === "impersonate") {
+          const targetId = (session as { targetUserId?: string }).targetUserId;
+          if (typeof targetId === "string" && targetId && !token.originalUserId) {
+            // Stash the ORIGINAL admin so we can switch back. We do
+            // this only when not already impersonating — never let an
+            // impersonated session start a fresh chain.
+            token.originalUserId = token.id;
+            token.originalName = token.name ?? "";
+            token.id = targetId;
+            // Wipe the cached display fields so the DB refresh below
+            // populates them from the target's row.
+            token.name = undefined;
+            token.email = undefined;
+            token.role = undefined;
+          }
+        } else if (action === "stop-impersonating") {
+          if (token.originalUserId) {
+            token.id = token.originalUserId;
+            token.originalUserId = undefined;
+            token.originalName = undefined;
+            token.name = undefined;
+            token.email = undefined;
+            token.role = undefined;
+          }
+        }
+      }
+
       // Subsequent calls (and explicit session.update() triggers): refresh
       // name/email/role from DB so display fields stay in sync without a
-      // logout/login cycle.
+      // logout/login cycle. This is also what makes impersonation
+      // visible — once token.id changed, this block pulls the
+      // impersonated user's row.
       if (typeof token.id === "string") {
         const fresh = await prisma.user.findUnique({
           where: { id: token.id },
@@ -53,6 +90,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       return token;
+    },
+    // Surface the impersonation marker on the session so client UI
+    // can render the banner + "back to myself" button. The Edge-safe
+    // session callback in auth.config doesn't see these JWT fields
+    // (middleware doesn't need them), so we override it here.
+    session: async ({ session, token }) => {
+      if (session.user) {
+        if (typeof token.id === "string") session.user.id = token.id;
+        if (token.role) session.user.role = token.role as UserRole;
+      }
+      if (typeof token.originalUserId === "string") {
+        session.impersonating = {
+          originalUserId: token.originalUserId,
+          originalName:
+            typeof token.originalName === "string" ? token.originalName : ""
+        };
+      }
+      return session;
     }
   },
   providers: [
