@@ -221,6 +221,142 @@ export async function rejectPendingDocument(
   revalidatePath("/inbox");
 }
 
+// Undo a previous assignment — flips an ASSIGNED PendingDocument back to
+// PENDING so the admin can re-process it (e.g. they shipped it to the wrong
+// task and want to re-route). Deliberately does NOT touch the Document that
+// was created at assign time — that file may already have been edited,
+// approved, or referenced elsewhere, and silently soft-deleting it would be
+// data loss. The admin can soft-delete the Document separately via the
+// permit's documents page if needed; the audit log on this row captures
+// the linkage so a future investigation can reconstruct what happened.
+export async function undoPendingDocumentAssignment(
+  pendingDocId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const user = await getCurrentUser();
+    const pending = await prisma.pendingDocument.findUnique({
+      where: { id: pendingDocId },
+      select: {
+        id: true,
+        status: true,
+        fileName: true,
+        assignedPermitId: true,
+        assignedTaskId: true,
+        processedAt: true,
+        sourceChannel: true
+      }
+    });
+    if (!pending) return { ok: false, error: "מסמך נכנס לא נמצא" };
+    if (pending.status !== "ASSIGNED") {
+      return { ok: false, error: "ניתן לבטל שיוך רק על מסמך ששויך" };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pendingDocument.update({
+        where: { id: pendingDocId },
+        data: {
+          status: "PENDING",
+          assignedTaskId: null,
+          assignedPermitId: null,
+          processedAt: null
+        }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.PENDING_DOCUMENT,
+        entityId: pendingDocId,
+        action: AuditAction.UPDATE,
+        oldValue: {
+          status: "ASSIGNED",
+          assignedPermitId: pending.assignedPermitId,
+          assignedTaskId: pending.assignedTaskId,
+          processedAt: pending.processedAt?.toISOString() ?? null
+        },
+        newValue: {
+          status: "PENDING",
+          fileName: pending.fileName,
+          source: pending.sourceChannel,
+          event: "assignment_undone"
+        },
+        userId: user.id
+      });
+    });
+
+    revalidatePath("/inbox");
+    if (pending.assignedPermitId) {
+      revalidatePath(`/permits/${pending.assignedPermitId}`, "layout");
+    }
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "שגיאה בביטול השיוך"
+    };
+  }
+}
+
+// Undo a previous rejection — flips a REJECTED PendingDocument back to
+// PENDING so the admin can reconsider. Clears rejectionReason + processedAt
+// so the row looks like a fresh inbox item again. Audit log captures the
+// prior rejection reason for posterity.
+export async function undoPendingDocumentRejection(
+  pendingDocId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const user = await getCurrentUser();
+    const pending = await prisma.pendingDocument.findUnique({
+      where: { id: pendingDocId },
+      select: {
+        id: true,
+        status: true,
+        fileName: true,
+        rejectionReason: true,
+        processedAt: true,
+        sourceChannel: true
+      }
+    });
+    if (!pending) return { ok: false, error: "מסמך נכנס לא נמצא" };
+    if (pending.status !== "REJECTED") {
+      return { ok: false, error: "ניתן לבטל דחייה רק על מסמך שנדחה" };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pendingDocument.update({
+        where: { id: pendingDocId },
+        data: {
+          status: "PENDING",
+          rejectionReason: null,
+          processedAt: null
+        }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.PENDING_DOCUMENT,
+        entityId: pendingDocId,
+        action: AuditAction.UPDATE,
+        oldValue: {
+          status: "REJECTED",
+          rejectionReason: pending.rejectionReason,
+          processedAt: pending.processedAt?.toISOString() ?? null
+        },
+        newValue: {
+          status: "PENDING",
+          fileName: pending.fileName,
+          source: pending.sourceChannel,
+          event: "rejection_undone"
+        },
+        userId: user.id
+      });
+    });
+
+    revalidatePath("/inbox");
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "שגיאה בביטול הדחייה"
+    };
+  }
+}
+
 // Manual upload — drops a file directly into the inbox with sourceChannel=MANUAL.
 // Used when a document arrives outside the connected automated channels (e.g.
 // a contractor hands over a PDF in person, or pre-Cloud-API WhatsApp messages).
