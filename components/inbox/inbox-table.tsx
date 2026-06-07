@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   FileText,
   Loader2,
+  RotateCcw,
   Send,
   Upload,
   XCircle,
@@ -17,7 +18,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/global/page-header";
 import { cn, formatDateTime } from "@/lib/utils";
-import { rejectPendingDocument } from "@/app/actions/inbox";
+import {
+  rejectPendingDocument,
+  undoPendingDocumentAssignment,
+  undoPendingDocumentRejection
+} from "@/app/actions/inbox";
 import {
   ProcessPendingDialog,
   type PendingDocForDialog
@@ -80,6 +85,9 @@ export function InboxTable({
   const [processingDocId, setProcessingDocId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectPending, startRejectTransition] = useTransition();
+  const [undoingId, setUndoingId] = useState<string | null>(null);
+  const [undoPending, startUndoTransition] = useTransition();
+  const [undoError, setUndoError] = useState<string | null>(null);
   const [manualUploadOpen, setManualUploadOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -111,6 +119,30 @@ export function InboxTable({
       } finally {
         setRejectingId(null);
       }
+    });
+  };
+
+  const handleUndo = (doc: PendingDocRow) => {
+    if (doc.status === "ASSIGNED") {
+      if (
+        !window.confirm(
+          `לבטל את השיוך של "${doc.fileName ?? "המסמך"}"?\n\nהמסמך יחזור לרשימת הממתינים. הקובץ שכבר שויך נשאר תחת ההיתר — תוכל למחוק אותו ידנית מתיקיית המסמכים של ההיתר אם הוא מיותר.`
+        )
+      ) {
+        return;
+      }
+    }
+    setUndoError(null);
+    setUndoingId(doc.id);
+    startUndoTransition(async () => {
+      const res =
+        doc.status === "ASSIGNED"
+          ? await undoPendingDocumentAssignment(doc.id)
+          : await undoPendingDocumentRejection(doc.id);
+      if (!res.ok) {
+        setUndoError(res.error);
+      }
+      setUndoingId(null);
     });
   };
 
@@ -318,12 +350,37 @@ export function InboxTable({
                         </button>
                       </div>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <CheckCircle2 className="size-3" />
-                        {d.processedAt
-                          ? `טופל ${formatDateTime(d.processedAt)}`
-                          : "טופל"}
-                      </span>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <CheckCircle2 className="size-3" />
+                          {d.processedAt
+                            ? `טופל ${formatDateTime(d.processedAt)}`
+                            : "טופל"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUndo(d)}
+                          disabled={undoingId === d.id && undoPending}
+                          className="inline-flex items-center gap-1 rounded border border-input bg-background px-1.5 py-0.5 text-[10px] text-foreground hover:bg-accent disabled:opacity-50"
+                          title={
+                            d.status === "ASSIGNED"
+                              ? "החזר לרשימת ממתינים"
+                              : "בטל דחייה והחזר לרשימת ממתינים"
+                          }
+                        >
+                          {undoingId === d.id && undoPending ? (
+                            <Loader2 className="size-2.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="size-2.5" />
+                          )}
+                          בטל
+                        </button>
+                        {undoError && undoingId === d.id && (
+                          <span className="text-[10px] text-red-600">
+                            {undoError}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
