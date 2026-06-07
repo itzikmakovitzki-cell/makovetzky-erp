@@ -10,11 +10,25 @@ import {
   CommandPaletteIconButton
 } from "@/components/global/command-palette-trigger";
 import { Scratchpad } from "@/components/global/scratchpad";
+import { ImpersonationLauncher } from "@/components/global/impersonation-launcher";
+import { ImpersonationBanner } from "@/components/global/impersonation-banner";
+
+// Block 43 helper — Hebrew labels mirror impersonation-launcher.tsx.
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: "אדמין",
+  EMPLOYEE: "עובד",
+  CONTRACTOR: "קבלן/לקוח"
+};
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Middleware enforces auth, but we still read the session here to display the user.
   const session = await auth();
   const user = session?.user;
+  // Block 43: launcher only renders for ADMIN; the banner renders whenever
+  // a session is in impersonation mode (regardless of the impersonated
+  // user's role), so the operator can always switch back.
+  const isAdmin = user?.role === "ADMIN";
+  const impersonating = session?.impersonating ?? null;
 
   return (
     <div className="flex min-h-screen">
@@ -77,6 +91,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </Link>
         </header>
         <main className="flex-1 overflow-auto px-4 py-4 pb-24 md:px-6 md:py-5 md:pb-5">
+          {impersonating && user && (
+            <ImpersonationBanner
+              impersonatedName={user.name ?? "—"}
+              impersonatedRole={ROLE_LABEL[user.role] ?? user.role}
+              originalName={impersonating.originalName || "מקור"}
+            />
+          )}
           {children}
         </main>
       </div>
@@ -86,6 +107,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       />
       <CommandPalette />
       <Scratchpad />
+      {isAdmin && !impersonating && <ImpersonationLauncher />}
     </div>
   );
 }
