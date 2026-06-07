@@ -6,32 +6,9 @@ import { AuditAction } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { parseAmount, parseDate, parseIntField } from "@/lib/validators/form";
 
 type FormState = { error: string | null };
-
-function parseDate(raw: FormDataEntryValue | null): Date | null {
-  if (raw === null) return null;
-  const str = String(raw).trim();
-  if (!str) return null;
-  const d = new Date(str);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function parseAmount(raw: FormDataEntryValue | null): number | null {
-  if (raw === null) return null;
-  const str = String(raw).trim();
-  if (!str) return null;
-  const n = Number(str.replace(/,/g, ""));
-  if (!Number.isFinite(n) || n < 0) return null;
-  return Math.round(n * 100) / 100;
-}
-
-function parseIntField(raw: FormDataEntryValue | null, fallback = 0): number {
-  if (raw === null) return fallback;
-  const n = Number(String(raw).trim());
-  if (!Number.isFinite(n) || n < 0) return fallback;
-  return Math.floor(n);
-}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

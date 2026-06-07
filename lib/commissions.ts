@@ -137,6 +137,54 @@ export function isValidPreset(raw: string | undefined): raw is PeriodPreset {
   return raw === "month" || raw === "last-month" || raw === "ytd" || raw === "custom";
 }
 
+// Validate a commission (type, value) pair as accepted from a form. Used by
+// both Supplier.defaultCommission* (suppliers.ts) and SupplierTaskAssignment
+// overrides (supplier-assignments.ts) — the two flows read different
+// FormData field names but share the same validation rules:
+//
+// - Both empty → "inherit / no override" (ok, type=null, value=null)
+// - Type without value or value without type → error
+// - Type must be FIXED or PERCENT
+// - Value must be a non-negative number
+// - PERCENT values must be ≤ 100
+//
+// Returns the typed pair plus the value formatted as a 2-decimal string
+// (the shape suppliers.ts/supplier-assignments.ts feed straight into Prisma
+// `Decimal` columns), or { ok: false, error } with a Hebrew message ready to
+// surface in the form.
+export function validateCommissionPair(
+  typeRaw: string,
+  valueRaw: string
+):
+  | { ok: true; type: SupplierCommissionType | null; value: string | null }
+  | { ok: false; error: string } {
+  const t = typeRaw.trim();
+  const v = valueRaw.trim();
+
+  if (!t && !v) return { ok: true, type: null, value: null };
+  if (t && !v) {
+    return { ok: false, error: "ערך עמלה חסר — סימנת סוג בלי מספר" };
+  }
+  if (v && !t) {
+    return { ok: false, error: "סוג עמלה חסר — מילאת מספר בלי לבחור 'סכום' או 'אחוז'" };
+  }
+  if (t !== "FIXED" && t !== "PERCENT") {
+    return { ok: false, error: "סוג עמלה לא חוקי" };
+  }
+  const n = Number(v);
+  if (Number.isNaN(n) || n < 0) {
+    return { ok: false, error: "ערך עמלה חייב להיות מספר אי-שלילי" };
+  }
+  if (t === "PERCENT" && n > 100) {
+    return { ok: false, error: "אחוז עמלה לא יכול להיות מעל 100" };
+  }
+  return {
+    ok: true,
+    type: t as SupplierCommissionType,
+    value: n.toFixed(2)
+  };
+}
+
 // Resolve the commission amount for a single assignment. Returns null when
 // neither the assignment nor the supplier define a commission, OR when the
 // type is PERCENT but the dependency value (amount) is null. The caller
