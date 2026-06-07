@@ -346,6 +346,92 @@ export async function markProposalSent(
   }
 }
 
+// Reverse transition: SENT → DRAFT so the admin can edit a proposal that's
+// already out the door (customer asked for a revision, typo found, milestone
+// schedule needs tweaking). Without this, the only path was to delete the
+// proposal and rebuild it from scratch — losing the cuid / share-link and
+// breaking any conversation the admin had with the customer over the link.
+//
+// SIGNED is intentionally NOT reversible here — once the customer has put
+// their signature on a document, reopening it for edits silently would
+// invalidate the legal record. If the admin really needs to amend a signed
+// proposal they should create a fresh one.
+//
+// Clears sentAt / expiresAt / reminderSentAt / adminNotifiedAt so the V2
+// lifecycle stamps reset cleanly; a future markProposalSent will compute
+// fresh values.
+export async function reopenProposalForEdit(
+  proposalId: string
+): Promise<ActionResult> {
+  try {
+    const me = await requireRole(["ADMIN"]);
+    const proposal = await prisma.proposal.findFirst({
+      where: { id: proposalId, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        customerName: true,
+        sentAt: true,
+        expiresAt: true,
+        reminderSentAt: true,
+        adminNotifiedAt: true
+      }
+    });
+    if (!proposal) return { ok: false, error: "הצעה לא נמצאה" };
+    if (proposal.status === ProposalStatus.DRAFT) {
+      return { ok: true, error: null }; // already draft — no-op
+    }
+    if (proposal.status === ProposalStatus.SIGNED) {
+      return {
+        ok: false,
+        error:
+          "ההצעה נחתמה — אי-אפשר לפתוח אותה מחדש. צור הצעה חדשה במקום."
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.proposal.update({
+        where: { id: proposalId },
+        data: {
+          status: ProposalStatus.DRAFT,
+          sentAt: null,
+          expiresAt: null,
+          reminderSentAt: null,
+          adminNotifiedAt: null,
+          // Clear any rejection trace too if this came back from REJECTED.
+          rejectionReason: null
+        }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.PROPOSAL,
+        entityId: proposalId,
+        action: AuditAction.STATUS_CHANGE,
+        oldValue: {
+          status: proposal.status,
+          sentAt: proposal.sentAt?.toISOString() ?? null,
+          expiresAt: proposal.expiresAt?.toISOString() ?? null
+        },
+        newValue: {
+          status: ProposalStatus.DRAFT,
+          customerName: proposal.customerName,
+          event: "reopened_for_edit"
+        },
+        userId: me.id
+      });
+    });
+
+    revalidatePath(`/proposals/${proposalId}`);
+    revalidatePath(`/proposals/${proposalId}/edit`);
+    revalidatePath("/proposals");
+    return { ok: true, error: null };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "שגיאה לא צפויה"
+    };
+  }
+}
+
 // ============================================================================
 // PUBLIC SIGN / REJECT (no auth — cuid id is the secret)
 // ============================================================================
