@@ -19,12 +19,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import {
-  convertProposalToProject,
-  deleteProposal,
-  markProposalSent,
-  rejectProposal
-} from "@/app/actions/proposals";
+import { deleteProposal, markProposalSent } from "@/app/actions/proposals";
+import { rejectProposal } from "@/app/actions/proposals-public";
+import { convertProposalToProject } from "@/app/actions/proposals-convert";
 
 export function ProposalRowActions({
   proposalId,

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeftCircle, Loader2 } from "lucide-react";
-import { convertProposalToProject } from "@/app/actions/proposals";
+import { convertProposalToProject } from "@/app/actions/proposals-convert";
 
 export function ConvertButton({ proposalId }: { proposalId: string }) {
   const router = useRouter();

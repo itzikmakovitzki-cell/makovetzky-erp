@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { rejectProposal, signProposal } from "@/app/actions/proposals";
+import { rejectProposal, signProposal } from "@/app/actions/proposals-public";
 import { SignaturePad, type SignaturePadHandle } from "./signature-pad";
 
 // All client-side controls on the public /quote/[id] page: sign or reject.

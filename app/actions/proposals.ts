@@ -1,26 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { AuditAction, Prisma, ProposalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
-import { validateIsraeliId, normalizeIsraeliId } from "@/lib/israeli-id";
-import {
-  buildProposalHtml,
-  renderPdfBuffer,
-  type ProposalMilestoneLite
-} from "@/lib/proposal-pdf";
-import {
-  buildProposalStoragePath,
-  uploadToStorage
-} from "@/lib/supabase-storage";
-import {
-  isGreenApiConfigured,
-  sendWhatsAppMessage
-} from "@/lib/green-api";
-import { formatDateTime, formatILS } from "@/lib/utils";
+import { parseAmount, parseMilestonesPayload } from "@/lib/proposals/parsing";
+
+// Admin-only Proposal actions — create / update / share / delete. Split out
+// of the original 878-line proposals.ts file (June 2026):
+//   - sign + reject moved to ./proposals-public.ts (no-auth surface)
+//   - convertProposalToProject moved to ./proposals-convert.ts (Block 15's
+//     heart, complex transaction worth a dedicated file)
+//   - parseAmount + parseMilestonesPayload + ProposalMilestoneJson moved
+//     to lib/proposals/parsing.ts so all three action files share them
+//     without dragging in "use server" from each other.
+//
+// The public ProposalMilestoneJson type continues to be re-exported here
+// for back-compat with consumers that already imported it from this file.
 
 // V2 quote validity window — used by markProposalSent to stamp expiresAt and
 // by the public page to lock signing once exceeded.
@@ -29,56 +26,9 @@ const PROPOSAL_VALIDITY_DAYS = 14;
 type ActionResult<T = void> = { ok: boolean; error: string | null; data?: T };
 type FormState = { ok: boolean; error: string | null; id?: string };
 
-// Public-facing milestone shape stored inside Proposal.milestones JSON column.
-// Stays free-form until conversion materializes it into DealMilestone rows.
-// triggerPercentage (1–100) is optional — when set, the eventual DealMilestone
-// inherits it so the finances tab can render a live progress bar against it.
-export type ProposalMilestoneJson = {
-  description: string;
-  amount: number;
-  dueDate?: string | null;
-  triggerPercentage?: number | null;
-};
-
-function parseMilestonesPayload(raw: unknown): ProposalMilestoneJson[] {
-  if (!Array.isArray(raw)) return [];
-  const out: ProposalMilestoneJson[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const obj = item as Record<string, unknown>;
-    const description = String(obj.description ?? "").trim();
-    const amountNum = Number(obj.amount);
-    if (!description) continue;
-    if (!Number.isFinite(amountNum) || amountNum < 0) continue;
-    const dueRaw = obj.dueDate;
-    let dueDate: string | null = null;
-    if (typeof dueRaw === "string" && dueRaw.trim()) {
-      const d = new Date(dueRaw);
-      if (!Number.isNaN(d.getTime())) dueDate = d.toISOString();
-    }
-    const pctRaw = obj.triggerPercentage;
-    let triggerPercentage: number | null = null;
-    if (pctRaw !== null && pctRaw !== undefined && pctRaw !== "") {
-      const n = Number(pctRaw);
-      if (Number.isFinite(n) && Number.isInteger(n) && n >= 1 && n <= 100) {
-        triggerPercentage = n;
-      }
-    }
-    out.push({
-      description,
-      amount: Math.round(amountNum * 100) / 100,
-      dueDate,
-      triggerPercentage
-    });
-  }
-  return out;
-}
-
-function parseAmount(raw: unknown): number {
-  const n = Number(String(raw ?? "").replace(/,/g, ""));
-  if (!Number.isFinite(n) || n < 0) return NaN;
-  return Math.round(n * 100) / 100;
-}
+// Back-compat re-export so existing consumer imports continue to work.
+// Prefer importing from "@/lib/proposals/parsing" in new code.
+export type { ProposalMilestoneJson } from "@/lib/proposals/parsing";
 
 // ============================================================================
 // CREATE / UPDATE (admin only)
@@ -114,7 +64,7 @@ export async function createProposal(
     }
 
     const milestonesRaw = String(formData.get("milestones") || "[]");
-    let milestonesJson: ProposalMilestoneJson[];
+    let milestonesJson;
     try {
       milestonesJson = parseMilestonesPayload(JSON.parse(milestonesRaw));
     } catch {
@@ -220,7 +170,6 @@ export async function updateProposal(
       String(formData.get("quoteTitle") || "").trim() || null;
     const serviceDescription =
       String(formData.get("serviceDescription") || "").trim() || null;
-    // Boolean from a form: "true" / "false". Default = true (כולל מע״מ).
     const pricesIncludeVat =
       String(formData.get("pricesIncludeVat") || "true") !== "false";
 
@@ -231,7 +180,7 @@ export async function updateProposal(
     }
 
     const milestonesRaw = String(formData.get("milestones") || "[]");
-    let milestonesJson: ProposalMilestoneJson[];
+    let milestonesJson;
     try {
       milestonesJson = parseMilestonesPayload(JSON.parse(milestonesRaw));
     } catch {
@@ -240,7 +189,11 @@ export async function updateProposal(
     if (milestonesJson.length === 0) {
       return { ok: false, error: "יש להוסיף לפחות אבן דרך אחת" };
     }
-    const sumOfMilestones = milestonesJson.reduce((s, m) => s + m.amount, 0);
+
+    const sumOfMilestones = milestonesJson.reduce(
+      (s, m) => s + m.amount,
+      0
+    );
     if (Math.abs(sumOfMilestones - totalAmount) > 0.01) {
       return {
         ok: false,
@@ -270,9 +223,24 @@ export async function updateProposal(
         action: AuditAction.UPDATE,
         oldValue: {
           customerName: existing.customerName,
-          totalAmount: Number(existing.totalAmount)
+          customerPhone: existing.customerPhone,
+          customerEmail: existing.customerEmail,
+          projectLocation: existing.projectLocation,
+          totalAmount: Number(existing.totalAmount),
+          terms: existing.terms,
+          milestoneCount: Array.isArray(existing.milestones)
+            ? existing.milestones.length
+            : 0
         },
-        newValue: { customerName, totalAmount },
+        newValue: {
+          customerName,
+          customerPhone,
+          customerEmail,
+          projectLocation,
+          totalAmount,
+          terms,
+          milestoneCount: milestonesJson.length
+        },
         userId: me.id
       });
     });
@@ -338,490 +306,6 @@ export async function markProposalSent(
     revalidatePath(`/proposals/${proposalId}`);
     revalidatePath("/proposals");
     return { ok: true, error: null };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "שגיאה לא צפויה"
-    };
-  }
-}
-
-// ============================================================================
-// PUBLIC SIGN / REJECT (no auth — cuid id is the secret)
-// ============================================================================
-
-// Public action callable from /quote/[id]. No auth gate. Treats the cuid id
-// as a sufficiently-unguessable token.
-//
-// V1 path (templateVersion = 1, legacy rows): records typed name + optional
-// canvas dataURL onto `signatureData` / `signedName`, like before.
-//
-// V2 path (templateVersion >= 2, new flow): requires Israeli ID number too,
-// captures IP/UA + the customer's phone at signing time, renders the signed
-// PDF, and uploads it to Supabase storage. The PDF becomes the document of
-// record for the agreement.
-export async function signProposal(
-  proposalId: string,
-  input: {
-    signedName: string;
-    signedIdNumber?: string | null;
-    signatureData?: string | null;
-  }
-): Promise<ActionResult> {
-  try {
-    if (!proposalId) return { ok: false, error: "מזהה הצעה חסר" };
-    const signedName = String(input.signedName || "").trim();
-    if (!signedName) {
-      return { ok: false, error: "יש להזין שם מלא לחתימה" };
-    }
-    const signatureData =
-      input.signatureData && String(input.signatureData).trim()
-        ? String(input.signatureData)
-        : null;
-
-    const proposal = await prisma.proposal.findFirst({
-      where: { id: proposalId, deletedAt: null }
-    });
-    if (!proposal) return { ok: false, error: "הצעה לא נמצאה" };
-    if (proposal.status === ProposalStatus.SIGNED) {
-      return { ok: false, error: "ההצעה כבר נחתמה" };
-    }
-    if (proposal.status === ProposalStatus.REJECTED) {
-      return { ok: false, error: "ההצעה נדחתה ולא ניתן לחתום עליה" };
-    }
-
-    const now = new Date();
-
-    // === V1: legacy signing — unchanged behavior ===
-    if (proposal.templateVersion < 2) {
-      await prisma.$transaction(async (tx) => {
-        await tx.proposal.update({
-          where: { id: proposalId },
-          data: {
-            status: ProposalStatus.SIGNED,
-            signedName,
-            signatureData,
-            signedAt: now
-          }
-        });
-        await logAudit(tx, {
-          entityType: AuditEntity.PROPOSAL,
-          entityId: proposalId,
-          action: AuditAction.APPROVE,
-          oldValue: { status: proposal.status },
-          newValue: {
-            status: ProposalStatus.SIGNED,
-            signedName,
-            signedAt: now.toISOString()
-          },
-          userId: null
-        });
-      });
-
-      revalidatePath(`/quote/${proposalId}`);
-      revalidatePath(`/proposals/${proposalId}`);
-      revalidatePath("/proposals");
-      return { ok: true, error: null };
-    }
-
-    // === V2: branded PDF + richer audit ===
-    const signedIdNumber = normalizeIsraeliId(input.signedIdNumber);
-    if (!signedIdNumber) {
-      return { ok: false, error: "יש להזין מספר תעודת זהות" };
-    }
-    if (!validateIsraeliId(signedIdNumber)) {
-      return { ok: false, error: "מספר תעודת הזהות אינו תקין" };
-    }
-    if (!signatureData) {
-      return { ok: false, error: "יש לחתום בריבוע החתימה" };
-    }
-
-    // Capture audit metadata from request headers. headers() is async in Next 15.
-    const h = await headers();
-    const xff = h.get("x-forwarded-for") || "";
-    const signedIp = (xff.split(",")[0] || h.get("x-real-ip") || "").trim() || null;
-    const signedUserAgent = h.get("user-agent") || null;
-
-    const milestones: ProposalMilestoneLite[] = Array.isArray(
-      proposal.milestones
-    )
-      ? (proposal.milestones as unknown as ProposalMilestoneLite[])
-      : [];
-
-    // Render the signed HTML, then try to convert to PDF. The PDF is always
-    // the preferred format, but if the puppeteer/chromium runtime fails (a
-    // recurring pain on Vercel — libnss3.so etc.), fall back to storing the
-    // HTML snapshot with the signature embedded. Either format is a complete,
-    // legally-meaningful record — the audit data (name, ID, IP, UA, phone,
-    // timestamp) is what matters and lives on the DB row regardless.
-    const html = buildProposalHtml(
-      {
-        id: proposal.id,
-        quoteTitle: proposal.quoteTitle,
-        customerName: proposal.customerName,
-        customerPhone: proposal.customerPhone,
-        customerEmail: proposal.customerEmail,
-        projectLocation: proposal.projectLocation,
-        totalAmount: proposal.totalAmount.toString(),
-        serviceDescription: proposal.serviceDescription,
-        pricesIncludeVat: proposal.pricesIncludeVat,
-        milestones,
-        createdAt: proposal.createdAt
-      },
-      {
-        mode: "signed",
-        signature: {
-          signedName,
-          signedIdNumber,
-          signatureDataUrl: signatureData,
-          signedAt: now
-        }
-      }
-    );
-    let path: string;
-    try {
-      const pdfBuffer = await renderPdfBuffer(html);
-      path = buildProposalStoragePath(proposal.id, "signed");
-      await uploadToStorage(pdfBuffer, path, "application/pdf");
-    } catch (renderErr) {
-      // PDF rendering failed — keep the signing flow alive by saving the HTML
-      // snapshot instead. The download endpoint detects extension and serves
-      // the right content-type.
-      console.warn(
-        "[signProposal] PDF render failed, saving HTML snapshot instead:",
-        renderErr instanceof Error ? renderErr.message : renderErr
-      );
-      const htmlPath = buildProposalStoragePath(proposal.id, "signed").replace(
-        /\.pdf$/,
-        ".html"
-      );
-      await uploadToStorage(
-        new TextEncoder().encode(html),
-        htmlPath,
-        "text/html; charset=utf-8"
-      );
-      path = htmlPath;
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.proposal.update({
-        where: { id: proposalId },
-        data: {
-          status: ProposalStatus.SIGNED,
-          signedName,
-          signedIdNumber,
-          signedPhone: proposal.customerPhone,
-          signedIp,
-          signedUserAgent,
-          signedPdfPath: path,
-          // Keep the raw canvas dataURL too — cheap belt-and-suspenders if we
-          // ever need to re-render the signed PDF from source.
-          signatureData,
-          signedAt: now
-        }
-      });
-      await logAudit(tx, {
-        entityType: AuditEntity.PROPOSAL,
-        entityId: proposalId,
-        action: AuditAction.APPROVE,
-        oldValue: { status: proposal.status },
-        newValue: {
-          status: ProposalStatus.SIGNED,
-          signedName,
-          signedIdNumber,
-          signedPhone: proposal.customerPhone,
-          signedIp,
-          signedPdfPath: path,
-          signedAt: now.toISOString()
-        },
-        userId: null
-      });
-    });
-
-    // Fire-and-forget admin notifications (don't fail the sign on a Green API
-    // hiccup — the signature itself is already persisted). Errors get logged
-    // but never bubble up.
-    notifyAdminsOfSignature(proposalId).catch((err) => {
-      console.warn("[signProposal] admin notification failed:", err);
-    });
-
-    revalidatePath(`/quote/${proposalId}`);
-    revalidatePath(`/proposals/${proposalId}`);
-    revalidatePath("/proposals");
-    return { ok: true, error: null };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "שגיאה לא צפויה"
-    };
-  }
-}
-
-// Internal helper — sends a WhatsApp message to every admin user with a
-// phone on file announcing a customer signature. Best-effort, no return.
-async function notifyAdminsOfSignature(proposalId: string): Promise<void> {
-  if (!isGreenApiConfigured()) return;
-  const proposal = await prisma.proposal.findUnique({
-    where: { id: proposalId },
-    select: {
-      id: true,
-      customerName: true,
-      customerPhone: true,
-      projectLocation: true,
-      totalAmount: true,
-      pricesIncludeVat: true,
-      signedName: true,
-      signedAt: true,
-      adminNotifiedAt: true
-    }
-  });
-  if (!proposal || proposal.adminNotifiedAt) return;
-
-  const admins = await prisma.user.findMany({
-    where: {
-      role: "ADMIN",
-      isActive: true,
-      phone: { not: null }
-    },
-    select: { id: true, phone: true }
-  });
-  if (admins.length === 0) return;
-
-  const total = formatILS(proposal.totalAmount);
-  const vatNote = proposal.pricesIncludeVat ? "כולל מע״מ" : "לפני מע״מ";
-  const locationLine = proposal.projectLocation
-    ? `מיקום: ${proposal.projectLocation}\n`
-    : "";
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-  const link = baseUrl ? `${baseUrl}/proposals/${proposal.id}` : "";
-  const message =
-    `🎉 הצעת מחיר נחתמה!\n\n` +
-    `לקוח: ${proposal.customerName}\n` +
-    `${locationLine}` +
-    `סכום: ${total} (${vatNote})\n` +
-    `חתם: ${proposal.signedName ?? "—"}\n` +
-    `מועד: ${formatDateTime(proposal.signedAt)}\n` +
-    (link ? `\n${link}` : "");
-
-  await Promise.allSettled(
-    admins.map((a) =>
-      a.phone ? sendWhatsAppMessage({ phone: a.phone, message }) : Promise.resolve()
-    )
-  );
-
-  await prisma.proposal.update({
-    where: { id: proposalId },
-    data: { adminNotifiedAt: new Date() }
-  });
-}
-
-export async function rejectProposal(
-  proposalId: string,
-  rejectionReason: string
-): Promise<ActionResult> {
-  try {
-    const reason = String(rejectionReason || "").trim();
-    const proposal = await prisma.proposal.findFirst({
-      where: { id: proposalId, deletedAt: null },
-      select: { id: true, status: true }
-    });
-    if (!proposal) return { ok: false, error: "הצעה לא נמצאה" };
-    if (
-      proposal.status !== ProposalStatus.SENT &&
-      proposal.status !== ProposalStatus.DRAFT
-    ) {
-      return { ok: false, error: "לא ניתן לדחות הצעה במצב זה" };
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.proposal.update({
-        where: { id: proposalId },
-        data: {
-          status: ProposalStatus.REJECTED,
-          rejectionReason: reason || null
-        }
-      });
-      await logAudit(tx, {
-        entityType: AuditEntity.PROPOSAL,
-        entityId: proposalId,
-        action: AuditAction.REJECT,
-        oldValue: { status: proposal.status },
-        newValue: { status: ProposalStatus.REJECTED, rejectionReason: reason },
-        userId: null
-      });
-    });
-
-    revalidatePath(`/quote/${proposalId}`);
-    revalidatePath(`/proposals/${proposalId}`);
-    revalidatePath("/proposals");
-    return { ok: true, error: null };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "שגיאה לא צפויה"
-    };
-  }
-}
-
-// ============================================================================
-// CONVERSION (admin only) — the heart of Block 15
-// ============================================================================
-
-// Materializes a signed proposal into Client + MasterDeal + DealMilestones.
-// One transaction; partial conversion is not possible. Idempotent: re-running
-// after a successful conversion is rejected (convertedAt is set).
-export async function convertProposalToProject(
-  proposalId: string
-): Promise<ActionResult<{ masterDealId: string; clientId: string }>> {
-  try {
-    const me = await requireRole(["ADMIN"]);
-    const proposal = await prisma.proposal.findFirst({
-      where: { id: proposalId, deletedAt: null },
-      select: {
-        id: true,
-        status: true,
-        convertedAt: true,
-        customerName: true,
-        customerPhone: true,
-        customerEmail: true,
-        projectLocation: true,
-        totalAmount: true,
-        milestones: true,
-        terms: true,
-        signedName: true,
-        signedAt: true,
-        clientId: true,
-        masterDealId: true
-      }
-    });
-    if (!proposal) return { ok: false, error: "הצעה לא נמצאה" };
-    if (proposal.status !== ProposalStatus.SIGNED) {
-      return { ok: false, error: "ניתן להמיר רק הצעה חתומה" };
-    }
-    if (proposal.convertedAt) {
-      return { ok: false, error: "ההצעה כבר הומרה לפרויקט" };
-    }
-
-    const milestonesJson = parseMilestonesPayload(proposal.milestones);
-    if (milestonesJson.length === 0) {
-      return { ok: false, error: "אין אבני דרך להמרה" };
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Client — companyName=customerName (B2C-on-B2B-schema concession;
-      //    project doesn't have a separate person model). contactName mirrors
-      //    customerName since the proposal flow is direct-to-customer.
-      const client = await tx.client.create({
-        data: {
-          companyName: proposal.customerName,
-          contactName: proposal.customerName,
-          phone: proposal.customerPhone,
-          email: proposal.customerEmail,
-          address: proposal.projectLocation,
-          notes: proposal.terms
-            ? `נוצר מהצעת מחיר ${proposal.id}\n\nתנאים:\n${proposal.terms}`
-            : `נוצר מהצעת מחיר ${proposal.id}`
-        }
-      });
-      await logAudit(tx, {
-        entityType: AuditEntity.CLIENT,
-        entityId: client.id,
-        action: AuditAction.CREATE,
-        newValue: {
-          source: "proposal_conversion",
-          proposalId: proposal.id,
-          companyName: client.companyName,
-          phone: client.phone
-        },
-        userId: me.id
-      });
-
-      // 2. MasterDeal — name comes from the proposal location or a default.
-      const dealName = proposal.projectLocation
-        ? `פרויקט ${proposal.projectLocation}`
-        : `פרויקט ${proposal.customerName}`;
-      const deal = await tx.masterDeal.create({
-        data: {
-          clientId: client.id,
-          name: dealName,
-          totalValue: proposal.totalAmount,
-          status: "ACTIVE",
-          contractDate: proposal.signedAt ?? new Date(),
-          notes: `נוצר מהצעת מחיר ${proposal.id} שנחתמה על ידי ${proposal.signedName ?? "—"}`
-        }
-      });
-      await logAudit(tx, {
-        entityType: AuditEntity.MASTER_DEAL,
-        entityId: deal.id,
-        action: AuditAction.CREATE,
-        newValue: {
-          source: "proposal_conversion",
-          proposalId: proposal.id,
-          clientId: client.id,
-          dealName,
-          totalValue: Number(proposal.totalAmount)
-        },
-        userId: me.id
-      });
-
-      // 3. DealMilestones — materialize the JSON list into real rows.
-      // triggerPercentage (when set on the proposal milestone) is carried
-      // over so the finances tab can show its progress against project tasks.
-      const milestoneRows = milestonesJson.map((m, idx) => ({
-        masterDealId: deal.id,
-        description: m.description,
-        amount: m.amount,
-        dueDate: m.dueDate ? new Date(m.dueDate) : null,
-        orderIndex: idx,
-        triggerPercentage: m.triggerPercentage ?? null
-      }));
-      await tx.dealMilestone.createMany({ data: milestoneRows });
-      await logAudit(tx, {
-        entityType: AuditEntity.DEAL_MILESTONE,
-        entityId: deal.id,
-        action: AuditAction.CREATE,
-        newValue: {
-          source: "proposal_conversion",
-          proposalId: proposal.id,
-          count: milestoneRows.length,
-          total: milestoneRows.reduce((s, m) => s + Number(m.amount), 0)
-        },
-        userId: me.id
-      });
-
-      // 4. Link the proposal back to the new client + deal. The signed
-      //    snapshot stays on the Proposal record as the source of truth
-      //    for the agreement.
-      await tx.proposal.update({
-        where: { id: proposal.id },
-        data: {
-          clientId: client.id,
-          masterDealId: deal.id,
-          convertedAt: new Date()
-        }
-      });
-      await logAudit(tx, {
-        entityType: AuditEntity.PROPOSAL,
-        entityId: proposal.id,
-        action: AuditAction.UPDATE,
-        oldValue: { convertedAt: null },
-        newValue: {
-          event: "converted_to_project",
-          clientId: client.id,
-          masterDealId: deal.id,
-          convertedAt: new Date().toISOString()
-        },
-        userId: me.id
-      });
-
-      return { clientId: client.id, masterDealId: deal.id };
-    });
-
-    revalidatePath(`/proposals/${proposalId}`);
-    revalidatePath("/proposals");
-    revalidatePath("/clients");
-    revalidatePath(`/clients/${result.clientId}`);
-    return { ok: true, error: null, data: result };
   } catch (e) {
     return {
       ok: false,
