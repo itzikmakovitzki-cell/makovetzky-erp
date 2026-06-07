@@ -22,6 +22,7 @@ import { formatDate, formatDateTime, formatILS } from "@/lib/utils";
 import { ShareButtons } from "@/components/proposals/share-buttons";
 import { ConvertButton } from "@/components/proposals/convert-button";
 import { DeleteProposalButton } from "@/components/proposals/delete-proposal-button";
+import { ReopenProposalButton } from "@/components/proposals/reopen-proposal-button";
 import type { ProposalMilestoneJson } from "@/app/actions/proposals";
 
 export const dynamic = "force-dynamic";
@@ -124,6 +125,12 @@ export default async function ProposalDetailPage({
                 <Pencil className="size-2.5" />
                 ערוך
               </Link>
+            )}
+            {isSent && (
+              <ReopenProposalButton
+                proposalId={proposal.id}
+                customerName={proposal.customerName}
+              />
             )}
           </div>
           {isSigned ? (
