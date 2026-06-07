@@ -28,6 +28,7 @@ export async function exportSuppliersXlsx(): Promise<SuppliersXlsxResult> {
   try {
     await requireRole(["ADMIN", "EMPLOYEE"]);
     const suppliers = await prisma.supplier.findMany({
+      where: { deletedAt: null },
       include: {
         taskAssignments: {
           where: {

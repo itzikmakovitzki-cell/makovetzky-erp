@@ -685,6 +685,11 @@ model Supplier {
   isFeatured             Boolean  @default(false)
   marketingDescription   String?
   logoUrl                String?
+  // Soft delete: deletedAt != null means hidden everywhere except
+  // /settings/recycle-bin. Joined the family in June 2026 — before that
+  // deleteSupplier was a hard delete with cascade. Existing assignments
+  // stay attached to the soft-deleted supplier and survive restore.
+  deletedAt              DateTime?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -699,6 +704,7 @@ model Supplier {
   @@index([isPublic])
   @@index([categoryId])
   @@index([isFeatured])
+  @@index([deletedAt])
 }
 
 // Powers the cross-project "Bulk View" of open work per supplier.

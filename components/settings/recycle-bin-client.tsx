@@ -9,7 +9,8 @@ import {
   ListChecks,
   Loader2,
   RotateCcw,
-  Trash2
+  Trash2,
+  Wrench
 } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 import { purgeTrashed, restoreTrashed } from "@/app/actions/recycle-bin";
@@ -28,6 +29,7 @@ export type RecycleBinData = {
   permit: TrashedRow[];
   task: TrashedRow[];
   document: TrashedRow[];
+  supplier: TrashedRow[];
 };
 
 type Section = {
@@ -42,7 +44,8 @@ const SECTIONS: Section[] = [
   { kind: "masterDeal", title: "עסקאות", icon: Briefcase, secondaryLabel: "לקוח" },
   { kind: "permit", title: "היתרים", icon: FileCheck2, secondaryLabel: "מספר היתר" },
   { kind: "task", title: "משימות", icon: ListChecks, secondaryLabel: "היתר" },
-  { kind: "document", title: "מסמכים", icon: FileText, secondaryLabel: "היתר" }
+  { kind: "document", title: "מסמכים", icon: FileText, secondaryLabel: "היתר" },
+  { kind: "supplier", title: "ספקים", icon: Wrench, secondaryLabel: "סוג" }
 ];
 
 export function RecycleBinClient({ data }: { data: RecycleBinData }) {
@@ -51,7 +54,8 @@ export function RecycleBinClient({ data }: { data: RecycleBinData }) {
     data.masterDeal.length +
     data.permit.length +
     data.task.length +
-    data.document.length;
+    data.document.length +
+    data.supplier.length;
 
   return (
     <section className="flex flex-col gap-3">

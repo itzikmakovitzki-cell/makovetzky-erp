@@ -205,8 +205,8 @@ export async function updateSupplier(
     const supplierId = String(formData.get("supplierId") || "").trim();
     if (!supplierId) return { error: "חסר מזהה ספק", ok: false };
 
-    const existing = await prisma.supplier.findUnique({
-      where: { id: supplierId }
+    const existing = await prisma.supplier.findFirst({
+      where: { id: supplierId, deletedAt: null }
     });
     if (!existing) return { error: "הספק לא נמצא", ok: false };
 
@@ -287,41 +287,44 @@ export async function updateSupplier(
   }
 }
 
-// Hard-delete a supplier (Supplier has no soft-delete column today). The
-// schema's FK is Restrict from SupplierTaskAssignment → so we delete every
-// assignment in the same transaction as a deliberate cascade. Audit captures
-// the counts. ADMIN-only.
+// Soft-delete a supplier — sets deletedAt and hides them from every listing
+// (back-office, marketplace, leads routing, xlsx exports). Existing
+// SupplierTaskAssignments stay attached to the row and survive restore
+// from /settings/recycle-bin. Permanent deletion happens via the recycle
+// bin's "מחק לצמיתות" path, which is blocked if any assignments / docs
+// still reference the supplier.
 //
-// NOTE: this hard-deletes assignment rows too — there's no recycle-bin
-// recovery for assignments (the schema never had one). The confirm dialog
-// surfaces the count so the admin sees what they're about to lose.
+// Prior behaviour (until Block 45, June 2026): hard delete + cascade
+// removal of every assignment row in the same transaction. We kept the
+// confirm() warning on the suppliers page card but the new copy now
+// reflects "moves to recycle bin" instead of "irreversible".
 export async function deleteSupplier(supplierId: string): Promise<DeleteResult> {
   try {
     const me = await requireRole(["ADMIN"]);
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: supplierId },
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: supplierId, deletedAt: null },
       select: {
         id: true,
         name: true,
         _count: { select: { taskAssignments: true } }
       }
     });
-    if (!supplier) return { ok: false, error: "הספק לא נמצא" };
+    if (!supplier) return { ok: false, error: "הספק לא נמצא או כבר נמחק" };
 
-    const assignmentCount = supplier._count.taskAssignments;
+    const now = new Date();
     await prisma.$transaction(async (tx) => {
-      if (assignmentCount > 0) {
-        await tx.supplierTaskAssignment.deleteMany({ where: { supplierId } });
-      }
-      await tx.supplier.delete({ where: { id: supplierId } });
+      await tx.supplier.update({
+        where: { id: supplierId },
+        data: { deletedAt: now }
+      });
       await logAudit(tx, {
         entityType: AuditEntity.SUPPLIER,
         entityId: supplierId,
         action: AuditAction.DELETE,
         oldValue: { name: supplier.name },
         newValue: {
-          hardDeletedAt: new Date().toISOString(),
-          cascadedAssignments: assignmentCount
+          softDeletedAt: now.toISOString(),
+          attachedAssignments: supplier._count.taskAssignments
         },
         userId: me.id
       });
@@ -329,6 +332,8 @@ export async function deleteSupplier(supplierId: string): Promise<DeleteResult> 
 
     revalidatePath("/suppliers");
     revalidatePath("/finances/supplier-commissions");
+    revalidatePath("/portal/partners");
+    revalidatePath("/settings/recycle-bin");
     return { ok: true };
   } catch (e) {
     return {
