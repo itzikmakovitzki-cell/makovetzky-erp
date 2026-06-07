@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import {
   AuditAction,
   MilestoneStatus,
+  PermitStatus,
   Prisma,
+  SupplierAssignmentStatus,
   TaskPriority,
   TaskResponsibility,
   TaskStatus
@@ -87,6 +89,22 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
   // and reversing completion reverts DUE → PENDING. Never touch PAID milestones.
   const cameToCompleted = newStatus === "COMPLETED" && task.status !== "COMPLETED";
   const leftCompleted = newStatus !== "COMPLETED" && task.status === "COMPLETED";
+  // Cascade: supplier assignments attached to this task ride along with the
+  // task's status — when a surveyor starts the field work and the PM marks
+  // the task IN_PROGRESS, the assignment should reflect that too. Manual
+  // overrides (CANCELLED, or assignments already past the new state) are
+  // never touched. One-way forward: reverting the task does NOT revert
+  // the assignment, same reasoning as the permit promotion above.
+  const cameToInProgress = newStatus === "IN_PROGRESS" && task.status !== "IN_PROGRESS";
+
+  // Auto-promote the parent permit from DRAFT → IN_PROGRESS the first time
+  // anyone moves a task off the OPEN starting line. New permits are born
+  // DRAFT (see createProject / addPermitToDeal) and there's no other code
+  // path that advances them; without this, a permit with 44 tasks and
+  // visible progress on the dashboard still reads "טיוטה" forever. This is
+  // one-way — reverting all tasks to OPEN does NOT demote the permit back
+  // to DRAFT, because "work happened here" is the signal we care about.
+  const taskLeavingOpen = task.status === "OPEN" && newStatus !== "OPEN";
 
   await prisma.$transaction(async (tx) => {
     await tx.task.update({ where: { id: taskId }, data: updateData });
@@ -98,6 +116,36 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
       newValue: { status: newStatus, frozen: willBeFrozen },
       userId: user.id
     });
+
+    if (taskLeavingOpen) {
+      // Re-read inside the tx — the permit could be in any status, and we
+      // only promote from DRAFT. assertPermitOpenForEdits above already
+      // rejected COMPLETED/CANCELLED, so the realistic branches here are
+      // DRAFT (promote) and IN_PROGRESS/AWAITING_AUTHORITY (no-op).
+      const permit = await tx.permit.findUnique({
+        where: { id: task.permitId },
+        select: { status: true, name: true }
+      });
+      if (permit?.status === PermitStatus.DRAFT) {
+        await tx.permit.update({
+          where: { id: task.permitId },
+          data: { status: PermitStatus.IN_PROGRESS }
+        });
+        await logAudit(tx, {
+          entityType: AuditEntity.PERMIT,
+          entityId: task.permitId,
+          action: AuditAction.STATUS_CHANGE,
+          oldValue: { status: PermitStatus.DRAFT },
+          newValue: {
+            status: PermitStatus.IN_PROGRESS,
+            name: permit.name,
+            event: "auto_promoted_on_first_task_progress",
+            triggeredByTaskId: taskId
+          },
+          userId: user.id
+        });
+      }
+    }
 
     if (cameToCompleted || leftCompleted) {
       const milestone = await tx.billingMilestone.findUnique({
@@ -143,6 +191,50 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
     // billing milestones (70%/80%) whenever a task crosses the COMPLETED line.
     if (cameToCompleted || leftCompleted) {
       await recalcPermitProgress(tx, task.permitId, user.id);
+    }
+
+    // Cascade SupplierTaskAssignment.status alongside the task.
+    //   task → IN_PROGRESS : OPEN assignments advance to IN_PROGRESS
+    //   task → COMPLETED   : OPEN + IN_PROGRESS assignments advance to
+    //                        COMPLETED and stamp completedAt
+    // CANCELLED assignments and assignments already at-or-past the new
+    // state are left alone. Each affected row gets its own STATUS_CHANGE
+    // audit entry so the trail mirrors a manual change.
+    if (cameToInProgress || cameToCompleted) {
+      const advanceableStatuses: SupplierAssignmentStatus[] = cameToCompleted
+        ? [SupplierAssignmentStatus.OPEN, SupplierAssignmentStatus.IN_PROGRESS]
+        : [SupplierAssignmentStatus.OPEN];
+      const targetStatus = cameToCompleted
+        ? SupplierAssignmentStatus.COMPLETED
+        : SupplierAssignmentStatus.IN_PROGRESS;
+
+      const affected = await tx.supplierTaskAssignment.findMany({
+        where: { taskId, status: { in: advanceableStatuses } },
+        select: { id: true, status: true, supplierId: true }
+      });
+      for (const a of affected) {
+        await tx.supplierTaskAssignment.update({
+          where: { id: a.id },
+          data: {
+            status: targetStatus,
+            ...(cameToCompleted ? { completedAt: now } : {})
+          }
+        });
+        await logAudit(tx, {
+          entityType: AuditEntity.SUPPLIER_ASSIGNMENT,
+          entityId: a.id,
+          action: AuditAction.STATUS_CHANGE,
+          oldValue: { status: a.status },
+          newValue: {
+            status: targetStatus,
+            ...(cameToCompleted ? { completedAt: now.toISOString() } : {}),
+            event: "auto_advanced_with_task",
+            triggeredByTaskId: taskId,
+            supplierId: a.supplierId
+          },
+          userId: user.id
+        });
+      }
     }
   });
 
