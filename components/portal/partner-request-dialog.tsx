@@ -92,7 +92,7 @@ export function PartnerRequestDialog({
           if (e.target === dialogRef.current) setOpen(false);
         }}
         onClose={() => setOpen(false)}
-        className="w-[480px] max-w-[calc(100vw-2rem)] rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40"
+        className="mk-dialog w-[480px] max-w-[calc(100vw-2rem)]"
       >
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5" dir="rtl">
           <h2 className="text-sm font-semibold">בקשת שירות — {supplierName}</h2>

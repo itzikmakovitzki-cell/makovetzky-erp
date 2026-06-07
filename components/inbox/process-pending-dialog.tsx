@@ -103,7 +103,7 @@ export function ProcessPendingDialog({
     <dialog
       ref={dialogRef}
       onClick={handleBackdropClick}
-      className="rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40 w-[540px] max-w-[calc(100vw-2rem)]"
+      className="mk-dialog w-[540px] max-w-[calc(100vw-2rem)]"
     >
       <form action={formAction}>
         <input type="hidden" name="pendingDocId" value={pendingDoc.id} />

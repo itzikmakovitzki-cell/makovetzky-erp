@@ -34,7 +34,7 @@ export function ManualUploadDialog({ onClose }: { onClose: () => void }) {
     <dialog
       ref={dialogRef}
       onClick={handleBackdropClick}
-      className="rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40 w-[480px] max-w-[calc(100vw-2rem)]"
+      className="mk-dialog w-[480px] max-w-[calc(100vw-2rem)]"
     >
       <form action={formAction} encType="multipart/form-data">
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">

@@ -209,7 +209,7 @@ function UploadDialog({
       onClick={(e) => {
         if (e.target === dialogRef.current) dialogRef.current?.close();
       }}
-      className="fixed top-1/2 -translate-y-1/2 mx-auto w-[480px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-auto rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40"
+      className="mk-dialog w-[480px] max-w-[calc(100vw-2rem)]"
     >
       <form action={formAction}>
         <input type="hidden" name="supplierId" value={supplierId} />
