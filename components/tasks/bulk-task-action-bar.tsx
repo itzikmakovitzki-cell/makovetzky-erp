@@ -25,7 +25,7 @@ import {
   bulkDeleteTasks,
   bulkUpdateTaskAssignee,
   bulkUpdateTaskStatus
-} from "@/app/actions/tasks";
+} from "@/app/actions/tasks-bulk";
 import { cn } from "@/lib/utils";
 
 type AssigneeOption = { id: string; name: string };
