@@ -103,6 +103,8 @@ function readSupplierForm(formData: FormData) {
   // Block 30 (Partners Marketplace) — opt-in publishing + client-facing copy.
   // Checkbox submits "true" when checked, absent when not.
   const isPublic = String(formData.get("isPublic") || "") === "true";
+  // Block 44 — featured supplier toggle ("ספקי זהב").
+  const isFeatured = String(formData.get("isFeatured") || "") === "true";
   const marketingDescription =
     String(formData.get("marketingDescription") || "").trim() || null;
   const logoUrl = String(formData.get("logoUrl") || "").trim() || null;
@@ -120,6 +122,7 @@ function readSupplierForm(formData: FormData) {
     defaultPaymentTerms,
     notes,
     isPublic,
+    isFeatured,
     marketingDescription,
     logoUrl,
     categoryId
@@ -285,6 +288,7 @@ export async function updateSupplier(
           defaultPaymentTerms: existing.defaultPaymentTerms,
           notes: existing.notes,
           isPublic: existing.isPublic,
+          isFeatured: existing.isFeatured,
           marketingDescription: existing.marketingDescription,
           logoUrl: existing.logoUrl
         },

@@ -29,6 +29,7 @@ export type SupplierInitialValues = {
   // accept either to be safe.
   defaultCommissionValue?: string | number | null;
   defaultPaymentTerms?: string | null;
+  isFeatured?: boolean | null;
   notes?: string | null;
   isPublic?: boolean | null;
   marketingDescription?: string | null;
@@ -340,6 +341,30 @@ export function SupplierFormDialog({
                 <span className="block text-[10px] text-muted-foreground">
                   כשמסומן, הספק מופיע ב-<code>/portal/partners</code> ובדיאלוג
                   &quot;הזמן ספק&quot; בעמוד ההיתר.
+                </span>
+              </span>
+            </label>
+            {/* Block 44 — "ספקי זהב". Sub-toggle under isPublic since a
+                featured supplier must be public to surface. The
+                marketplace UI sorts featured first + shows the gold
+                trim regardless of value here when isPublic is false. */}
+            <label className="mt-1.5 flex items-start gap-2">
+              <input
+                type="checkbox"
+                name="isFeatured"
+                value="true"
+                defaultChecked={!!initial?.isFeatured}
+                className="mt-1 size-3.5 cursor-pointer accent-amber-500"
+              />
+              <span className="text-[11px] leading-tight">
+                <span className="font-semibold text-amber-700 dark:text-amber-400">
+                  ⭐ ספק זהב (מומלץ)
+                </span>{" "}
+                — לקפוץ לראש הרשת ב-Partners Marketplace עם מסגרת זהובה
+                ותג &quot;מומלץ&quot;.
+                <span className="block text-[10px] text-muted-foreground">
+                  פועל רק כשהספק פומבי. שמור לכמה ספקים נבחרים בלבד כדי
+                  שההמלצה לא תאבד משקל.
                 </span>
               </span>
             </label>

@@ -95,6 +95,113 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// Block 44 — bundle lead. Fans the same single-supplier lead routing
+// over EVERY public supplier inside a marketplace category, so a
+// client landing in their "Form 4 home-entry" moment can fire one
+// request and reach every internet/gas/cleaning/etc partner in one
+// click. The bundle uses category match by NAME (substring,
+// case-insensitive) rather than by id, so the brief's "כניסה לבית"
+// label keeps working even if the category id rotates.
+
+export type BundleLeadResult =
+  | {
+      ok: true;
+      requested: number;
+      succeeded: number;
+      failed: number;
+      results: PartnerLeadResult[];
+    }
+  | { ok: false; error: string };
+
+export async function generateBundleLead(args: {
+  permitId: string;
+  categoryName?: string;
+  categoryId?: string;
+}): Promise<BundleLeadResult> {
+  try {
+    const me = await requireRole(["ADMIN", "EMPLOYEE", "CONTRACTOR"]);
+
+    if (!args.permitId) return { ok: false, error: "חסר פרויקט/היתר" };
+
+    // Permit access check — same boundary as the single-supplier path.
+    const permit = await prisma.permit.findFirst({
+      where: { id: args.permitId, deletedAt: null },
+      select: {
+        id: true,
+        masterDeal: { select: { clientId: true } }
+      }
+    });
+    if (!permit) return { ok: false, error: "הפרויקט לא נמצא" };
+    if (me.role === "CONTRACTOR") {
+      const granted = await prisma.portalAccess.findFirst({
+        where: { userId: me.id, clientId: permit.masterDeal.clientId },
+        select: { id: true }
+      });
+      if (!granted) return { ok: false, error: "אין לך גישה לפרויקט זה" };
+    }
+
+    // Resolve the category. Either an explicit categoryId (admin power
+    // user) or a name substring match (default — "כניסה לבית" /
+    // "Form 4" / "home-entry" all hit the same handful of rows in the
+    // PartnerCategory table). NAME match is case-insensitive Hebrew —
+    // Postgres ILIKE is correct because Hebrew letters aren't case-
+    // sensitive but the operator is the cleanest portable lookup.
+    let categoryId = args.categoryId?.trim() || null;
+    if (!categoryId && args.categoryName) {
+      const cat = await prisma.partnerCategory.findFirst({
+        where: { name: { contains: args.categoryName, mode: "insensitive" } },
+        select: { id: true }
+      });
+      categoryId = cat?.id ?? null;
+    }
+    if (!categoryId) {
+      return {
+        ok: false,
+        error: "לא נמצאה קטגוריית 'כניסה לבית' במאגר הקטגוריות. הגדר אותה ב-Settings → קטגוריות שותפים."
+      };
+    }
+
+    const suppliers = await prisma.supplier.findMany({
+      where: { isPublic: true, categoryId },
+      select: { id: true, name: true }
+    });
+    if (suppliers.length === 0) {
+      return {
+        ok: false,
+        error: "עוד אין ספקים פומביים תחת קטגוריה זו. נשמח לשייך כמה ספקים ב-Settings → ספקים."
+      };
+    }
+
+    // Sequential fan-out so a slow Green API / Resend call doesn't
+    // starve the next supplier. The DB writes inside generatePartnerLead
+    // are their own transactions; the notification side-effects fire
+    // after each commit so partial failures don't poison the bundle.
+    const results: PartnerLeadResult[] = [];
+    for (const s of suppliers) {
+      const r = await generatePartnerLead({
+        supplierId: s.id,
+        permitId: args.permitId
+      });
+      results.push(r);
+    }
+    const succeeded = results.filter((r) => r.ok).length;
+    const failed = results.length - succeeded;
+
+    return {
+      ok: true,
+      requested: suppliers.length,
+      succeeded,
+      failed,
+      results
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "שגיאה ביצירת חבילת לידים"
+    };
+  }
+}
+
 export async function generatePartnerLead(args: {
   supplierId: string;
   permitId: string;

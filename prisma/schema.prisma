@@ -679,6 +679,10 @@ model Supplier {
   // storage path or an absolute URL; resolved at render time via the same
   // signed-URL helper used for documents.
   isPublic               Boolean  @default(false)
+  // Block 44 — Marketplace "ספקי זהב". When true AND isPublic, the
+  // supplier floats to the top of the /portal/partners grid with a
+  // gold-trim card + "מומלץ" badge. Admin-only toggle.
+  isFeatured             Boolean  @default(false)
   marketingDescription   String?
   logoUrl                String?
   createdAt              DateTime @default(now())
@@ -694,6 +698,7 @@ model Supplier {
   @@index([name])
   @@index([isPublic])
   @@index([categoryId])
+  @@index([isFeatured])
 }
 
 // Powers the cross-project "Bulk View" of open work per supplier.

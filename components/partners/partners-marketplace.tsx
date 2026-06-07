@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Briefcase, Inbox, Search, Sparkles, Tag } from "lucide-react";
+import { Briefcase, Inbox, Search, Sparkles, Star, Tag } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalScope, permitClientFilter } from "@/lib/portal-access";
 import { createSignedUrlsSafe, isStoragePath } from "@/lib/supabase-storage";
 import { PartnerRequestDialog } from "@/components/portal/partner-request-dialog";
+import { BundleBanner } from "@/components/partners/bundle-banner";
 import { cn } from "@/lib/utils";
 
 // Block 30 polish — shared marketplace renderer used by both
@@ -80,9 +81,12 @@ export async function PartnersMarketplace({
         // already covers the "what kind of supplier" job.
         marketingDescription: true,
         logoUrl: true,
+        // Block 44 — featured suppliers float to the top + get the gold
+        // trim card treatment.
+        isFeatured: true,
         category: { select: { id: true, name: true } }
       },
-      orderBy: [{ name: "asc" }]
+      orderBy: [{ isFeatured: "desc" }, { name: "asc" }]
     }),
     prisma.supplier.count({ where: { isPublic: true } })
   ]);
@@ -149,6 +153,14 @@ export async function PartnersMarketplace({
           </div>
         </div>
       </section>
+
+      {/* Block 44 — "Form 4 Bundle" banner. Pinned right under the hero
+          so the moment a client lands in the marketplace they see the
+          one-click multi-supplier offer. Only renders when the user has
+          at least one permit to attach the bundle to. */}
+      {permitOptions.length > 0 && (
+        <BundleBanner permitOptions={permitOptions} />
+      )}
 
       {/* Filters — search box + category pills, both URL-driven. */}
       <div className="flex flex-col gap-3">
@@ -251,11 +263,25 @@ export async function PartnersMarketplace({
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {suppliers.map((s) => {
           const logo = resolveLogo(s.logoUrl);
+          // Block 44 — gold-trim card for featured suppliers. Border
+          // bumps from 1 → 2 px in amber, background gets a soft amber
+          // wash, and a "מומלץ" pill rides the top-right corner.
           return (
             <li
               key={s.id}
-              className="group flex flex-col rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-5"
+              className={cn(
+                "group relative flex flex-col rounded-xl p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-5",
+                s.isFeatured
+                  ? "border-2 border-amber-400/80 bg-gradient-to-br from-amber-50/70 via-card to-amber-50/30 dark:from-amber-500/10 dark:via-card dark:to-amber-500/5"
+                  : "border bg-card"
+              )}
             >
+              {s.isFeatured && (
+                <span className="absolute -top-2 right-3 inline-flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-950 shadow-sm">
+                  <Star className="size-3 fill-amber-950" />
+                  מומלץ
+                </span>
+              )}
               <div className="flex items-start gap-3">
                 <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
                   {logo ? (
