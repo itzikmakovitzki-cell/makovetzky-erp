@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { SheetButton } from "@/components/global/sheet-button";
 import { SoftDeleteButton } from "@/components/global/soft-delete-button";
 import { DealFinanceSummary } from "@/components/projects/deal-finance-summary";
+import { MasterDealStatusControl } from "@/components/projects/master-deal-status-control";
 import {
   MASTER_DEAL_STATUS_LABEL,
   MASTER_DEAL_STATUS_VARIANT,
@@ -130,9 +131,16 @@ export default async function ProjectDetailPage({
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
-            <Badge variant={MASTER_DEAL_STATUS_VARIANT[deal.status as MasterDealStatus]}>
-              {MASTER_DEAL_STATUS_LABEL[deal.status as MasterDealStatus]}
-            </Badge>
+            {isAdmin ? (
+              <MasterDealStatusControl
+                dealId={deal.id}
+                currentStatus={deal.status as MasterDealStatus}
+              />
+            ) : (
+              <Badge variant={MASTER_DEAL_STATUS_VARIANT[deal.status as MasterDealStatus]}>
+                {MASTER_DEAL_STATUS_LABEL[deal.status as MasterDealStatus]}
+              </Badge>
+            )}
             <Link
               href={`/projects/${deal.id}/print`}
               className="inline-flex items-center gap-1 rounded-md border border-input bg-card px-2 py-1 text-[11px] hover:bg-accent"
