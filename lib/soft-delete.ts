@@ -1,18 +1,21 @@
 // Conventional helpers around the `deletedAt` soft-delete flag used by
-// Client, MasterDeal, Permit, Task, and Document (see schema.prisma).
+// Client, MasterDeal, Permit, Task, Document and Supplier (see schema.prisma).
 //
 // Active records have `deletedAt = null`. The recycle bin lists rows where
 // `deletedAt != null`. We never filter on `deletedAt` in audit-log name
 // resolution — we still want to show "Task X was deleted" with its name.
 
-// The 5 entity types soft-deletes apply to. Used as the `kind` in the recycle
-// bin server actions to dispatch to the right Prisma model.
+// The 6 entity types soft-deletes apply to. Used as the `kind` in the recycle
+// bin server actions to dispatch to the right Prisma model. Supplier joined
+// the family in Block 45 (June 2026) — before that deleteSupplier was a
+// hard delete with cascade.
 export const TRASHABLE_KINDS = [
   "client",
   "masterDeal",
   "permit",
   "task",
-  "document"
+  "document",
+  "supplier"
 ] as const;
 
 export type TrashableKind = (typeof TRASHABLE_KINDS)[number];

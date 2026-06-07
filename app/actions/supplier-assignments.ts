@@ -82,7 +82,7 @@ export async function createSupplierAssignment(
     // Sanity-check both ends exist + the task isn't soft-deleted, so we can
     // give a clean error instead of a Prisma FK explosion.
     const [supplier, task] = await Promise.all([
-      prisma.supplier.findUnique({ where: { id: fields.supplierId } }),
+      prisma.supplier.findFirst({ where: { id: fields.supplierId, deletedAt: null } }),
       prisma.task.findFirst({
         where: { id: fields.taskId, deletedAt: null },
         select: { id: true, permitId: true }

@@ -15,40 +15,47 @@ export default async function RecycleBinPage() {
     redirect("/permits");
   }
 
-  // Each of the 5 lists is `deletedAt: { not: null }`, ordered by deletion time
+  // Each of the 6 lists is `deletedAt: { not: null }`, ordered by deletion time
   // descending so the most recently trashed items surface first.
-  const [clients, masterDeals, permits, tasks, documents] = await Promise.all([
-    prisma.client.findMany({
-      where: { deletedAt: { not: null } },
-      select: { id: true, companyName: true, contactName: true, deletedAt: true },
-      orderBy: { deletedAt: "desc" }
-    }),
-    prisma.masterDeal.findMany({
-      where: { deletedAt: { not: null } },
-      include: { client: { select: { companyName: true } } },
-      orderBy: { deletedAt: "desc" }
-    }),
-    prisma.permit.findMany({
-      where: { deletedAt: { not: null } },
-      select: {
-        id: true,
-        name: true,
-        permitNumber: true,
-        deletedAt: true
-      },
-      orderBy: { deletedAt: "desc" }
-    }),
-    prisma.task.findMany({
-      where: { deletedAt: { not: null } },
-      include: { permit: { select: { id: true, name: true } } },
-      orderBy: { deletedAt: "desc" }
-    }),
-    prisma.document.findMany({
-      where: { deletedAt: { not: null } },
-      include: { permit: { select: { id: true, name: true } } },
-      orderBy: { deletedAt: "desc" }
-    })
-  ]);
+  const [clients, masterDeals, permits, tasks, documents, suppliers] =
+    await Promise.all([
+      prisma.client.findMany({
+        where: { deletedAt: { not: null } },
+        select: { id: true, companyName: true, contactName: true, deletedAt: true },
+        orderBy: { deletedAt: "desc" }
+      }),
+      prisma.masterDeal.findMany({
+        where: { deletedAt: { not: null } },
+        include: { client: { select: { companyName: true } } },
+        orderBy: { deletedAt: "desc" }
+      }),
+      prisma.permit.findMany({
+        where: { deletedAt: { not: null } },
+        select: {
+          id: true,
+          name: true,
+          permitNumber: true,
+          deletedAt: true
+        },
+        orderBy: { deletedAt: "desc" }
+      }),
+      prisma.task.findMany({
+        where: { deletedAt: { not: null } },
+        include: { permit: { select: { id: true, name: true } } },
+        orderBy: { deletedAt: "desc" }
+      }),
+      prisma.document.findMany({
+        where: { deletedAt: { not: null } },
+        include: { permit: { select: { id: true, name: true } } },
+        orderBy: { deletedAt: "desc" }
+      }),
+      // Block 45 (June 2026) — Supplier joined the soft-delete family.
+      prisma.supplier.findMany({
+        where: { deletedAt: { not: null } },
+        select: { id: true, name: true, type: true, deletedAt: true },
+        orderBy: { deletedAt: "desc" }
+      })
+    ]);
 
   const rowFromClient = (c: typeof clients[number]): TrashedRow => ({
     id: c.id,
@@ -85,12 +92,20 @@ export default async function RecycleBinPage() {
     deletedAt: d.deletedAt!.toISOString()
   });
 
+  const rowFromSupplier = (s: typeof suppliers[number]): TrashedRow => ({
+    id: s.id,
+    label: s.name,
+    secondary: s.type,
+    deletedAt: s.deletedAt!.toISOString()
+  });
+
   const data: RecycleBinData = {
     client: clients.map(rowFromClient),
     masterDeal: masterDeals.map(rowFromMasterDeal),
     permit: permits.map(rowFromPermit),
     task: tasks.map(rowFromTask),
-    document: documents.map(rowFromDocument)
+    document: documents.map(rowFromDocument),
+    supplier: suppliers.map(rowFromSupplier)
   };
 
   return <RecycleBinClient data={data} />;

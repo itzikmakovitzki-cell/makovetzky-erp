@@ -43,6 +43,7 @@ export async function PartnersMarketplace({
   // covers all the buckets a customer might type into it.
   const supplierWhere: Prisma.SupplierWhereInput = {
     isPublic: true,
+    deletedAt: null,
     ...(activeCategoryId ? { categoryId: activeCategoryId } : {}),
     ...(query
       ? {
@@ -67,7 +68,7 @@ export async function PartnersMarketplace({
     }),
     prisma.partnerCategory.findMany({
       include: {
-        _count: { select: { suppliers: { where: { isPublic: true } } } }
+        _count: { select: { suppliers: { where: { isPublic: true, deletedAt: null } } } }
       },
       orderBy: [{ displayOrder: "asc" }, { name: "asc" }]
     }),
@@ -88,7 +89,7 @@ export async function PartnersMarketplace({
       },
       orderBy: [{ isFeatured: "desc" }, { name: "asc" }]
     }),
-    prisma.supplier.count({ where: { isPublic: true } })
+    prisma.supplier.count({ where: { isPublic: true, deletedAt: null } })
   ]);
 
   const storagePaths = suppliers

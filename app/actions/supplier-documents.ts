@@ -43,8 +43,8 @@ export async function uploadSupplierDocument(
       };
     }
 
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: supplierId },
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: supplierId, deletedAt: null },
       select: { id: true, name: true }
     });
     if (!supplier) return { error: "הספק לא נמצא", ok: false };

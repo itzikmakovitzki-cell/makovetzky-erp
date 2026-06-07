@@ -13,7 +13,8 @@ const ENTITY_BY_KIND: Record<TrashableKind, string> = {
   masterDeal: AuditEntity.MASTER_DEAL,
   permit: AuditEntity.PERMIT,
   task: AuditEntity.TASK,
-  document: AuditEntity.DOCUMENT
+  document: AuditEntity.DOCUMENT,
+  supplier: AuditEntity.SUPPLIER
 };
 
 const LABEL_BY_KIND: Record<TrashableKind, string> = {
@@ -21,7 +22,8 @@ const LABEL_BY_KIND: Record<TrashableKind, string> = {
   masterDeal: "עסקה",
   permit: "היתר",
   task: "משימה",
-  document: "מסמך"
+  document: "מסמך",
+  supplier: "ספק"
 };
 
 // Restore puts `deletedAt = null` on the row. Restoring a parent does NOT
@@ -36,6 +38,8 @@ export async function restoreTrashed(kind: string, id: string): Promise<void> {
   revalidatePath("/clients");
   revalidatePath("/permits");
   revalidatePath("/tasks");
+  revalidatePath("/suppliers");
+  revalidatePath("/portal/partners");
   if (result.permitId) {
     revalidatePath(`/permits/${result.permitId}`, "layout");
   }
@@ -56,6 +60,8 @@ export async function purgeTrashed(kind: string, id: string): Promise<void> {
   revalidatePath("/clients");
   revalidatePath("/permits");
   revalidatePath("/tasks");
+  revalidatePath("/suppliers");
+  revalidatePath("/portal/partners");
   if (result.permitId) {
     revalidatePath(`/permits/${result.permitId}`, "layout");
   }
@@ -121,6 +127,14 @@ async function restoreByKind(
       await tx.document.update({ where: { id }, data: { deletedAt: null } });
       label = d.fileName;
       permitId = d.permitId;
+    } else if (kind === "supplier") {
+      const s = await tx.supplier.findFirst({
+        where: { id, deletedAt: { not: null } },
+        select: { id: true, name: true }
+      });
+      if (!s) throw new Error("הספק לא נמצא בסל המחזור");
+      await tx.supplier.update({ where: { id }, data: { deletedAt: null } });
+      label = s.name;
     }
 
     await logAudit(tx, {
@@ -249,6 +263,36 @@ async function purgeByKind(
       label = d.fileName;
       permitId = d.permitId;
       if (isStoragePath(d.fileUrl)) storagePath = d.fileUrl;
+    } else if (kind === "supplier") {
+      const s = await tx.supplier.findFirst({
+        where: { id, deletedAt: { not: null } },
+        select: {
+          id: true,
+          name: true,
+          _count: {
+            select: { taskAssignments: true, documents: true }
+          }
+        }
+      });
+      if (!s) throw new Error("הספק לא נמצא בסל המחזור");
+      // Mirrors the Permit purge guard: refuse to permanently delete a
+      // supplier that still has linked work product (assignments or
+      // attached documents). Forces the admin to clean the dependents
+      // first so we never silently cascade away history.
+      const blockers: string[] = [];
+      if (s._count.taskAssignments > 0) {
+        blockers.push(`${s._count.taskAssignments} שיוכי משימה`);
+      }
+      if (s._count.documents > 0) {
+        blockers.push(`${s._count.documents} מסמכים מצורפים`);
+      }
+      if (blockers.length > 0) {
+        throw new Error(
+          `לא ניתן למחוק לצמיתות — ${blockers.join(", ")} עדיין מקושרים לספק. נקה אותם קודם.`
+        );
+      }
+      await tx.supplier.delete({ where: { id } });
+      label = s.name;
     }
 
     await logAudit(tx, {

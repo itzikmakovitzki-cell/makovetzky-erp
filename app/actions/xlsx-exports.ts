@@ -358,6 +358,7 @@ async function exportTasks(): Promise<XlsxResult> {
 
 async function exportSuppliers(): Promise<XlsxResult> {
   const rows = await prisma.supplier.findMany({
+    where: { deletedAt: null },
     select: {
       name: true,
       type: true,

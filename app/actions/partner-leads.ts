@@ -162,7 +162,7 @@ export async function generateBundleLead(args: {
     }
 
     const suppliers = await prisma.supplier.findMany({
-      where: { isPublic: true, categoryId },
+      where: { isPublic: true, categoryId, deletedAt: null },
       select: { id: true, name: true }
     });
     if (suppliers.length === 0) {

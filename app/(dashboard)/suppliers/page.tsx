@@ -41,7 +41,7 @@ export const dynamic = "force-dynamic";
 // slight variants ("מודד" vs "מודדים").
 async function fetchTypeSuggestions(): Promise<string[]> {
   const rows = await prisma.supplier.findMany({
-    where: { type: { not: null } },
+    where: { type: { not: null }, deletedAt: null },
     distinct: ["type"],
     select: { type: true },
     orderBy: { type: "asc" }
@@ -62,6 +62,7 @@ export default async function SuppliersGlobalPage({
   const [session, suppliers, typeSuggestions, categoryOptions] = await Promise.all([
     auth(),
     prisma.supplier.findMany({
+      where: { deletedAt: null },
       select: { id: true, name: true, type: true },
       orderBy: { name: "asc" }
     }),
@@ -114,6 +115,7 @@ async function SuppliersOverview() {
   // the search + xlsx export. We compute openTaskCount + openAmount on the
   // server so the client component stays lightweight.
   const suppliers = await prisma.supplier.findMany({
+    where: { deletedAt: null },
     include: {
       taskAssignments: {
         where: {
@@ -158,8 +160,8 @@ async function SupplierDetail({
   typeSuggestions: string[];
   categoryOptions: { id: string; name: string }[];
 }) {
-  const supplier = await prisma.supplier.findUnique({
-    where: { id: supplierId },
+  const supplier = await prisma.supplier.findFirst({
+    where: { id: supplierId, deletedAt: null },
     select: {
       id: true,
       name: true,
@@ -332,8 +334,8 @@ async function SupplierDetail({
                   redirectTo="/suppliers"
                   confirmMessage={
                     assignments.length === 0
-                      ? `למחוק את הספק "${supplier.name}"?\n\nפעולה לא הפיכה — אין סל מחזור לספקים.`
-                      : `למחוק את הספק "${supplier.name}"?\n\nזה ימחק גם את ${assignments.length} ההקצאות שלו (מחיקה קשה — אין סל מחזור להקצאות). פעולה לא הפיכה.`
+                      ? `למחוק את הספק "${supplier.name}"?\n\nהספק יעבור לסל המחזור — ניתן לשחזר מ-הגדרות → סל המחזור.`
+                      : `למחוק את הספק "${supplier.name}"?\n\nהספק יעבור לסל המחזור עם ${assignments.length} ההקצאות הקיימות שלו (ההקצאות לא יימחקו; אם תשחזר את הספק הן יחזרו אליו). ניתן לשחזר מ-הגדרות → סל המחזור.`
                   }
                 />
               </div>
