@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 import { recalcPermitProgress } from "@/lib/milestone-recalc";
+import { recalcDealMilestones } from "@/lib/deal-milestone-recalc";
 import { assertPermitOpenForEdits } from "./permits";
 
 const VALID_TASK_STATUSES = new Set<TaskStatus>([
@@ -189,8 +190,12 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
 
     // Block 22: recompute permit completion % and sync percentage-triggered
     // billing milestones (70%/80%) whenever a task crosses the COMPLETED line.
+    // June 2026: same trigger also cascades to deal-level milestones
+    // (DealMilestone) — proposal-conversion milestones with triggerPercentage
+    // get auto-flipped PENDING ↔ DUE based on overall deal progress.
     if (cameToCompleted || leftCompleted) {
       await recalcPermitProgress(tx, task.permitId, user.id);
+      await recalcDealMilestones(tx, task.permitId, user.id);
     }
 
     // Cascade SupplierTaskAssignment.status alongside the task.
