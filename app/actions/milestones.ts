@@ -5,28 +5,11 @@ import { AuditAction, MilestoneStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { parseAmount, parseDate } from "@/lib/validators/form";
 import { assertPermitOpenForEdits } from "./permits";
 
 // Type is internal — "use server" files can only export async functions.
 type MilestoneFormState = { error: string | null; ok: boolean };
-
-function parseAmount(raw: FormDataEntryValue | null): number | null {
-  if (raw === null) return null;
-  const str = String(raw).trim();
-  if (!str) return null;
-  const n = Number(str.replace(/,/g, ""));
-  if (!Number.isFinite(n) || n < 0) return null;
-  return Math.round(n * 100) / 100; // normalize to 2 decimals
-}
-
-function parseDate(raw: FormDataEntryValue | null): Date | null {
-  if (raw === null) return null;
-  const str = String(raw).trim();
-  if (!str) return null;
-  const d = new Date(str);
-  if (Number.isNaN(d.getTime())) return null;
-  return d;
-}
 
 // Trigger mode is the XOR: a milestone fires either when its anchor task is
 // completed (legacy/explicit) or when the permit's overall task-completion

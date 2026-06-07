@@ -30,9 +30,9 @@ const ROLE_LABEL: Record<UserRole, string> = {
 };
 
 const ROLE_BADGE: Record<UserRole, string> = {
-  ADMIN: "bg-[#1F2937] text-white",
-  EMPLOYEE: "bg-[#E25822] text-white",
-  CONTRACTOR: "bg-[#F5F1E8] text-[#1F2937] border border-[#E5E7EB]"
+  ADMIN: "bg-brand-navy text-white",
+  EMPLOYEE: "bg-primary text-white",
+  CONTRACTOR: "bg-brand-cream text-brand-navy border border-[#E5E7EB]"
 };
 
 export function ImpersonationLauncher() {
@@ -45,7 +45,7 @@ export function ImpersonationLauncher() {
         onClick={() => setOpen(true)}
         title="התחבר כמשתמש אחר"
         aria-label="התחבר כמשתמש אחר"
-        className="relative flex size-12 items-center justify-center rounded-full border-2 border-[#1F2937] bg-white text-[#1F2937] shadow-lg transition hover:bg-[#F5F1E8]"
+        className="relative flex size-12 items-center justify-center rounded-full border-2 border-brand-navy bg-white text-brand-navy shadow-lg transition hover:bg-brand-cream"
       >
         <UserCog className="size-5" />
       </button>
@@ -119,15 +119,15 @@ function ImpersonationDialog({ onClose }: { onClose: () => void }) {
       }}
       className="mk-dialog w-[480px] max-w-[calc(100vw-2rem)]"
     >
-      <div className="flex items-center justify-between border-b-2 border-[#E25822] bg-[#F5F1E8] px-3 py-2">
-        <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1F2937]">
+      <div className="flex items-center justify-between border-b-2 border-primary bg-brand-cream px-3 py-2">
+        <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-navy">
           <UserCog className="size-3.5" />
           התחבר כמשתמש
         </h2>
         <button
           type="button"
           onClick={() => dialogRef.current?.close()}
-          className="rounded p-0.5 text-[#4A5562] hover:bg-black/5"
+          className="rounded p-0.5 text-brand-charcoal-70 hover:bg-black/5"
           aria-label="סגור"
         >
           <X className="size-3.5" />
@@ -135,7 +135,7 @@ function ImpersonationDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="space-y-2 px-3 py-3">
-        <p className="text-[11px] leading-relaxed text-[#4A5562]">
+        <p className="text-[11px] leading-relaxed text-brand-charcoal-70">
           בחר משתמש כדי לראות את המערכת כפי שהוא רואה אותה. הפעולה תעוד
           ביומן המערכת. תוכל לחזור לזהותך המקורית מתוך הבאנר שיופיע בראש המסך.
         </p>
@@ -146,7 +146,7 @@ function ImpersonationDialog({ onClose }: { onClose: () => void }) {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="חיפוש לפי שם או אימייל…"
-            className="w-full rounded border border-[#E5E7EB] bg-white px-2 py-1 pr-7 text-[13px] focus:outline-none focus:ring-1 focus:ring-[#E25822]"
+            className="w-full rounded border border-[#E5E7EB] bg-white px-2 py-1 pr-7 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </label>
 
@@ -175,10 +175,10 @@ function ImpersonationDialog({ onClose }: { onClose: () => void }) {
                     type="button"
                     onClick={() => handlePick(u)}
                     disabled={isPending}
-                    className="flex w-full items-center justify-between gap-2 rounded border border-[#E5E7EB] bg-white px-2 py-1.5 text-start hover:border-[#1F2937] disabled:opacity-50"
+                    className="flex w-full items-center justify-between gap-2 rounded border border-[#E5E7EB] bg-white px-2 py-1.5 text-start hover:border-brand-navy disabled:opacity-50"
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-[12.5px] font-medium text-[#1F2937]">
+                      <div className="truncate text-[12.5px] font-medium text-brand-navy">
                         {u.name}
                       </div>
                       <div className="truncate text-[10.5px] text-[#6B7280]">
@@ -192,7 +192,7 @@ function ImpersonationDialog({ onClose }: { onClose: () => void }) {
                         {ROLE_LABEL[u.role as UserRole]}
                       </span>
                       {isLoadingThis && (
-                        <Loader2 className="size-3 animate-spin text-[#1F2937]" />
+                        <Loader2 className="size-3 animate-spin text-brand-navy" />
                       )}
                     </div>
                   </button>

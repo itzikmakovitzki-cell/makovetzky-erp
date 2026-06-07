@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AuditAction, Prisma, SupplierCommissionType } from "@prisma/client";
+import { AuditAction, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { validateCommissionPair } from "@/lib/commissions";
 import {
   buildSupplierLogoStoragePath,
   uploadToStorage
@@ -54,37 +55,11 @@ type DeleteResult = { ok: true } | { ok: false; error: string };
 // Parse the (type, value) commission pair from a form. PERCENT values are
 // validated to live in [0, 100]; FIXED values must be non-negative; either
 // can be unset (both null = "use whatever's on the assignment").
-function parseCommission(formData: FormData): {
-  ok: true;
-  type: SupplierCommissionType | null;
-  value: string | null;
-} | { ok: false; error: string } {
-  const typeRaw = String(formData.get("defaultCommissionType") || "").trim();
-  const valueRaw = String(formData.get("defaultCommissionValue") || "").trim();
-
-  if (!typeRaw && !valueRaw) return { ok: true, type: null, value: null };
-  if (typeRaw && !valueRaw) {
-    return { ok: false, error: "ערך עמלה חסר — סמנת סוג בלי מספר" };
-  }
-  if (valueRaw && !typeRaw) {
-    return { ok: false, error: "סוג עמלה חסר — מילאת מספר בלי לבחור 'סכום' או 'אחוז'" };
-  }
-  if (typeRaw !== "FIXED" && typeRaw !== "PERCENT") {
-    return { ok: false, error: "סוג עמלה לא חוקי" };
-  }
-
-  const n = Number(valueRaw);
-  if (Number.isNaN(n) || n < 0) {
-    return { ok: false, error: "ערך עמלה חייב להיות מספר אי-שלילי" };
-  }
-  if (typeRaw === "PERCENT" && n > 100) {
-    return { ok: false, error: "אחוז עמלה לא יכול להיות מעל 100" };
-  }
-  return {
-    ok: true,
-    type: typeRaw as SupplierCommissionType,
-    value: n.toFixed(2)
-  };
+function parseCommission(formData: FormData) {
+  return validateCommissionPair(
+    String(formData.get("defaultCommissionType") || ""),
+    String(formData.get("defaultCommissionValue") || "")
+  );
 }
 
 // Common payload extracted from a supplier form. Shared between create + update

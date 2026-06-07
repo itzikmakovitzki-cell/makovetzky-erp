@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import {
   AuditAction,
   Prisma,
-  SupplierAssignmentStatus,
-  SupplierCommissionType
+  SupplierAssignmentStatus
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
+import { validateCommissionPair } from "@/lib/commissions";
+import { parseDate } from "@/lib/validators/form";
 
 // Phase 2 of the suppliers overhaul — write side for SupplierTaskAssignment.
 // The previous codebase had read-only views (seed.ts was the only writer);
@@ -26,45 +27,11 @@ const VALID_STATUSES: SupplierAssignmentStatus[] = [
 
 // --- Helpers ---------------------------------------------------------------
 
-function parseCommission(formData: FormData): {
-  ok: true;
-  type: SupplierCommissionType | null;
-  value: string | null;
-} | { ok: false; error: string } {
-  const typeRaw = String(formData.get("commissionType") || "").trim();
-  const valueRaw = String(formData.get("commissionValue") || "").trim();
-
-  // Empty pair = inherit from supplier's defaults.
-  if (!typeRaw && !valueRaw) return { ok: true, type: null, value: null };
-  if (typeRaw && !valueRaw) {
-    return { ok: false, error: "ערך עמלה חסר — סימנת סוג בלי מספר" };
-  }
-  if (valueRaw && !typeRaw) {
-    return { ok: false, error: "סוג עמלה חסר — מילאת מספר בלי לבחור 'סכום' או 'אחוז'" };
-  }
-  if (typeRaw !== "FIXED" && typeRaw !== "PERCENT") {
-    return { ok: false, error: "סוג עמלה לא חוקי" };
-  }
-  const n = Number(valueRaw);
-  if (Number.isNaN(n) || n < 0) {
-    return { ok: false, error: "ערך עמלה חייב להיות מספר אי-שלילי" };
-  }
-  if (typeRaw === "PERCENT" && n > 100) {
-    return { ok: false, error: "אחוז עמלה לא יכול להיות מעל 100" };
-  }
-  return {
-    ok: true,
-    type: typeRaw as SupplierCommissionType,
-    value: n.toFixed(2)
-  };
-}
-
-function parseDateInput(raw: string): Date | null {
-  const v = raw.trim();
-  if (!v) return null;
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return null;
-  return d;
+function parseCommission(formData: FormData) {
+  return validateCommissionPair(
+    String(formData.get("commissionType") || ""),
+    String(formData.get("commissionValue") || "")
+  );
 }
 
 function readAssignmentForm(formData: FormData): {
@@ -92,7 +59,7 @@ function readAssignmentForm(formData: FormData): {
     status,
     amount,
     paymentTerms: String(formData.get("paymentTerms") || "").trim() || null,
-    dueDate: parseDateInput(String(formData.get("dueDate") || "")),
+    dueDate: parseDate(formData.get("dueDate")),
     notes: String(formData.get("notes") || "").trim() || null
   };
 }
