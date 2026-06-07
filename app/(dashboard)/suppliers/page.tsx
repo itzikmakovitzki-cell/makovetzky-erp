@@ -174,6 +174,7 @@ async function SupplierDetail({
       defaultPaymentTerms: true,
       notes: true,
       isPublic: true,
+      isFeatured: true,
       marketingDescription: true,
       logoUrl: true,
       categoryId: true,
@@ -315,6 +316,7 @@ async function SupplierDetail({
                     defaultPaymentTerms: supplier.defaultPaymentTerms,
                     notes: supplier.notes,
                     isPublic: supplier.isPublic,
+                    isFeatured: supplier.isFeatured,
                     marketingDescription: supplier.marketingDescription,
                     logoUrl: supplier.logoUrl,
                     categoryId: supplier.categoryId
