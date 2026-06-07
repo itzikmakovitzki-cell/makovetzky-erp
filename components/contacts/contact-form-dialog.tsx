@@ -80,7 +80,7 @@ export function ContactFormDialog({
       onClick={(e) => {
         if (e.target === dialogRef.current) dialogRef.current?.close();
       }}
-      className="w-[480px] max-w-[calc(100vw-2rem)] rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40"
+      className="mk-dialog w-[480px] max-w-[calc(100vw-2rem)]"
     >
       <form action={formAction} dir="rtl">
         <input type="hidden" name="permitId" value={permitId} />

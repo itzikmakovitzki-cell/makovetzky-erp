@@ -44,7 +44,7 @@ export function PortalUploadDialog({
     <dialog
       ref={dialogRef}
       onClick={handleBackdropClick}
-      className="rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40 w-[480px] max-w-[calc(100vw-1.5rem)]"
+      className="mk-dialog w-[480px] max-w-[calc(100vw-1.5rem)]"
     >
       <form action={formAction} encType="multipart/form-data">
         <input type="hidden" name="permitId" value={permitId} />

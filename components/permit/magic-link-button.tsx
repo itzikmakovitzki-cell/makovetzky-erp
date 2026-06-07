@@ -87,7 +87,7 @@ export function MagicLinkButton({
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
-        className="rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40 w-[520px] max-w-[calc(100vw-2rem)]"
+        className="mk-dialog w-[520px] max-w-[calc(100vw-2rem)]"
       >
         <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
           <h2 className="text-sm font-semibold">קישור גישה לעובד שטח</h2>

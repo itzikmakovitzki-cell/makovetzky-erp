@@ -51,7 +51,7 @@ export function AddPermitDialog({
     <dialog
       ref={dialogRef}
       onClick={handleBackdropClick}
-      className="rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40 w-[560px] max-w-[calc(100vw-1.5rem)]"
+      className="mk-dialog w-[560px] max-w-[calc(100vw-1.5rem)]"
     >
       <form action={formAction}>
         <input type="hidden" name="masterDealId" value={masterDealId} />

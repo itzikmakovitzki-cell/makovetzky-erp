@@ -107,7 +107,7 @@ export function AssignmentFormDialog({
       onClick={(e) => {
         if (e.target === dialogRef.current) dialogRef.current?.close();
       }}
-      className="w-[640px] max-w-[calc(100vw-2rem)] rounded-md border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/40"
+      className="mk-dialog w-[640px] max-w-[calc(100vw-2rem)]"
     >
       <form action={formAction} dir="rtl">
         <input type="hidden" name="supplierId" value={initial.supplierId} />
