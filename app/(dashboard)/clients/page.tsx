@@ -46,6 +46,7 @@ export default async function ClientsListPage() {
       email: c.email,
       address: c.address,
       notes: c.notes,
+      clientType: c.clientType === "BUSINESS" ? "BUSINESS" : "PRIVATE",
       dealCount: c.masterDeals.length,
       permitCount: permits.length,
       activePermitCount

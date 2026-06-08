@@ -268,6 +268,79 @@ export async function deleteSupplierAssignment(
   }
 }
 
+// Block 38 — PM Lead Tracker dashboard. Inline status + notes update for
+// a partner-lead assignment (the ones whose Task name starts with
+// "ליד שותף"). Reuses the same revalidation surface as the heavier
+// updateSupplierAssignment so the back-office views stay consistent.
+//
+// Kept narrow (only status + notes) on purpose — the full edit dialog
+// remains the way to touch commission terms / due dates. The lead
+// tracker is for triage, not contract editing.
+export async function updateLeadStatusAndNotes(args: {
+  assignmentId: string;
+  status: SupplierAssignmentStatus;
+  notes: string | null;
+}): Promise<DeleteResult> {
+  try {
+    const me = await requireRole(["ADMIN", "EMPLOYEE"]);
+    if (!VALID_STATUSES.includes(args.status)) {
+      return { ok: false, error: "סטטוס לא חוקי" };
+    }
+    const existing = await prisma.supplierTaskAssignment.findUnique({
+      where: { id: args.assignmentId },
+      select: {
+        id: true,
+        supplierId: true,
+        status: true,
+        notes: true,
+        completedAt: true,
+        task: { select: { permitId: true } }
+      }
+    });
+    if (!existing) return { ok: false, error: "הליד לא נמצא" };
+
+    const notes = args.notes?.trim() || null;
+    const completedAt =
+      args.status === "COMPLETED" && !existing.completedAt
+        ? new Date()
+        : existing.completedAt;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.supplierTaskAssignment.update({
+        where: { id: args.assignmentId },
+        data: {
+          status: args.status,
+          notes,
+          completedAt
+        }
+      });
+      await logAudit(tx, {
+        entityType: AuditEntity.SUPPLIER_ASSIGNMENT,
+        entityId: args.assignmentId,
+        action: AuditAction.STATUS_CHANGE,
+        oldValue: { status: existing.status, notes: existing.notes },
+        newValue: {
+          status: args.status,
+          notes,
+          source: "pm_lead_tracker"
+        },
+        userId: me.id
+      });
+    });
+
+    revalidatePath("/leads");
+    revalidatePath("/suppliers");
+    revalidatePath(`/suppliers?supplier=${existing.supplierId}`);
+    revalidatePath(`/permits/${existing.task.permitId}/tasks`);
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "עדכון הליד נכשל"
+    };
+  }
+}
+
 // Toggle paid: clicking when already paid clears the stamp ("טעיתי, הם לא
 // שילמו"). Both directions audit-logged.
 export async function toggleAssignmentPaid(assignmentId: string): Promise<DeleteResult> {

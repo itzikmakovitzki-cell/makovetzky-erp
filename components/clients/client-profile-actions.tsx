@@ -61,7 +61,8 @@ export function ClientProfileActions({
               phone: client.phone,
               email: client.email,
               address: client.address,
-              notes: client.notes
+              notes: client.notes,
+              clientType: client.clientType
             }
           }}
           onClose={() => setEditing(false)}

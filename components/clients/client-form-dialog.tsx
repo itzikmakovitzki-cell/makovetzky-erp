@@ -1,8 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import { Loader2, X } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { Briefcase, Loader2, User2, X } from "lucide-react";
 import { submitClient } from "@/app/actions/clients";
+import { cn } from "@/lib/utils";
+
+// Block 38 — explicit "private vs business" segmentation. The Form-4
+// home-entry upsell only fires for PRIVATE clients; business / contractor
+// rows never receive the consumer-side promo copy.
+export type ClientType = "PRIVATE" | "BUSINESS";
 
 export type ClientFormInitial = {
   companyName: string;
@@ -12,6 +18,7 @@ export type ClientFormInitial = {
   email: string;
   address: string;
   notes: string;
+  clientType: ClientType;
 };
 
 type Mode =
@@ -25,7 +32,8 @@ const EMPTY: ClientFormInitial = {
   phone: "",
   email: "",
   address: "",
-  notes: ""
+  notes: "",
+  clientType: "PRIVATE"
 };
 
 export function ClientFormDialog({
@@ -58,6 +66,7 @@ export function ClientFormDialog({
 
   const isEdit = mode.kind === "update";
   const initial = isEdit ? mode.initial : EMPTY;
+  const [clientType, setClientType] = useState<ClientType>(initial.clientType);
 
   return (
     <dialog
@@ -86,6 +95,35 @@ export function ClientFormDialog({
         </div>
 
         <div className="grid grid-cols-2 gap-3 px-3 py-3">
+          {/* Block 38 — explicit Private/Business classification. Required:
+              gates the Form-4 home-entry upsell automation. Spans the full
+              width so it can't be missed when the PM creates a client. */}
+          <div className="col-span-2">
+            <span className="mb-1 block text-[11px] font-medium">
+              סוג לקוח <span className="ms-0.5 text-red-600">*</span>
+            </span>
+            <div
+              role="radiogroup"
+              aria-label="סוג לקוח"
+              className="grid grid-cols-2 gap-2"
+            >
+              <ClientTypeOption
+                active={clientType === "PRIVATE"}
+                onClick={() => setClientType("PRIVATE")}
+                icon={<User2 className="size-4" />}
+                title="פרטי"
+                description="לקוח קצה (בעל בית). מקבל הצעות שדרוג לאחר טופס 4."
+              />
+              <ClientTypeOption
+                active={clientType === "BUSINESS"}
+                onClick={() => setClientType("BUSINESS")}
+                icon={<Briefcase className="size-4" />}
+                title="עסקי / קבלן"
+                description="קבלן או חברת בנייה. ללא תקשורת שיווקית לצרכן."
+              />
+            </div>
+            <input type="hidden" name="clientType" value={clientType} />
+          </div>
           <Field label="שם החברה" required>
             <input
               type="text"
@@ -185,6 +223,50 @@ export function ClientFormDialog({
         </div>
       </form>
     </dialog>
+  );
+}
+
+function ClientTypeOption({
+  active,
+  onClick,
+  icon,
+  title,
+  description
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      className={cn(
+        "flex items-start gap-2 rounded-md border px-2.5 py-2 text-start text-[12px] transition-all",
+        active
+          ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary"
+          : "border-input bg-background hover:bg-accent"
+      )}
+    >
+      <span
+        className={cn(
+          "mt-0.5 inline-flex items-center justify-center rounded p-1",
+          active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        )}
+      >
+        {icon}
+      </span>
+      <span className="flex-1">
+        <span className="block font-semibold text-foreground">{title}</span>
+        <span className="block text-[10.5px] leading-snug text-muted-foreground">
+          {description}
+        </span>
+      </span>
+    </button>
   );
 }
 

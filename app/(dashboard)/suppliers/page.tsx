@@ -180,6 +180,8 @@ async function SupplierDetail({
       marketingDescription: true,
       logoUrl: true,
       categoryId: true,
+      deliverables: true,
+      priceEstimate: true,
       category: { select: { name: true } }
     }
   });
@@ -321,7 +323,9 @@ async function SupplierDetail({
                     isFeatured: supplier.isFeatured,
                     marketingDescription: supplier.marketingDescription,
                     logoUrl: supplier.logoUrl,
-                    categoryId: supplier.categoryId
+                    categoryId: supplier.categoryId,
+                    deliverables: supplier.deliverables,
+                    priceEstimate: supplier.priceEstimate
                   }}
                   typeSuggestions={typeSuggestions}
                   categoryOptions={categoryOptions}

@@ -86,6 +86,13 @@ function readSupplierForm(formData: FormData) {
   // Block 30 polish #2 — broad marketplace category. Empty string = "no
   // category" (NULL FK).
   const categoryId = String(formData.get("categoryId") || "").trim() || null;
+  // Block 38 — transparency fields surfaced on the portal marketplace card.
+  // Free text, both nullable. deliverables stays multi-line ("\n"-separated
+  // bullets); priceEstimate is a short single-line copy.
+  const deliverables =
+    String(formData.get("deliverables") || "").trim() || null;
+  const priceEstimate =
+    String(formData.get("priceEstimate") || "").trim() || null;
   return {
     name,
     type,
@@ -100,7 +107,9 @@ function readSupplierForm(formData: FormData) {
     isFeatured,
     marketingDescription,
     logoUrl,
-    categoryId
+    categoryId,
+    deliverables,
+    priceEstimate
   };
 }
 
@@ -265,7 +274,9 @@ export async function updateSupplier(
           isPublic: existing.isPublic,
           isFeatured: existing.isFeatured,
           marketingDescription: existing.marketingDescription,
-          logoUrl: existing.logoUrl
+          logoUrl: existing.logoUrl,
+          deliverables: existing.deliverables,
+          priceEstimate: existing.priceEstimate
         },
         newValue: {
           ...fields,

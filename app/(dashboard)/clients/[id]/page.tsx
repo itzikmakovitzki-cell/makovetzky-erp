@@ -120,7 +120,8 @@ export default async function ClientProfilePage({
             phone: client.phone,
             email: client.email ?? "",
             address: client.address ?? "",
-            notes: client.notes ?? ""
+            notes: client.notes ?? "",
+            clientType: client.clientType === "BUSINESS" ? "BUSINESS" : "PRIVATE"
           }}
           dealCount={client.masterDeals.length}
         />

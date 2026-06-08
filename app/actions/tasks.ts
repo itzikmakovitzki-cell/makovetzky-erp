@@ -16,6 +16,7 @@ import { getCurrentUser, requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 import { recalcPermitProgress } from "@/lib/milestone-recalc";
 import { recalcDealMilestones } from "@/lib/deal-milestone-recalc";
+import { maybeDispatchForm4Upsell } from "@/lib/form4-upsell";
 import { assertPermitOpenForEdits } from "./permits";
 
 const VALID_TASK_STATUSES = new Set<TaskStatus>([
@@ -246,6 +247,15 @@ export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
   revalidatePath(`/permits/${task.permitId}`, "layout");
   revalidatePath("/tasks");
   revalidatePath("/my-tasks");
+
+  // Block 38 — Smart milestone upsell. Fire the Form-4 home-entry upsell
+  // AFTER the parent transaction commits so a Green API / Resend hiccup
+  // can never roll back the user's task-status change. The helper itself
+  // self-dedupes via the audit log and gates on Client.clientType ===
+  // "PRIVATE", so calling it on every COMPLETED transition is safe.
+  if (newStatus === "COMPLETED" && task.status !== "COMPLETED") {
+    void maybeDispatchForm4Upsell(task.permitId, user.id);
+  }
 }
 
 export async function toggleTaskSpotlight(taskId: string) {
