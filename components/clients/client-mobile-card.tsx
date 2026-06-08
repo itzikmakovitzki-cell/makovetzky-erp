@@ -82,7 +82,8 @@ export function ClientMobileCard({
               phone: row.phone,
               email: row.email ?? "",
               address: row.address ?? "",
-              notes: row.notes ?? ""
+              notes: row.notes ?? "",
+              clientType: row.clientType
             })
           }
           className="inline-flex items-center gap-1 rounded border border-input px-2 py-1 text-[11px] hover:bg-accent"

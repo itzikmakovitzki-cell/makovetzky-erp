@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Briefcase, Inbox, Search, Sparkles, Star, Tag } from "lucide-react";
+import { Briefcase, Check, Inbox, Search, Sparkles, Star, Tag } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalScope, permitClientFilter } from "@/lib/portal-access";
@@ -85,6 +85,9 @@ export async function PartnersMarketplace({
         // Block 44 — featured suppliers float to the top + get the gold
         // trim card treatment.
         isFeatured: true,
+        // Block 38 — transparent pricing & deliverables on the card.
+        deliverables: true,
+        priceEstimate: true,
         category: { select: { id: true, name: true } }
       },
       orderBy: [{ isFeatured: "desc" }, { name: "asc" }]
@@ -310,12 +313,51 @@ export async function PartnersMarketplace({
                 </p>
               )}
 
-              {/* Block 31 cleanup: card body is intentionally minimal —
-                  Name + Category + marketingDescription + CTA. The
-                  legacy `type` badge, raw `website` URL, and "הטבת
-                  חברים" pill were stripped to keep the grid uniform
-                  and professional when descriptions vary in length. */}
-              <div className="mt-auto flex items-center justify-end pt-4">
+              {/* Block 38 — Transparent deliverables. Newline-split bullets
+                  render with a green ✓. Capped at 5 visible rows so the
+                  grid stays tidy when admins paste a long list; the rest
+                  surface in the request dialog. */}
+              {s.deliverables && (() => {
+                const items = s.deliverables
+                  .split(/\r?\n/)
+                  .map((line) => line.trim())
+                  .filter(Boolean);
+                if (items.length === 0) return null;
+                const visible = items.slice(0, 5);
+                const hidden = items.length - visible.length;
+                return (
+                  <ul className="mt-3 space-y-1 text-[12px] leading-snug text-foreground/90">
+                    {visible.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-1.5">
+                        <Check
+                          className="mt-0.5 size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                          aria-hidden
+                        />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                    {hidden > 0 && (
+                      <li className="ms-5 text-[11px] text-muted-foreground">
+                        + {hidden} פריטים נוספים
+                      </li>
+                    )}
+                  </ul>
+                );
+              })()}
+
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
+                {/* Block 38 — prominent price line just left of the CTA so
+                    the client sees the offer before clicking. Plain text —
+                    admin formats freely ("2,100 ₪ במקום 2,500 ₪",
+                    "החל מ-1,800 ₪"). */}
+                {s.priceEstimate ? (
+                  <div className="inline-flex items-baseline gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[12.5px] font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200">
+                    <Tag className="size-3" aria-hidden />
+                    <span className="leading-none">{s.priceEstimate}</span>
+                  </div>
+                ) : (
+                  <span aria-hidden />
+                )}
                 <PartnerRequestDialog
                   supplierId={s.id}
                   supplierName={s.name}

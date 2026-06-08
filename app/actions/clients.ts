@@ -13,6 +13,11 @@ import { buildWaMeUrl } from "@/lib/wa-link";
 
 type FormState = { error: string | null; ok: boolean };
 
+// Block 38 — Client segmentation. Two values today; "PRIVATE" gates the
+// Form-4 home-entry upsell. Anything else stored on the row (legacy data,
+// future tiers) is treated as non-private.
+const CLIENT_TYPES = new Set(["PRIVATE", "BUSINESS"]);
+
 function readClientPayload(formData: FormData): {
   companyName: string;
   hp: string | null;
@@ -21,6 +26,7 @@ function readClientPayload(formData: FormData): {
   email: string | null;
   address: string | null;
   notes: string | null;
+  clientType: string;
 } | { error: string } {
   const companyName = String(formData.get("companyName") || "").trim();
   const contactName = String(formData.get("contactName") || "").trim();
@@ -28,6 +34,8 @@ function readClientPayload(formData: FormData): {
   if (!companyName) return { error: "שם החברה חובה" };
   if (!contactName) return { error: "שם איש קשר חובה" };
   if (!phone) return { error: "טלפון איש קשר חובה" };
+  const clientTypeRaw = String(formData.get("clientType") || "PRIVATE").trim();
+  const clientType = CLIENT_TYPES.has(clientTypeRaw) ? clientTypeRaw : "PRIVATE";
   return {
     companyName,
     hp: String(formData.get("hp") || "").trim() || null,
@@ -35,7 +43,8 @@ function readClientPayload(formData: FormData): {
     phone,
     email: String(formData.get("email") || "").trim() || null,
     address: String(formData.get("address") || "").trim() || null,
-    notes: String(formData.get("notes") || "").trim() || null
+    notes: String(formData.get("notes") || "").trim() || null,
+    clientType
   };
 }
 
@@ -86,7 +95,8 @@ export async function submitClient(
             phone: existing.phone,
             email: existing.email,
             address: existing.address,
-            notes: existing.notes
+            notes: existing.notes,
+            clientType: existing.clientType
           },
           newValue: parsed,
           userId: me.id

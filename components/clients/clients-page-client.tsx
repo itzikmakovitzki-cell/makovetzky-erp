@@ -10,7 +10,11 @@ import { CsvToolbar } from "@/components/global/csv-toolbar";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/global/page-header";
 import { ExportListButton } from "@/components/global/export-list-button";
-import { ClientFormDialog, type ClientFormInitial } from "./client-form-dialog";
+import {
+  ClientFormDialog,
+  type ClientFormInitial,
+  type ClientType
+} from "./client-form-dialog";
 import { ClientMobileCard } from "./client-mobile-card";
 
 export type ClientRow = {
@@ -22,6 +26,7 @@ export type ClientRow = {
   email: string | null;
   address: string | null;
   notes: string | null;
+  clientType: ClientType;
   dealCount: number;
   permitCount: number;
   activePermitCount: number;
@@ -164,6 +169,17 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
                       <Building2 className="size-3 text-muted-foreground" />
                       {row.companyName}
                     </Link>
+                    <span
+                      className={cn(
+                        "ms-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 align-middle text-[9.5px] font-medium",
+                        row.clientType === "PRIVATE"
+                          ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                          : "bg-sky-500/15 text-sky-800 dark:text-sky-300"
+                      )}
+                      title="סוג לקוח"
+                    >
+                      {row.clientType === "PRIVATE" ? "פרטי" : "עסקי"}
+                    </span>
                   </td>
                   <td className="font-mono text-[11px] tabular-nums text-muted-foreground">
                     {row.hp ?? "—"}
@@ -199,7 +215,8 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
                               phone: row.phone,
                               email: row.email ?? "",
                               address: row.address ?? "",
-                              notes: row.notes ?? ""
+                              notes: row.notes ?? "",
+                              clientType: row.clientType
                             }
                           })
                         }

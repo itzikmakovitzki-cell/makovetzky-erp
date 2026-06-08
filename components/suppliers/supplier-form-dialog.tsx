@@ -35,6 +35,8 @@ export type SupplierInitialValues = {
   marketingDescription?: string | null;
   logoUrl?: string | null;
   categoryId?: string | null;
+  deliverables?: string | null;
+  priceEstimate?: string | null;
 };
 
 export function SupplierFormDialog({
@@ -378,6 +380,36 @@ export function SupplierFormDialog({
                   defaultValue={initial?.marketingDescription ?? ""}
                   className={`${inputClass} resize-y`}
                 />
+              </Label>
+              {/* Block 38 — Transparent pricing & deliverables. Both fields
+                  surface directly on the portal marketplace card so the
+                  client sees exactly what's included and what it costs
+                  before requesting service. */}
+              <Label text="מה כלול בשירות (שורה לכל פריט — מוצג כצ׳קליסט)">
+                <textarea
+                  name="deliverables"
+                  rows={4}
+                  maxLength={1000}
+                  placeholder={"בדיקת חשמל מלאה\nדו״ח חתום ע״י חשמלאי מוסמך\nתעודת בדיקה רשמית"}
+                  defaultValue={initial?.deliverables ?? ""}
+                  className={`${inputClass} resize-y leading-snug`}
+                />
+                <span className="mt-1 block text-[10px] text-muted-foreground">
+                  כל שורה תופיע עם סימן ✓ ירוק בכרטיס הספק בפורטל הלקוחות.
+                </span>
+              </Label>
+              <Label text="מחיר משוער / הטבת חברים">
+                <input
+                  type="text"
+                  name="priceEstimate"
+                  maxLength={120}
+                  placeholder='לדוגמה: 2,100 ₪ במקום 2,500 ₪ / "החל מ-1,800 ₪"'
+                  defaultValue={initial?.priceEstimate ?? ""}
+                  className={inputClass}
+                />
+                <span className="mt-1 block text-[10px] text-muted-foreground">
+                  מוצג בולט מעל כפתור &quot;בקש שירות&quot; בכרטיס הספק בפורטל.
+                </span>
               </Label>
               <Label text="קישור ללוגו (URL מלא — אופציונלי)">
                 <input

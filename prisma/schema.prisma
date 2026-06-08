@@ -275,6 +275,15 @@ model Client {
   // Strict: even the *suggestion* of a send is gated on this. See enum doc
   // and components/clients/client-notification-preference-toggle.tsx.
   notificationPreference ClientNotificationPreference @default(MANUAL_ONLY)
+  // Block 38 (Smart CRM Triggers). Explicit segmentation for the PM:
+  //   PRIVATE  — a homeowner / end-customer. Eligible for the Form-4
+  //              home-entry upsell (HOT, gas, etc.) triggered when the
+  //              permit's "טופס 4" tasks complete.
+  //   BUSINESS — a contractor / property developer. Never receives the
+  //              private-buyer upsell.
+  // String column (not an enum) so adding a new tier later doesn't require
+  // a schema migration; the form constrains the inputs in the UI.
+  clientType  String    @default("PRIVATE")
   deletedAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -685,6 +694,16 @@ model Supplier {
   isFeatured             Boolean  @default(false)
   marketingDescription   String?
   logoUrl                String?
+  // Block 38 (Marketplace Pro). Two client-facing "transparency" fields
+  // surfaced under each supplier card on /portal/partners.
+  //   deliverables  — bulleted list of what the service includes. Stored
+  //                   as free text; newline-separated bullets are rendered
+  //                   with check-marks in the portal card.
+  //   priceEstimate — short price line ("2,100 ₪ במקום 2,500 ₪",
+  //                   "החל מ-1,800 ₪"). Plain text so the admin can format
+  //                   freely. Pinned above the CTA button.
+  deliverables           String?
+  priceEstimate          String?
   // Soft delete: deletedAt != null means hidden everywhere except
   // /settings/recycle-bin. Joined the family in June 2026 — before that
   // deleteSupplier was a hard delete with cascade. Existing assignments

@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Settings as SettingsIcon,
   Store,
+  Target,
   Trash2,
   Truck,
   Users,
@@ -88,6 +89,12 @@ const GROUPS: NavGroup[] = [
         href: "/partners",
         label: "מאגר שותפים",
         icon: Store,
+        allowed: ["ADMIN", "EMPLOYEE"]
+      },
+      {
+        href: "/leads",
+        label: "ניהול לידים",
+        icon: Target,
         allowed: ["ADMIN", "EMPLOYEE"]
       }
     ]
