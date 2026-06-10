@@ -22,6 +22,7 @@ import { formatDate, formatILS } from "./utils";
 // like /logo-horizontal.png won't resolve — data URIs sidestep the issue.
 let _logoHorizontalDataUrl: string | null = null;
 let _logoIconDataUrl: string | null = null;
+let _providerSignatureDataUrl: string | null = null;
 function logoHorizontalDataUrl(): string {
   if (_logoHorizontalDataUrl) return _logoHorizontalDataUrl;
   const buf = readFileSync(join(process.cwd(), "public", "logo-horizontal.png"));
@@ -33,6 +34,12 @@ function logoIconDataUrl(): string {
   const buf = readFileSync(join(process.cwd(), "public", "logo-icon.png"));
   _logoIconDataUrl = `data:image/png;base64,${buf.toString("base64")}`;
   return _logoIconDataUrl;
+}
+function providerSignatureDataUrl(): string {
+  if (_providerSignatureDataUrl) return _providerSignatureDataUrl;
+  const buf = readFileSync(join(process.cwd(), "public", "bat-or-signature.jpg"));
+  _providerSignatureDataUrl = `data:image/jpeg;base64,${buf.toString("base64")}`;
+  return _providerSignatureDataUrl;
 }
 
 export type ProposalMilestoneLite = {
@@ -171,6 +178,7 @@ function renderSignatureBlock(opts: BuildHtmlOptions): string {
   // The provider column carries a dedicated "מקום לחותמת" box — the user often
   // prints the PDF to add a physical signature + company stamp, so the layout
   // reserves a clearly marked spot for it on every printed copy.
+  const providerSignatureSrc = providerSignatureDataUrl();
   const provider = `
     <div class="sign-col">
       <div class="sign-label">פרטי נותן השירות:</div>
@@ -183,13 +191,9 @@ function renderSignatureBlock(opts: BuildHtmlOptions): string {
       </div>
       <div class="provider-sign-row">
         <div class="provider-sign-lines">
-          <div class="sign-line-row">
+          <div class="provider-sign-image-row">
             <span class="sign-label">חתימה:</span>
-            <span class="sign-line"></span>
-          </div>
-          <div class="sign-line-row">
-            <span class="sign-label">תאריך:</span>
-            <span class="sign-line"></span>
+            <img class="provider-sign-image" src="${providerSignatureSrc}" alt="חתימת ${esc(COMPANY_DETAILS.ownerName)}" />
           </div>
         </div>
         <div class="stamp-box" aria-label="מקום לחותמת חברה">
@@ -324,8 +328,8 @@ export function buildProposalHtml(
     margin-bottom: 18px;
   }
   .brand { display: flex; align-items: center; }
-  .brand-logo { height: 56px; width: auto; display: block; }
-  .brand-logo-sm { height: 40px; width: auto; display: block; }
+  .brand-logo { height: 110px; width: auto; display: block; max-width: 280px; object-fit: contain; }
+  .brand-logo-sm { height: 72px; width: auto; display: block; max-width: 200px; object-fit: contain; }
   .doc-meta {
     text-align: left;
     font-size: 11px;
@@ -485,6 +489,22 @@ export function buildProposalHtml(
     margin-top: 10px;
   }
   .provider-sign-lines { flex: 1; }
+  .provider-sign-image-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-top: 6px;
+    border-bottom: 1px solid var(--charcoal);
+    padding-bottom: 2px;
+    min-height: 60px;
+  }
+  .provider-sign-image {
+    height: 56px;
+    width: auto;
+    max-width: 180px;
+    object-fit: contain;
+    display: block;
+  }
   .stamp-box {
     width: 78px;
     height: 78px;
