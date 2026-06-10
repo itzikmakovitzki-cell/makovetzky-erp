@@ -4,6 +4,8 @@
 // content structure from the user's old paper quote (intro / service /
 // pricing table / general terms / signature).
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   BRAND_TOKENS,
   COMPANY_DETAILS,
@@ -14,6 +16,24 @@ import {
   type ProposalSignaturePayload
 } from "./proposal-template";
 import { formatDate, formatILS } from "./utils";
+
+// Read the logo once at module load and embed it as a data URI. Puppeteer
+// renders the HTML via setContent(), which has no base URL, so relative paths
+// like /logo-horizontal.png won't resolve — data URIs sidestep the issue.
+let _logoHorizontalDataUrl: string | null = null;
+let _logoIconDataUrl: string | null = null;
+function logoHorizontalDataUrl(): string {
+  if (_logoHorizontalDataUrl) return _logoHorizontalDataUrl;
+  const buf = readFileSync(join(process.cwd(), "public", "logo-horizontal.png"));
+  _logoHorizontalDataUrl = `data:image/png;base64,${buf.toString("base64")}`;
+  return _logoHorizontalDataUrl;
+}
+function logoIconDataUrl(): string {
+  if (_logoIconDataUrl) return _logoIconDataUrl;
+  const buf = readFileSync(join(process.cwd(), "public", "logo-icon.png"));
+  _logoIconDataUrl = `data:image/png;base64,${buf.toString("base64")}`;
+  return _logoIconDataUrl;
+}
 
 export type ProposalMilestoneLite = {
   description: string;
@@ -148,6 +168,9 @@ function renderTermsBullets(): string {
 function renderSignatureBlock(opts: BuildHtmlOptions): string {
   // Always shows the service-provider details. The customer side is either
   // empty (preview) or filled with the signature image + typed name + תז + date.
+  // The provider column carries a dedicated "מקום לחותמת" box — the user often
+  // prints the PDF to add a physical signature + company stamp, so the layout
+  // reserves a clearly marked spot for it on every printed copy.
   const provider = `
     <div class="sign-col">
       <div class="sign-label">פרטי נותן השירות:</div>
@@ -158,9 +181,20 @@ function renderSignatureBlock(opts: BuildHtmlOptions): string {
           COMPANY_DETAILS.registrationNumber
         )})
       </div>
-      <div class="sign-line-row">
-        <span class="sign-label">חתימה:</span>
-        <span class="sign-line"></span>
+      <div class="provider-sign-row">
+        <div class="provider-sign-lines">
+          <div class="sign-line-row">
+            <span class="sign-label">חתימה:</span>
+            <span class="sign-line"></span>
+          </div>
+          <div class="sign-line-row">
+            <span class="sign-label">תאריך:</span>
+            <span class="sign-line"></span>
+          </div>
+        </div>
+        <div class="stamp-box" aria-label="מקום לחותמת חברה">
+          <span class="stamp-label">מקום לחותמת</span>
+        </div>
       </div>
     </div>`;
 
@@ -227,6 +261,8 @@ export function buildProposalHtml(
   const vatSuffix = proposal.pricesIncludeVat
     ? "כולל מע״מ"
     : `בתוספת מע״מ ${VAT_RATE_LABEL} כחוק`;
+  const logoSrc = logoHorizontalDataUrl();
+  const watermarkSrc = logoIconDataUrl();
 
   return `<!DOCTYPE html>
 <html lang="he" dir="rtl">
@@ -260,18 +296,36 @@ export function buildProposalHtml(
     display: flex;
     flex-direction: column;
     page-break-after: always;
+    position: relative;
+    overflow: hidden;
   }
   .a4:last-of-type { page-break-after: auto; }
+  .watermark {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 130mm;
+    height: 130mm;
+    opacity: 0.05;
+    pointer-events: none;
+    z-index: 0;
+    background-image: url("${watermarkSrc}");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+  }
+  .a4 > *:not(.watermark) { position: relative; z-index: 1; }
   .header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     padding-bottom: 14px;
     border-bottom: 2px solid var(--orange);
     margin-bottom: 18px;
   }
-  .brand-name { font-size: 24px; font-weight: 900; color: var(--charcoal); line-height: 1; }
-  .brand-tagline { font-size: 11px; font-weight: 500; color: var(--charcoal-70); margin-top: 2px; }
+  .brand { display: flex; align-items: center; }
+  .brand-logo { height: 56px; width: auto; display: block; }
+  .brand-logo-sm { height: 40px; width: auto; display: block; }
   .doc-meta {
     text-align: left;
     font-size: 11px;
@@ -424,6 +478,30 @@ export function buildProposalHtml(
     border-bottom: 1px solid var(--charcoal);
     padding-bottom: 2px;
   }
+  .provider-sign-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    margin-top: 10px;
+  }
+  .provider-sign-lines { flex: 1; }
+  .stamp-box {
+    width: 78px;
+    height: 78px;
+    border: 1.5px dashed var(--charcoal-70);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--charcoal-70);
+    flex-shrink: 0;
+  }
+  .stamp-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
   .footer {
     margin-top: auto;
     padding-top: 12px;
@@ -441,10 +519,10 @@ export function buildProposalHtml(
 </head>
 <body>
   <div class="a4">
+    <div class="watermark"></div>
     <div class="header">
       <div class="brand">
-        <div class="brand-name">${esc(COMPANY_DETAILS.brandName)}</div>
-        <div class="brand-tagline">${esc(COMPANY_DETAILS.brandTagline)}</div>
+        <img class="brand-logo" src="${logoSrc}" alt="${esc(COMPANY_DETAILS.legalName)}" />
       </div>
       <div class="doc-meta">
         <div><strong>תאריך:</strong> ${esc(dateLabel)}</div>
@@ -488,10 +566,10 @@ export function buildProposalHtml(
   </div>
 
   <div class="a4">
+    <div class="watermark"></div>
     <div class="header">
       <div class="brand">
-        <div class="brand-name">${esc(COMPANY_DETAILS.brandName)}</div>
-        <div class="brand-tagline">${esc(COMPANY_DETAILS.brandTagline)}</div>
+        <img class="brand-logo-sm" src="${logoSrc}" alt="${esc(COMPANY_DETAILS.legalName)}" />
       </div>
       <div class="doc-meta">
         <div><strong>מס׳ הצעה:</strong> ${esc(proposalNumber)}</div>
