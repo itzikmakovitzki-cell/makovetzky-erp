@@ -67,3 +67,80 @@ export function parseAmount(raw: unknown): number {
   if (!Number.isFinite(n) || n < 0) return NaN;
   return Math.round(n * 100) / 100;
 }
+
+export type ProposalFormFields = {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  projectLocation: string | null;
+  totalAmount: number;
+  terms: string | null;
+  quoteTitle: string | null;
+  serviceDescription: string | null;
+  pricesIncludeVat: boolean;
+  milestones: ProposalMilestoneJson[];
+};
+
+// Shared by createProposal and updateProposal (app/actions/proposals.ts) —
+// both read the exact same field set off the same form and apply the same
+// required-field / milestone-sum validation before touching the DB.
+export function parseProposalFormFields(
+  formData: FormData
+): { ok: true; fields: ProposalFormFields } | { ok: false; error: string } {
+  const customerName = String(formData.get("customerName") || "").trim();
+  const customerPhone = String(formData.get("customerPhone") || "").trim();
+  const customerEmail =
+    String(formData.get("customerEmail") || "").trim() || null;
+  const projectLocation =
+    String(formData.get("projectLocation") || "").trim() || null;
+  const totalAmount = parseAmount(formData.get("totalAmount"));
+  const terms = String(formData.get("terms") || "").trim() || null;
+  const quoteTitle = String(formData.get("quoteTitle") || "").trim() || null;
+  const serviceDescription =
+    String(formData.get("serviceDescription") || "").trim() || null;
+  // Boolean from a form: "true" / "false". Default = true (כולל מע״מ).
+  const pricesIncludeVat =
+    String(formData.get("pricesIncludeVat") || "true") !== "false";
+
+  if (!customerName) return { ok: false, error: "שם הלקוח חובה" };
+  if (!customerPhone) return { ok: false, error: "טלפון הלקוח חובה" };
+  if (Number.isNaN(totalAmount)) {
+    return { ok: false, error: "סכום כולל לא חוקי" };
+  }
+
+  const milestonesRaw = String(formData.get("milestones") || "[]");
+  let milestones: ProposalMilestoneJson[];
+  try {
+    milestones = parseMilestonesPayload(JSON.parse(milestonesRaw));
+  } catch {
+    return { ok: false, error: "פורמט אבני הדרך לא חוקי" };
+  }
+  if (milestones.length === 0) {
+    return { ok: false, error: "יש להוסיף לפחות אבן דרך אחת" };
+  }
+
+  const sumOfMilestones = milestones.reduce((s, m) => s + m.amount, 0);
+  // Floating-point tolerance on equality check.
+  if (Math.abs(sumOfMilestones - totalAmount) > 0.01) {
+    return {
+      ok: false,
+      error: `סכום אבני הדרך (${sumOfMilestones.toFixed(2)}) לא שווה לסכום הכולל (${totalAmount.toFixed(2)})`
+    };
+  }
+
+  return {
+    ok: true,
+    fields: {
+      customerName,
+      customerPhone,
+      customerEmail,
+      projectLocation,
+      totalAmount,
+      terms,
+      quoteTitle,
+      serviceDescription,
+      pricesIncludeVat,
+      milestones
+    }
+  };
+}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { rejectProposal, signProposal } from "@/app/actions/proposals-public";
 import { normalizeIsraeliId, validateIsraeliId } from "@/lib/israeli-id";
+import { RejectProposalForm } from "./reject-proposal-form";
 import { SignaturePad, type SignaturePadHandle } from "./signature-pad";
 
 // V2 public signing form for /quote/[id]. Requires full name + Israeli ID +
@@ -78,43 +79,14 @@ export function SignAndRejectV2({
 
   if (mode === "reject") {
     return (
-      <form onSubmit={handleReject} className="space-y-3">
-        <label className="block">
-          <span className="mb-1 block text-[12px] font-medium">
-            סיבת הדחייה (לא חובה)
-          </span>
-          <textarea
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            rows={3}
-            placeholder="למשל: 'המחיר גבוה מהתקציב'"
-            className="w-full resize-y rounded border border-input bg-background px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </label>
-        {error && (
-          <div className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[12px] text-red-700 dark:text-red-300">
-            {error}
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("sign")}
-            disabled={pending}
-            className="text-[12px] text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
-          >
-            ← חזור
-          </button>
-          <button
-            type="submit"
-            disabled={pending}
-            className="inline-flex items-center gap-1.5 rounded border border-red-600 bg-red-600 px-4 py-1.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {pending && <Loader2 className="size-3.5 animate-spin" />}
-            אשר דחייה
-          </button>
-        </div>
-      </form>
+      <RejectProposalForm
+        rejectReason={rejectReason}
+        onRejectReasonChange={setRejectReason}
+        onSubmit={handleReject}
+        onBack={() => setMode("sign")}
+        pending={pending}
+        error={error}
+      />
     );
   }
 

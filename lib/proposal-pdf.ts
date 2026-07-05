@@ -622,6 +622,26 @@ export function buildProposalHtml(
 // 2. Local dev / Windows — falls back to regular `puppeteer` if installed; if
 //    neither is available, throws a descriptive error so the admin can install
 //    the local-dev package on demand.
+// Shared by all three launch paths below — every one of them just needs to
+// get from a launched `browser` instance to a PDF Buffer the same way.
+async function pdfFromBrowser(
+  browser: { newPage: () => Promise<any>; close: () => Promise<void> },
+  html: string
+): Promise<Buffer> {
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    const buf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true
+    });
+    return Buffer.from(buf);
+  } finally {
+    await browser.close();
+  }
+}
+
 export async function renderPdfBuffer(html: string): Promise<Buffer> {
   const onVercel = !!process.env.VERCEL || !!process.env.AWS_REGION;
 
@@ -648,18 +668,7 @@ export async function renderPdfBuffer(html: string): Promise<Buffer> {
       executablePath: await chromium.executablePath(CHROMIUM_PACK_URL),
       headless: true
     });
-    try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "networkidle0" });
-      const buf = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        preferCSSPageSize: true
-      });
-      return Buffer.from(buf);
-    } finally {
-      await browser.close();
-    }
+    return pdfFromBrowser(browser, html);
   }
 
   // Local: prefer regular `puppeteer` (downloads its own chromium). If only
@@ -671,18 +680,7 @@ export async function renderPdfBuffer(html: string): Promise<Buffer> {
     // @ts-expect-error optional peer
     const puppeteer = await import("puppeteer");
     const browser = await puppeteer.default.launch({ headless: true });
-    try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "networkidle0" });
-      const buf = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        preferCSSPageSize: true
-      });
-      return Buffer.from(buf);
-    } finally {
-      await browser.close();
-    }
+    return await pdfFromBrowser(browser, html);
   } catch {
     const puppeteer = await import("puppeteer-core");
     const exec = process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -695,17 +693,6 @@ export async function renderPdfBuffer(html: string): Promise<Buffer> {
       headless: true,
       executablePath: exec
     });
-    try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "networkidle0" });
-      const buf = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        preferCSSPageSize: true
-      });
-      return Buffer.from(buf);
-    } finally {
-      await browser.close();
-    }
+    return pdfFromBrowser(browser, html);
   }
 }

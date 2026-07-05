@@ -5,7 +5,7 @@ import { AuditAction, Prisma, ProposalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
-import { parseAmount, parseMilestonesPayload } from "@/lib/proposals/parsing";
+import { parseProposalFormFields } from "@/lib/proposals/parsing";
 
 // Admin-only Proposal actions — create / update / share / delete. Split out
 // of the original 878-line proposals.ts file (June 2026):
@@ -41,64 +41,23 @@ export async function createProposal(
   try {
     const me = await requireRole(["ADMIN"]);
 
-    const customerName = String(formData.get("customerName") || "").trim();
-    const customerPhone = String(formData.get("customerPhone") || "").trim();
-    const customerEmail =
-      String(formData.get("customerEmail") || "").trim() || null;
-    const projectLocation =
-      String(formData.get("projectLocation") || "").trim() || null;
-    const totalAmount = parseAmount(formData.get("totalAmount"));
-    const terms = String(formData.get("terms") || "").trim() || null;
-    const quoteTitle =
-      String(formData.get("quoteTitle") || "").trim() || null;
-    const serviceDescription =
-      String(formData.get("serviceDescription") || "").trim() || null;
-    // Boolean from a form: "true" / "false". Default = true (כולל מע״מ).
-    const pricesIncludeVat =
-      String(formData.get("pricesIncludeVat") || "true") !== "false";
-
-    if (!customerName) return { ok: false, error: "שם הלקוח חובה" };
-    if (!customerPhone) return { ok: false, error: "טלפון הלקוח חובה" };
-    if (Number.isNaN(totalAmount)) {
-      return { ok: false, error: "סכום כולל לא חוקי" };
-    }
-
-    const milestonesRaw = String(formData.get("milestones") || "[]");
-    let milestonesJson;
-    try {
-      milestonesJson = parseMilestonesPayload(JSON.parse(milestonesRaw));
-    } catch {
-      return { ok: false, error: "פורמט אבני הדרך לא חוקי" };
-    }
-    if (milestonesJson.length === 0) {
-      return { ok: false, error: "יש להוסיף לפחות אבן דרך אחת" };
-    }
-
-    const sumOfMilestones = milestonesJson.reduce(
-      (s, m) => s + m.amount,
-      0
-    );
-    // Floating-point tolerance on equality check.
-    if (Math.abs(sumOfMilestones - totalAmount) > 0.01) {
-      return {
-        ok: false,
-        error: `סכום אבני הדרך (${sumOfMilestones.toFixed(2)}) לא שווה לסכום הכולל (${totalAmount.toFixed(2)})`
-      };
-    }
+    const parsed = parseProposalFormFields(formData);
+    if (!parsed.ok) return { ok: false, error: parsed.error };
+    const f = parsed.fields;
 
     const proposal = await prisma.$transaction(async (tx) => {
       const created = await tx.proposal.create({
         data: {
-          customerName,
-          customerPhone,
-          customerEmail,
-          projectLocation,
-          totalAmount,
-          milestones: milestonesJson as unknown as Prisma.InputJsonValue,
-          terms,
-          quoteTitle,
-          serviceDescription,
-          pricesIncludeVat,
+          customerName: f.customerName,
+          customerPhone: f.customerPhone,
+          customerEmail: f.customerEmail,
+          projectLocation: f.projectLocation,
+          totalAmount: f.totalAmount,
+          milestones: f.milestones as unknown as Prisma.InputJsonValue,
+          terms: f.terms,
+          quoteTitle: f.quoteTitle,
+          serviceDescription: f.serviceDescription,
+          pricesIncludeVat: f.pricesIncludeVat,
           // All new proposals are V2 (branded PDF flow). Existing V1 rows on
           // the same table keep their old templateVersion=1 and old renderer.
           templateVersion: 2,
@@ -111,10 +70,10 @@ export async function createProposal(
         entityId: created.id,
         action: AuditAction.CREATE,
         newValue: {
-          customerName,
-          customerPhone,
-          totalAmount,
-          milestoneCount: milestonesJson.length
+          customerName: f.customerName,
+          customerPhone: f.customerPhone,
+          totalAmount: f.totalAmount,
+          milestoneCount: f.milestones.length
         },
         userId: me.id
       });
@@ -158,63 +117,24 @@ export async function updateProposal(
       return { ok: false, error: "ניתן לערוך רק טיוטות" };
     }
 
-    const customerName = String(formData.get("customerName") || "").trim();
-    const customerPhone = String(formData.get("customerPhone") || "").trim();
-    const customerEmail =
-      String(formData.get("customerEmail") || "").trim() || null;
-    const projectLocation =
-      String(formData.get("projectLocation") || "").trim() || null;
-    const totalAmount = parseAmount(formData.get("totalAmount"));
-    const terms = String(formData.get("terms") || "").trim() || null;
-    const quoteTitle =
-      String(formData.get("quoteTitle") || "").trim() || null;
-    const serviceDescription =
-      String(formData.get("serviceDescription") || "").trim() || null;
-    const pricesIncludeVat =
-      String(formData.get("pricesIncludeVat") || "true") !== "false";
-
-    if (!customerName) return { ok: false, error: "שם הלקוח חובה" };
-    if (!customerPhone) return { ok: false, error: "טלפון הלקוח חובה" };
-    if (Number.isNaN(totalAmount)) {
-      return { ok: false, error: "סכום כולל לא חוקי" };
-    }
-
-    const milestonesRaw = String(formData.get("milestones") || "[]");
-    let milestonesJson;
-    try {
-      milestonesJson = parseMilestonesPayload(JSON.parse(milestonesRaw));
-    } catch {
-      return { ok: false, error: "פורמט אבני הדרך לא חוקי" };
-    }
-    if (milestonesJson.length === 0) {
-      return { ok: false, error: "יש להוסיף לפחות אבן דרך אחת" };
-    }
-
-    const sumOfMilestones = milestonesJson.reduce(
-      (s, m) => s + m.amount,
-      0
-    );
-    if (Math.abs(sumOfMilestones - totalAmount) > 0.01) {
-      return {
-        ok: false,
-        error: `סכום אבני הדרך (${sumOfMilestones.toFixed(2)}) לא שווה לסכום הכולל (${totalAmount.toFixed(2)})`
-      };
-    }
+    const parsed = parseProposalFormFields(formData);
+    if (!parsed.ok) return { ok: false, error: parsed.error };
+    const f = parsed.fields;
 
     await prisma.$transaction(async (tx) => {
       await tx.proposal.update({
         where: { id: proposalId },
         data: {
-          customerName,
-          customerPhone,
-          customerEmail,
-          projectLocation,
-          totalAmount,
-          milestones: milestonesJson as unknown as Prisma.InputJsonValue,
-          terms,
-          quoteTitle,
-          serviceDescription,
-          pricesIncludeVat
+          customerName: f.customerName,
+          customerPhone: f.customerPhone,
+          customerEmail: f.customerEmail,
+          projectLocation: f.projectLocation,
+          totalAmount: f.totalAmount,
+          milestones: f.milestones as unknown as Prisma.InputJsonValue,
+          terms: f.terms,
+          quoteTitle: f.quoteTitle,
+          serviceDescription: f.serviceDescription,
+          pricesIncludeVat: f.pricesIncludeVat
         }
       });
       await logAudit(tx, {
@@ -233,13 +153,13 @@ export async function updateProposal(
             : 0
         },
         newValue: {
-          customerName,
-          customerPhone,
-          customerEmail,
-          projectLocation,
-          totalAmount,
-          terms,
-          milestoneCount: milestonesJson.length
+          customerName: f.customerName,
+          customerPhone: f.customerPhone,
+          customerEmail: f.customerEmail,
+          projectLocation: f.projectLocation,
+          totalAmount: f.totalAmount,
+          terms: f.terms,
+          milestoneCount: f.milestones.length
         },
         userId: me.id
       });
