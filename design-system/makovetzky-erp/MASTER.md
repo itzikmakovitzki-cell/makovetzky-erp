@@ -8,6 +8,9 @@
 
 **Project:** Makovetzky ERP
 **Generated:** 2026-05-28 06:10:28
+**Superseded:** 2026-07-05 — palette/typography below updated to match the
+final brand book (see `app/globals.css`); the original generated Analytics
+Dashboard blue/amber palette never shipped and was replaced before launch.
 **Category:** Analytics Dashboard
 
 ---
@@ -18,25 +21,18 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#1E40AF` | `--color-primary` |
-| Secondary | `#3B82F6` | `--color-secondary` |
-| CTA/Accent | `#F59E0B` | `--color-cta` |
-| Background | `#F8FAFC` | `--color-background` |
-| Text | `#1E3A8A` | `--color-text` |
+| Charcoal (chrome/text) | `#1F2937` | `--brand-charcoal-70` (70% tint) |
+| Signal Orange (CTA/focus/active) | `#E25822` | `--primary` |
+| Cream (warm secondary surface) | `#F5F1E8` | `--brand-cream` / `--foreground` on dark chrome |
 
-**Color Notes:** Blue data + amber highlights
+**Color Notes:** Charcoal + Signal Orange + Cream — no blue/amber anywhere in the shipped UI. Signal Orange drives every primary button, focus ring, and active state.
 
 ### Typography
 
-- **Heading Font:** Noto Sans Hebrew
-- **Body Font:** Noto Sans Hebrew
+- **Heading Font:** Heebo
+- **Body Font:** Heebo
 - **Mood:** hebrew, modern, RTL, clean, professional, readable
-- **Google Fonts:** [Noto Sans Hebrew + Noto Sans Hebrew](https://fonts.google.com/share?selection.family=Noto+Sans+Hebrew:wght@300;400;500;700)
-
-**CSS Import:**
-```css
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@300;400;500;700&display=swap');
-```
+- **Font loading:** `next/font` (`--font-heebo`) in `app/layout.tsx` — no external Google Fonts `<link>`/`@import`.
 
 ### Spacing Variables
 

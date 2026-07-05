@@ -43,6 +43,7 @@ export default async function SupplierCommissionsPage({
   const assignments = await prisma.supplierTaskAssignment.findMany({
     where: {
       task: { deletedAt: null, permit: { deletedAt: null } },
+      supplier: { deletedAt: null },
       OR: [
         {
           status: "COMPLETED",
@@ -176,7 +177,8 @@ export default async function SupplierCommissionsPage({
     where: {
       status: "COMPLETED",
       commissionPaidAt: null,
-      task: { deletedAt: null, permit: { deletedAt: null } }
+      task: { deletedAt: null, permit: { deletedAt: null } },
+      supplier: { deletedAt: null }
     },
     select: {
       id: true,

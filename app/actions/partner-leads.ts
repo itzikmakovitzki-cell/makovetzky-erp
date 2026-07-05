@@ -267,6 +267,33 @@ export async function generatePartnerLead(args: {
 
     const leadTaskName = `ליד שותף: ${supplier.name}`;
 
+    // Dedupe guard — a rapid double-click/double-submit on "בקש שירות" would
+    // otherwise create two Task+Assignment rows and double-notify the
+    // supplier. If an OPEN lead for this exact supplier+permit was created in
+    // the last few minutes, treat this call as a repeat of that one instead
+    // of creating a new lead (and skip re-sending WhatsApp/email).
+    const recentDuplicate = await prisma.supplierTaskAssignment.findFirst({
+      where: {
+        supplierId: supplier.id,
+        status: "OPEN",
+        createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
+        task: { permitId: permit.id, name: leadTaskName, deletedAt: null }
+      },
+      select: { id: true, taskId: true }
+    });
+    if (recentDuplicate) {
+      return {
+        ok: true,
+        leadTaskId: recentDuplicate.taskId,
+        assignmentId: recentDuplicate.id,
+        supplierName: supplier.name,
+        channels: {
+          whatsapp: { sent: false, reason: "ליד זהה כבר נוצר לאחרונה" },
+          email: { sent: false, reason: "ליד זהה כבר נוצר לאחרונה" }
+        }
+      };
+    }
+
     const { leadTaskId, assignmentId } = await prisma.$transaction(async (tx) => {
       const task = await tx.task.create({
         data: {

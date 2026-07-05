@@ -20,6 +20,7 @@ import {
   sendWhatsAppMessage
 } from "@/lib/green-api";
 import { formatDateTime, formatILS } from "@/lib/utils";
+import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 
 // Public-facing proposal actions — callable from /quote/[id] WITHOUT a
 // logged-in session. The cuid in the URL is treated as a sufficiently-
@@ -51,6 +52,19 @@ export async function signProposal(
 ): Promise<ActionResult> {
   try {
     if (!proposalId) return { ok: false, error: "מזהה הצעה חסר" };
+
+    const ip = getRequestIp(await headers());
+    const rl = checkRateLimit(`sign-proposal:${ip}:${proposalId}`, {
+      limit: 8,
+      windowMs: 5 * 60 * 1000
+    });
+    if (!rl.ok) {
+      return {
+        ok: false,
+        error: `יותר מדי ניסיונות. נסה שוב בעוד ${rl.retryAfterSeconds} שניות`
+      };
+    }
+
     const signedName = String(input.signedName || "").trim();
     if (!signedName) {
       return { ok: false, error: "יש להזין שם מלא לחתימה" };
@@ -75,9 +89,14 @@ export async function signProposal(
 
     // === V1: legacy signing — unchanged behavior ===
     if (proposal.templateVersion < 2) {
-      await prisma.$transaction(async (tx) => {
-        await tx.proposal.update({
-          where: { id: proposalId },
+      const signed = await prisma.$transaction(async (tx) => {
+        // Conditional update guards against a concurrent sign/reject request
+        // racing this one — only one submit can win the SIGNED transition.
+        const { count } = await tx.proposal.updateMany({
+          where: {
+            id: proposalId,
+            status: { notIn: [ProposalStatus.SIGNED, ProposalStatus.REJECTED] }
+          },
           data: {
             status: ProposalStatus.SIGNED,
             signedName,
@@ -85,6 +104,7 @@ export async function signProposal(
             signedAt: now
           }
         });
+        if (count === 0) return false;
         await logAudit(tx, {
           entityType: AuditEntity.PROPOSAL,
           entityId: proposalId,
@@ -97,7 +117,10 @@ export async function signProposal(
           },
           userId: null
         });
+        return true;
       });
+
+      if (!signed) return { ok: false, error: "ההצעה כבר נחתמה או נדחתה" };
 
       revalidatePath(`/quote/${proposalId}`);
       revalidatePath(`/proposals/${proposalId}`);
@@ -184,9 +207,14 @@ export async function signProposal(
       path = htmlPath;
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.proposal.update({
-        where: { id: proposalId },
+    const signed = await prisma.$transaction(async (tx) => {
+      // Conditional update guards against a concurrent sign/reject request
+      // racing this one (e.g. double-submit) — only one can win the transition.
+      const { count } = await tx.proposal.updateMany({
+        where: {
+          id: proposalId,
+          status: { notIn: [ProposalStatus.SIGNED, ProposalStatus.REJECTED] }
+        },
         data: {
           status: ProposalStatus.SIGNED,
           signedName,
@@ -201,6 +229,7 @@ export async function signProposal(
           signedAt: now
         }
       });
+      if (count === 0) return false;
       await logAudit(tx, {
         entityType: AuditEntity.PROPOSAL,
         entityId: proposalId,
@@ -217,7 +246,10 @@ export async function signProposal(
         },
         userId: null
       });
+      return true;
     });
+
+    if (!signed) return { ok: false, error: "ההצעה כבר נחתמה או נדחתה" };
 
     // Fire-and-forget admin notifications (don't fail the sign on a Green API
     // hiccup — the signature itself is already persisted). Errors get logged
@@ -303,6 +335,20 @@ export async function rejectProposal(
   rejectionReason: string
 ): Promise<ActionResult> {
   try {
+    if (!proposalId) return { ok: false, error: "מזהה הצעה חסר" };
+
+    const ip = getRequestIp(await headers());
+    const rl = checkRateLimit(`reject-proposal:${ip}:${proposalId}`, {
+      limit: 8,
+      windowMs: 5 * 60 * 1000
+    });
+    if (!rl.ok) {
+      return {
+        ok: false,
+        error: `יותר מדי ניסיונות. נסה שוב בעוד ${rl.retryAfterSeconds} שניות`
+      };
+    }
+
     const reason = String(rejectionReason || "").trim();
     const proposal = await prisma.proposal.findFirst({
       where: { id: proposalId, deletedAt: null },
@@ -316,14 +362,20 @@ export async function rejectProposal(
       return { ok: false, error: "לא ניתן לדחות הצעה במצב זה" };
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.proposal.update({
-        where: { id: proposalId },
+    const rejected = await prisma.$transaction(async (tx) => {
+      // Conditional update guards against a concurrent sign/reject request
+      // racing this one — only one submit can win the REJECTED transition.
+      const { count } = await tx.proposal.updateMany({
+        where: {
+          id: proposalId,
+          status: { in: [ProposalStatus.SENT, ProposalStatus.DRAFT] }
+        },
         data: {
           status: ProposalStatus.REJECTED,
           rejectionReason: reason || null
         }
       });
+      if (count === 0) return false;
       await logAudit(tx, {
         entityType: AuditEntity.PROPOSAL,
         entityId: proposalId,
@@ -332,7 +384,10 @@ export async function rejectProposal(
         newValue: { status: ProposalStatus.REJECTED, rejectionReason: reason },
         userId: null
       });
+      return true;
     });
+
+    if (!rejected) return { ok: false, error: "לא ניתן לדחות הצעה במצב זה" };
 
     revalidatePath(`/quote/${proposalId}`);
     revalidatePath(`/proposals/${proposalId}`);
