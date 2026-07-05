@@ -135,9 +135,21 @@ export function BulkTaskActionBar({
                     <CheckCircle2 className="size-3.5 text-emerald-600" />
                   ) : undefined
                 }
-                onSelect={() =>
-                  runBulk(() => bulkUpdateTaskStatus(selectedIds, s))
-                }
+                onSelect={() => {
+                  // Bulk COMPLETED skips the per-task cascades (billing
+                  // milestone promotion, permit progress%) that the single-
+                  // task status change applies — warn so the PM isn't
+                  // surprised when nothing downstream moves.
+                  if (
+                    s === "COMPLETED" &&
+                    !window.confirm(
+                      `לסמן ${count} משימות כהושלמו? שים לב: עדכון קבוצתי לא מקדם אבני דרך לתשלום או אחוז התקדמות ההיתר — אלה יעודכנו רק בעריכה פרטנית.`
+                    )
+                  ) {
+                    return;
+                  }
+                  runBulk(() => bulkUpdateTaskStatus(selectedIds, s));
+                }}
               >
                 {TASK_STATUS_LABEL[s]}
               </DropdownMenuItem>

@@ -239,10 +239,21 @@ export async function deleteSupplierAssignment(
       select: {
         id: true,
         supplierId: true,
+        commissionPaidAt: true,
         task: { select: { permitId: true } }
       }
     });
     if (!existing) return { ok: false, error: "ההקצאה לא נמצאה" };
+    if (existing.commissionPaidAt) {
+      // Assignments have no soft-delete column, so a hard delete here would
+      // permanently erase the paid-commission record. Require unmarking the
+      // payment first so there's a deliberate, audited step before the row
+      // (and its commissionPaidAt evidence) disappears.
+      return {
+        ok: false,
+        error: "לא ניתן למחוק הקצאה שהעמלה עליה כבר שולמה — יש לבטל את סימון התשלום קודם"
+      };
+    }
 
     await prisma.$transaction(async (tx) => {
       // Hard delete — assignments have no soft-delete column; audit captures
@@ -359,11 +370,16 @@ export async function toggleAssignmentPaid(assignmentId: string): Promise<Delete
 
     const nextPaidAt = existing.commissionPaidAt ? null : new Date();
 
-    await prisma.$transaction(async (tx) => {
-      await tx.supplierTaskAssignment.update({
-        where: { id: assignmentId },
+    const toggled = await prisma.$transaction(async (tx) => {
+      // Conditional update guarded on the value we just read — a concurrent
+      // double-click/double-submit race will only let one request win the
+      // flip, instead of both computing "not paid -> paid" and stomping
+      // each other's audit trail.
+      const { count } = await tx.supplierTaskAssignment.updateMany({
+        where: { id: assignmentId, commissionPaidAt: existing.commissionPaidAt },
         data: { commissionPaidAt: nextPaidAt }
       });
+      if (count === 0) return false;
       await logAudit(tx, {
         entityType: AuditEntity.SUPPLIER_ASSIGNMENT,
         entityId: assignmentId,
@@ -374,7 +390,12 @@ export async function toggleAssignmentPaid(assignmentId: string): Promise<Delete
         newValue: { commissionPaidAt: nextPaidAt?.toISOString() ?? null },
         userId: me.id
       });
+      return true;
     });
+
+    if (!toggled) {
+      return { ok: false, error: "הנתון השתנה בינתיים, רענן ונסה שוב" };
+    }
 
     revalidatePath("/suppliers");
     revalidatePath(`/suppliers?supplier=${existing.supplierId}`);

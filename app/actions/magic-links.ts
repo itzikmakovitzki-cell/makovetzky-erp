@@ -2,11 +2,13 @@
 
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { AuditAction } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/current-user";
 import { AuditEntity, logAudit } from "@/lib/audit";
 import { buildPermitStoragePath, uploadToStorage } from "@/lib/supabase-storage";
+import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 
 const DEFAULT_TTL_HOURS = 48;
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -102,6 +104,19 @@ export async function uploadViaMagicLink(
     const note = String(formData.get("note") || "").trim() || null;
 
     if (!token) return { error: "חסר טוקן גישה", ok: false };
+
+    const ip = getRequestIp(await headers());
+    const rl = checkRateLimit(`magic-link-upload:${ip}:${token}`, {
+      limit: 15,
+      windowMs: 10 * 60 * 1000
+    });
+    if (!rl.ok) {
+      return {
+        error: `יותר מדי ניסיונות העלאה. נסה שוב בעוד ${rl.retryAfterSeconds} שניות`,
+        ok: false
+      };
+    }
+
     if (!(file instanceof File) || file.size === 0) {
       return { error: "יש לבחור קובץ", ok: false };
     }
