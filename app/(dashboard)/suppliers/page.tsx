@@ -160,31 +160,102 @@ async function SupplierDetail({
   typeSuggestions: string[];
   categoryOptions: { id: string; name: string }[];
 }) {
-  const supplier = await prisma.supplier.findFirst({
-    where: { id: supplierId, deletedAt: null },
-    select: {
-      id: true,
-      name: true,
-      type: true,
-      contactName: true,
-      phone: true,
-      email: true,
-      website: true,
-      services: true,
-      defaultCommissionType: true,
-      defaultCommissionValue: true,
-      defaultPaymentTerms: true,
-      notes: true,
-      isPublic: true,
-      isFeatured: true,
-      marketingDescription: true,
-      logoUrl: true,
-      categoryId: true,
-      deliverables: true,
-      priceEstimate: true,
-      category: { select: { name: true } }
-    }
-  });
+  const assignmentWhere: Prisma.SupplierTaskAssignmentWhereInput = {
+    supplierId,
+    // Hide assignments whose task is trashed — they're irrelevant for active
+    // work. Restoring the task brings them back.
+    task: { deletedAt: null, permit: { deletedAt: null } },
+    ...(showAll ? {} : { status: { in: ["OPEN", "IN_PROGRESS"] } })
+  };
+
+  // These four queries are independent of each other — run them concurrently
+  // instead of as a serial waterfall (was ~4 sequential round-trips before).
+  const [supplier, assignments, taskOptions, rawDocs] = await Promise.all([
+    prisma.supplier.findFirst({
+      where: { id: supplierId, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        contactName: true,
+        phone: true,
+        email: true,
+        website: true,
+        services: true,
+        defaultCommissionType: true,
+        defaultCommissionValue: true,
+        defaultPaymentTerms: true,
+        notes: true,
+        isPublic: true,
+        isFeatured: true,
+        marketingDescription: true,
+        logoUrl: true,
+        categoryId: true,
+        deliverables: true,
+        priceEstimate: true,
+        category: { select: { name: true } }
+      }
+    }),
+    prisma.supplierTaskAssignment.findMany({
+      where: assignmentWhere,
+      include: {
+        task: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            dueDate: true,
+            permit: { select: { id: true, name: true, permitNumber: true } }
+          }
+        }
+      },
+      orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "asc" }]
+    }),
+    // Tasks that *don't* already have an assignment for this supplier — fed
+    // to the create-assignment dialog so the admin can only attach to fresh
+    // tasks.
+    isAdmin
+      ? prisma.task
+          .findMany({
+            where: {
+              deletedAt: null,
+              permit: { deletedAt: null },
+              supplierAssignments: { none: { supplierId } }
+            },
+            select: {
+              id: true,
+              name: true,
+              permit: { select: { name: true, permitNumber: true } }
+            },
+            orderBy: [{ permit: { name: "asc" } }, { name: "asc" }]
+          })
+          .then((rows) =>
+            rows.map((r) => ({
+              id: r.id,
+              name: r.name,
+              permitName: r.permit.name,
+              permitNumber: r.permit.permitNumber
+            }))
+          )
+      : Promise.resolve<TaskOption[]>([]),
+    // Block 38: supplier documents — resolved below via one Storage
+    // round-trip for all signed URLs in batch, same pattern as the portal
+    // permit page.
+    prisma.supplierDocument.findMany({
+      where: { supplierId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        fileName: true,
+        fileUrl: true,
+        mimeType: true,
+        sizeBytes: true,
+        description: true,
+        createdAt: true,
+        uploadedBy: { select: { name: true } }
+      }
+    })
+  ]);
 
   if (!supplier) {
     return (
@@ -204,57 +275,6 @@ async function SupplierDetail({
         ? `${supplier.defaultCommissionValue.toString()}%`
         : null;
 
-  const assignmentWhere: Prisma.SupplierTaskAssignmentWhereInput = {
-    supplierId,
-    // Hide assignments whose task is trashed — they're irrelevant for active
-    // work. Restoring the task brings them back.
-    task: { deletedAt: null, permit: { deletedAt: null } },
-    ...(showAll ? {} : { status: { in: ["OPEN", "IN_PROGRESS"] } })
-  };
-
-  const assignments = await prisma.supplierTaskAssignment.findMany({
-    where: assignmentWhere,
-    include: {
-      task: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          dueDate: true,
-          permit: { select: { id: true, name: true, permitNumber: true } }
-        }
-      }
-    },
-    orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "asc" }]
-  });
-
-  // Tasks that *don't* already have an assignment for this supplier — fed to
-  // the create-assignment dialog so the admin can only attach to fresh tasks.
-  const taskOptions: TaskOption[] = isAdmin
-    ? await prisma.task
-        .findMany({
-          where: {
-            deletedAt: null,
-            permit: { deletedAt: null },
-            supplierAssignments: { none: { supplierId } }
-          },
-          select: {
-            id: true,
-            name: true,
-            permit: { select: { name: true, permitNumber: true } }
-          },
-          orderBy: [{ permit: { name: "asc" } }, { name: "asc" }]
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            name: r.name,
-            permitName: r.permit.name,
-            permitNumber: r.permit.permitNumber
-          }))
-        )
-    : [];
-
   const supplierDefaults = {
     commissionType: supplier.defaultCommissionType,
     commissionValue: supplier.defaultCommissionValue?.toString() ?? null,
@@ -265,22 +285,6 @@ async function SupplierDetail({
     .filter((a) => a.status === "OPEN" || a.status === "IN_PROGRESS")
     .reduce((s, a) => s + (a.amount ? Number(a.amount.toString()) : 0), 0);
 
-  // Block 38: supplier documents. One Storage round-trip to resolve all
-  // signed URLs in batch — same pattern as the portal permit page.
-  const rawDocs = await prisma.supplierDocument.findMany({
-    where: { supplierId },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      fileName: true,
-      fileUrl: true,
-      mimeType: true,
-      sizeBytes: true,
-      description: true,
-      createdAt: true,
-      uploadedBy: { select: { name: true } }
-    }
-  });
   const docStoragePaths = rawDocs.map((d) => d.fileUrl).filter(isStoragePath);
   const signedDocUrls = await createSignedUrlsSafe(docStoragePaths);
   const documents: SupplierDocumentItem[] = rawDocs.map((d) => ({
