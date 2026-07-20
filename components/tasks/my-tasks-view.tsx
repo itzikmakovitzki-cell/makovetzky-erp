@@ -31,9 +31,13 @@ export function MyTasksView({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="hidden md:flex items-center justify-end">
-        <div className="inline-flex rounded-md border bg-card p-0.5">
+    <div className="flex flex-col gap-4">
+      <div className="hidden items-center justify-between md:flex">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">השלב הבא</p>
+          <h2 className="mt-1 text-xl font-extrabold tracking-tight text-brand-navy">המשימות שמחכות לך</h2>
+        </div>
+        <div className="inline-flex rounded-xl border border-white/80 bg-white/90 p-1 shadow-sm">
           <ToggleBtn
             active={view === "table"}
             onClick={() => choose("table")}
@@ -49,10 +53,10 @@ export function MyTasksView({
         </div>
       </div>
 
-      <div className="md:hidden flex flex-col gap-2">
+      <div className="flex flex-col gap-3 md:hidden">
         {tasks.length === 0 ? (
-          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
-            אין משימות תואמות — נסה לשנות את הסינון
+          <div className="rounded-2xl border border-dashed bg-white/70 px-5 py-12 text-center text-sm text-muted-foreground">
+            אין משימות שמתאימות לסינון. אפשר לנקות אותו ולחזור לתמונה המלאה.
           </div>
         ) : (
           tasks.map((t) => <MyTaskMobileCard key={t.id} task={t} users={users} />)
@@ -86,7 +90,7 @@ function ToggleBtn({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+        "inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors duration-200",
         active
           ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-accent hover:text-foreground"

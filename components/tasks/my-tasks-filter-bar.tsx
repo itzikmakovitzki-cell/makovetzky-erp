@@ -51,13 +51,14 @@ export function MyTasksFilterBar({
     setParam(key, searchParams.get(key) === value ? null : value);
 
   return (
-    <div className="rounded-md border bg-card">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
+    <div className="rounded-2xl border border-white/80 bg-white/90 shadow-[0_8px_28px_rgba(31,41,55,0.06)] backdrop-blur">
+      <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-4 py-4">
         <FilterGroup label="פרויקט">
           <select
             value={project}
             onChange={(e) => setParam("project", e.target.value || null)}
-            className="max-w-[14rem] truncate rounded border border-input bg-background px-2 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+            className="min-h-11 max-w-[14rem] cursor-pointer truncate rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            aria-label="סינון לפי פרויקט"
           >
             <option value="">כל הפרויקטים</option>
             {projects.map((p) => (
@@ -79,7 +80,8 @@ export function MyTasksFilterBar({
             <select
               value={category}
               onChange={(e) => setParam("category", e.target.value || null)}
-              className="max-w-[12rem] truncate rounded border border-input bg-background px-2 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+              className="min-h-11 max-w-[12rem] cursor-pointer truncate rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label="סינון לפי סיווג"
             >
               <option value="">כל הסיווגים</option>
               {categories.map((c) => (
@@ -124,7 +126,7 @@ export function MyTasksFilterBar({
           <button
             type="button"
             onClick={() => router.push(pathname)}
-            className="ms-auto inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="ms-auto inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <X className="size-2.5" />
             נקה סינון
@@ -151,7 +153,7 @@ function Pill({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors",
+        "inline-flex min-h-11 cursor-pointer items-center rounded-xl border px-3 py-2 text-xs font-semibold transition-colors duration-200",
         active
           ? tone === "danger"
             ? "border-red-600 bg-red-600 text-white"
@@ -172,8 +174,8 @@ function FilterGroup({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="flex flex-col items-start gap-1.5">
+      <span className="text-[11px] font-bold text-muted-foreground">
         {label}
       </span>
       {children}

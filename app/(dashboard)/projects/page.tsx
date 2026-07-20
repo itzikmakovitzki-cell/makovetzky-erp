@@ -1,18 +1,11 @@
 import Link from "next/link";
-import { Plus, ArrowLeft } from "lucide-react";
+import { Plus, FolderKanban, Building2, CheckCircle2 } from "lucide-react";
 import type { PermitStatus, MasterDealStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArchiveToggle } from "@/components/global/archive-toggle";
-import { PageHeader } from "@/components/global/page-header";
 import { ExportListButton } from "@/components/global/export-list-button";
 import { ProjectMobileCard } from "@/components/projects/project-mobile-card";
-import {
-  MASTER_DEAL_STATUS_LABEL,
-  MASTER_DEAL_STATUS_VARIANT
-} from "@/lib/status-maps";
-import { cn, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -103,36 +96,54 @@ export default async function ProjectsListPage({
     };
   });
 
+  const activePermitsTotal = rows.reduce((sum, row) => sum + row.activePermits, 0);
+  const averageProgress = rows.length === 0
+    ? 0
+    : Math.round(rows.reduce((sum, row) => sum + row.progressPercent, 0) / rows.length);
+
   return (
-    <section className="flex flex-col gap-3">
-      <PageHeader
-        title="פרויקטים"
-        accent="Master Deals"
-        description="תצוגה ברמת הפרויקט. כל פרויקט מכיל היתר אחד או יותר. לחץ על שורה כדי לראות את ההיתרים תחתיו."
-        action={
-          <div className="flex items-center gap-2">
+    <section className="flex flex-col gap-6">
+      <header className="relative overflow-hidden rounded-[1.75rem] bg-brand-navy px-5 py-6 text-brand-cream shadow-[0_18px_55px_rgba(31,41,55,0.16)] md:px-8 md:py-8">
+        <div aria-hidden className="absolute -start-20 -top-24 size-64 rounded-full bg-primary/20 blur-3xl" />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-brand-cream/80">
+              <FolderKanban className="size-3.5 text-primary" /> תיק הפרויקטים
+            </div>
+            <h1 className="text-3xl font-black tracking-tight md:text-4xl">כל העבודה, בתמונה אחת</h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-brand-cream/72 md:text-base">
+              כל פרויקט הוא עולם קטן. כאן רואים מי מתקדם, מי מחכה ומה כדאי לפתוח עכשיו.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <ExportListButton kind="projects" />
-            <Button asChild variant="cta" className="h-9">
+            <Button asChild variant="cta" size="pill">
               <Link href="/permits/new">
-                <Plus className="size-3.5" />
-                פרויקט חדש
+                <Plus className="size-4" /> פרויקט חדש
               </Link>
             </Button>
           </div>
-        }
-      />
+        </div>
+      </header>
 
-      <div>
+      <div className="grid grid-cols-3 gap-2 md:max-w-2xl md:gap-3">
+        <PortfolioMetric icon={<FolderKanban className="size-4" />} value={rows.length} label={showArchived ? "שהושלמו" : "פרויקטים פעילים"} />
+        <PortfolioMetric icon={<Building2 className="size-4" />} value={activePermitsTotal} label="היתרים פעילים" />
+        <PortfolioMetric icon={<CheckCircle2 className="size-4" />} value={`${averageProgress}%`} label="התקדמות ממוצעת" />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <ArchiveToggle
           active={showArchived ? "archived" : "active"}
           activeCount={activeCount}
           archivedCount={archivedCount}
         />
+        <span className="text-xs text-muted-foreground">לחיצה על כרטיס פותחת את כל פרטי הפרויקט</span>
       </div>
 
-      <div className="md:hidden flex flex-col gap-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {rows.length === 0 ? (
-          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+          <div className="col-span-full rounded-2xl border border-dashed bg-white/70 px-5 py-14 text-center text-sm text-muted-foreground">
             {showArchived
               ? "אין פרויקטים שהושלמו"
               : 'אין פרויקטים — לחץ "פרויקט חדש" כדי להוסיף אחד.'}
@@ -141,103 +152,16 @@ export default async function ProjectsListPage({
           rows.map((r) => <ProjectMobileCard key={r.id} project={r} />)
         )}
       </div>
-
-      <div className="hidden md:block rounded-md border bg-card">
-        <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {showArchived ? "פרויקטים שהושלמו" : "פרויקטים פעילים"} ({rows.length})
-          </h2>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>שם פרויקט</th>
-              <th>לקוח</th>
-              <th className="w-24">סטטוס</th>
-              <th className="w-24">היתרים</th>
-              <th>התקדמות משימות</th>
-              <th className="w-28">חוזה / נוצר</th>
-              <th className="w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="py-6 text-center text-xs text-muted-foreground"
-                >
-                  {showArchived
-                    ? "אין פרויקטים שהושלמו"
-                    : 'אין פרויקטים — לחץ "פרויקט חדש" כדי להוסיף אחד.'}
-                </td>
-              </tr>
-            )}
-            {rows.map((r) => (
-              <tr key={r.id} className="hover:bg-muted/30">
-                <td>
-                  <Link
-                    href={`/projects/${r.id}`}
-                    className="font-medium underline-offset-2 hover:underline"
-                  >
-                    {r.name}
-                  </Link>
-                </td>
-                <td className="text-[12px]">
-                  <Link
-                    href={`/clients/${r.clientId}`}
-                    className="underline-offset-2 hover:underline"
-                  >
-                    {r.clientName}
-                  </Link>
-                </td>
-                <td>
-                  <Badge variant={MASTER_DEAL_STATUS_VARIANT[r.status]}>
-                    {MASTER_DEAL_STATUS_LABEL[r.status]}
-                  </Badge>
-                </td>
-                <td className="text-[12px] tabular-nums">
-                  <span className="font-medium">{r.activePermits}</span>
-                  <span className="text-muted-foreground"> פעילים · {r.totalPermits} סה&quot;כ</span>
-                </td>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-24 overflow-hidden rounded bg-muted">
-                      <div
-                        className={cn(
-                          "h-full bg-emerald-500",
-                          r.progressPercent === 100 && "bg-emerald-600"
-                        )}
-                        style={{ width: `${r.progressPercent}%` }}
-                      />
-                    </div>
-                    <span className="text-[11px] tabular-nums text-muted-foreground">
-                      {r.completedTasks}/{r.totalTasks} · {r.progressPercent}%
-                    </span>
-                  </div>
-                </td>
-                <td className="text-[10px] tabular-nums text-muted-foreground">
-                  {r.contractDate ? (
-                    <>חוזה: {formatDate(r.contractDate)}</>
-                  ) : (
-                    <span>נוצר: {formatDate(r.createdAt)}</span>
-                  )}
-                </td>
-                <td>
-                  <Link
-                    href={`/projects/${r.id}`}
-                    className="text-muted-foreground hover:text-foreground"
-                    aria-label="פתח פרויקט"
-                  >
-                    <ArrowLeft className="size-3.5" />
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </section>
+  );
+}
+
+function PortfolioMetric({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: string }) {
+  return (
+    <div className="rounded-2xl border border-white/80 bg-white/90 p-3 shadow-[0_6px_20px_rgba(31,41,55,0.055)] md:p-4">
+      <div className="text-primary">{icon}</div>
+      <div className="mt-2 text-2xl font-black tracking-tight text-brand-navy tabular-nums">{value}</div>
+      <div className="mt-0.5 text-[11px] text-muted-foreground md:text-xs">{label}</div>
+    </div>
   );
 }

@@ -114,11 +114,11 @@ export function MobileBottomNav({
   return (
     <>
       <nav
-        className="fixed bottom-0 inset-x-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
+        className="fixed bottom-0 inset-x-0 z-50 border-t border-black/5 bg-white/95 shadow-[0_-8px_30px_rgba(31,41,55,0.08)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/85 md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         aria-label="ניווט תחתון"
       >
-        <ul className="flex h-16 items-stretch justify-around">
+        <ul className="flex h-[4.5rem] items-stretch justify-around">
           {visiblePrimary.map((slot) => {
             const active = isRouteActive(pathname, slot.href);
             return (

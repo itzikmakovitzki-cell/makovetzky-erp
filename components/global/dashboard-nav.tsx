@@ -292,7 +292,7 @@ function NavRow({
   if (!isAllowed) {
     return (
       <span
-        className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2.5 py-1.5 text-white/30"
+        className="flex min-h-10 cursor-not-allowed items-center gap-2.5 rounded-xl px-3 py-2 text-white/30"
         title="אין הרשאה — מיועד למנהל"
       >
         <item.icon className="size-4 shrink-0" strokeWidth={1.75} />
@@ -305,23 +305,23 @@ function NavRow({
     <Link
       href={item.href}
       className={cn(
-        "group relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 transition-all duration-150",
+        "group relative flex min-h-10 cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 transition-all duration-200",
         isActive
-          ? "bg-primary font-medium text-primary-foreground shadow-sm"
-          : "text-white/75 hover:bg-white/10 hover:text-white"
+          ? "bg-brand-cream font-semibold text-brand-navy shadow-md shadow-black/10"
+          : "text-white/70 hover:bg-white/10 hover:text-white"
       )}
       aria-current={isActive ? "page" : undefined}
     >
       {isActive && (
         <span
-          className="absolute inset-y-1 start-0 w-0.5 rounded-full bg-primary-foreground/60"
+          className="absolute inset-y-2 start-0 w-1 rounded-full bg-primary"
           aria-hidden
         />
       )}
       <item.icon
         className={cn(
           "size-4 shrink-0 transition-transform duration-150",
-          isActive ? "scale-110" : "text-white/60 group-hover:text-white"
+          isActive ? "text-primary" : "text-white/60 group-hover:text-white"
         )}
         strokeWidth={isActive ? 2.25 : 1.75}
       />

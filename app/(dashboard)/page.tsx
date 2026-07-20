@@ -13,14 +13,16 @@ import {
   Activity,
   CalendarClock,
   Send,
-  History
+  History,
+  ArrowLeft,
+  Plus,
+  ListTodo
 } from "lucide-react";
 import type { AuditAction } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { greetingForHour, israelHour } from "@/lib/greeting";
 import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/global/page-header";
 import {
   PERMIT_STATUS_LABEL,
   PERMIT_STATUS_VARIANT
@@ -311,7 +313,7 @@ export default async function HomeDashboardPage() {
   }
   readyToSubmit.sort((a, b) => a.permitName.localeCompare(b.permitName, "he"));
 
-  const { greeting, emoji } = greetingForHour(israelHour(now));
+  const { greeting } = greetingForHour(israelHour(now));
   const firstName = session?.user?.name?.split(" ")[0] ?? "";
 
   // Resolve clickable preview URLs for any storage-backed files surfaced in
@@ -330,42 +332,49 @@ export default async function HomeDashboardPage() {
   };
 
   return (
-    <section className="flex flex-col gap-6">
-      <div className="rounded-md border bg-card px-3 py-2 text-[13px]">
-        <span className="me-1">{emoji}</span>
-        <span className="font-medium">{greeting}</span>
-        {firstName && <span>, {firstName}</span>}
-        <span className="ms-1 text-muted-foreground">
-          — {new Date(now).toLocaleDateString("he-IL", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long"
-          })}
-        </span>
+    <section className="flex flex-col gap-7">
+      <div className="relative overflow-hidden rounded-[1.75rem] bg-brand-navy px-5 py-6 text-brand-cream shadow-[0_18px_55px_rgba(31,41,55,0.16)] md:px-8 md:py-8">
+        <div aria-hidden className="absolute -start-20 -top-24 size-64 rounded-full bg-primary/20 blur-3xl" />
+        <div aria-hidden className="absolute -bottom-28 end-10 size-56 rounded-full bg-brand-cream/10 blur-3xl" />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="mb-2 text-sm font-medium text-brand-cream/65">
+              {new Date(now).toLocaleDateString("he-IL", { weekday: "long", day: "2-digit", month: "long" })}
+            </p>
+            <h1 className="text-3xl font-black tracking-tight md:text-4xl">
+              {greeting}{firstName ? `, ${firstName}` : ""}
+            </h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-brand-cream/72 md:text-base">
+              {upcomingTasks.length > 0
+                ? `יש ${upcomingTasks.length} משימות על הפרק השבוע. בואי נסגור את הדבר הבא ונמשיך משם.`
+                : "הכול נראה רגוע כרגע. זה זמן טוב לקדם פרויקט אחד צעד נוסף."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/my-tasks" className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-black/15 transition-colors duration-200 hover:bg-brand-orange-light">
+              <ListTodo className="size-4" /> המשימות שלי <ArrowLeft className="size-4" />
+            </Link>
+            {isAdmin && (
+              <Link href="/projects" className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur transition-colors duration-200 hover:bg-white/20">
+                <Plus className="size-4" /> פרויקט חדש
+              </Link>
+            )}
+          </div>
+        </div>
       </div>
-
-      <PageHeader
-        title="מבט-על"
-        accent={isAdmin ? "מנהל" : undefined}
-        description={
-          isAdmin
-            ? "תמונת מצב חוצת-לקוחות וצווארי בקבוק שדורשים טיפול."
-            : "סטטוס פרויקטים פעילים ופעילות אחרונה."
-        }
-      />
 
       {/* =====================================================================
          OPERATIONAL SECTION
          Per Block 23 the dashboard is 100% money-free — every monetary value
          lives only in /finances, reached via the discreet link below.
          ===================================================================== */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 border-b border-border/60 pb-2">
-          <Activity className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold text-foreground">תפעול</h2>
-          <span className="text-[10px] text-muted-foreground">
-            סטטוסי פרויקטים, משימות, צווארי בקבוק
-          </span>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">תמונת היום</p>
+            <h2 className="mt-1 text-xl font-extrabold tracking-tight text-brand-navy">מה קורה בעסק עכשיו</h2>
+          </div>
+          <Activity className="size-5 text-muted-foreground/60" />
         </div>
 
         <div
@@ -815,12 +824,12 @@ function StatCard({
   const inner = (
     <div
       className={cn(
-        "group relative h-full overflow-hidden rounded-xl border border-border/70 bg-card px-3.5 py-3 shadow-sm transition-all duration-200 md:shadow-[0_2px_8px_rgba(19,25,44,0.06),0_0_0_1px_rgba(0,0,0,0.02)]",
+        "group relative h-full overflow-hidden rounded-2xl border border-white/80 bg-white/90 px-4 py-4 shadow-[0_8px_28px_rgba(31,41,55,0.07)] backdrop-blur transition-all duration-200",
         accent === "warning" &&
           "border-amber-500/40 bg-amber-50/50 dark:bg-amber-500/5",
         accent === "info" && "border-sky-500/40 bg-sky-50/50 dark:bg-sky-500/5",
         href &&
-          "cursor-pointer hover:border-primary/30 hover:shadow-lg md:hover:-translate-y-0.5"
+          "cursor-pointer hover:border-primary/30 hover:shadow-[0_14px_36px_rgba(31,41,55,0.12)] md:hover:-translate-y-0.5"
       )}
     >
       {/* Soft peach/orange blob in the corner — the landing-page card motif. */}
@@ -834,7 +843,7 @@ function StatCard({
         )}
       />
       <div className="relative flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-xs font-semibold text-muted-foreground">
           {label}
         </span>
         <span
@@ -848,7 +857,7 @@ function StatCard({
       </div>
       <div
         className={cn(
-          "relative mt-1.5 text-2xl font-extrabold leading-none tracking-tight tabular-nums md:text-[1.4rem]",
+          "relative mt-3 text-3xl font-black leading-none tracking-tight tabular-nums",
           // Brand orange numbers by default (landing-card style); accent
           // variants keep their semantic color.
           !accent && "text-primary",
@@ -858,7 +867,7 @@ function StatCard({
       >
         {value}
       </div>
-      <div className="relative mt-1 text-[10.5px] leading-snug text-muted-foreground">
+      <div className="relative mt-2 text-xs leading-relaxed text-muted-foreground">
         {helper}
       </div>
     </div>
@@ -890,21 +899,21 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-card shadow-sm transition-shadow duration-200 md:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_1px_rgba(0,0,0,0.02)] md:hover:shadow-md">
-      <div className="flex items-center justify-between gap-2 rounded-t-lg border-b border-border/60 bg-muted/40 px-3 py-2">
+    <div className="overflow-hidden rounded-2xl border border-white/80 bg-white/90 shadow-[0_8px_28px_rgba(31,41,55,0.065)] backdrop-blur transition-shadow duration-200 md:hover:shadow-[0_12px_34px_rgba(31,41,55,0.1)]">
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-[#fbfaf7] px-4 py-3.5">
         <div className="flex items-center gap-2">
           {icon}
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="text-sm font-bold text-brand-navy">
             {title} ({count})
           </h2>
           {hint && (
-            <span className="text-[10px] text-muted-foreground">· {hint}</span>
+            <span className="hidden text-[11px] text-muted-foreground xl:inline">· {hint}</span>
           )}
         </div>
         {href && (
           <Link
             href={href}
-            className="text-[11px] font-medium text-foreground/70 underline-offset-2 transition-colors hover:text-foreground hover:underline"
+            className="inline-flex min-h-9 cursor-pointer items-center rounded-lg px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
           >
             {hrefLabel ?? "פתח"}
           </Link>
@@ -923,7 +932,7 @@ function EmptyRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-center gap-1.5 py-6 text-xs text-muted-foreground">
+    <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
       {icon}
       <span>{children}</span>
     </div>

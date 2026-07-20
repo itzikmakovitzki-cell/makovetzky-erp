@@ -23,7 +23,12 @@ export function MyTaskMobileCard({
   const isCompleted = task.status === "COMPLETED";
 
   return (
-    <Card className={cn(isCompleted && "opacity-60")}>
+    <Card className={cn(
+      "overflow-hidden rounded-2xl border-white/80 bg-white/95 shadow-[0_8px_24px_rgba(31,41,55,0.07)]",
+      task.dueState === "overdue" && !isCompleted && "border-red-200 border-s-4 border-s-red-500",
+      task.dueState === "today" && !isCompleted && "border-s-4 border-s-primary",
+      isCompleted && "opacity-60"
+    )}>
       <CardHeader>
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-1.5">

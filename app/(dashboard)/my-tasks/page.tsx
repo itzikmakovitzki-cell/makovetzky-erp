@@ -3,7 +3,6 @@ import type { Prisma, TaskStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { greetingForHour, israelHour } from "@/lib/greeting";
-import { PageHeader } from "@/components/global/page-header";
 import { MyTasksFilterBar } from "@/components/tasks/my-tasks-filter-bar";
 import { MyTasksView } from "@/components/tasks/my-tasks-view";
 import { InboxGreeting } from "@/components/tasks/inbox-greeting";
@@ -178,7 +177,7 @@ export default async function MyTasksPage({
     })
   ]);
 
-  const { greeting, emoji } = greetingForHour(israelHour(now));
+  const { greeting } = greetingForHour(israelHour(now));
 
   const tasks: MyTask[] = rows.map((t) => {
     const completed = t.status === "COMPLETED";
@@ -211,19 +210,13 @@ export default async function MyTasksPage({
     .filter((c): c is string => !!c && c.trim() !== "");
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-5">
       <InboxGreeting
         greeting={greeting}
-        emoji={emoji}
         name={session.user?.name ?? null}
         todayCount={todayCount}
         overdueCount={overdueCount}
-      />
-
-      <PageHeader
-        title="המשימות שלי"
-        accent={`(${tasks.length})`}
-        description="תיבת המשימות האישית שלך — סינון לפי פרויקט, טווח זמן ומצב. עריכה מהירה בטבלה או גרירה בלוח הקנבן."
+        visibleCount={tasks.length}
       />
 
       <MyTasksFilterBar projects={projects} categories={categories} />

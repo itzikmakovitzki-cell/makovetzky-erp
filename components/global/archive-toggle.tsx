@@ -40,7 +40,7 @@ export function ArchiveToggle({
 
   return (
     <div
-      className="inline-flex items-center gap-0.5 rounded-lg border border-border/70 bg-muted/40 p-0.5 shadow-sm"
+      className="inline-flex items-center gap-1 rounded-xl border border-white/80 bg-white/80 p-1 shadow-sm"
       role="tablist"
       aria-label="סינון לפי סטטוס"
     >
@@ -81,7 +81,7 @@ function ToggleLink({
       role="tab"
       aria-selected={active}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-150",
+        "inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200",
         active
           ? "bg-background text-foreground shadow-sm"
           : "text-muted-foreground hover:bg-background/60 hover:text-foreground"

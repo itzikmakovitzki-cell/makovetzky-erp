@@ -31,15 +31,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const impersonating = session?.impersonating ?? null;
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-60 shrink-0 flex-col border-l border-white/10 bg-brand-navy px-3 py-4 text-brand-navy-foreground md:flex md:sticky md:top-0 md:h-screen">
+    <div className="flex min-h-screen bg-[#f7f5f0]">
+      <aside className="hidden w-64 shrink-0 flex-col border-l border-white/10 bg-brand-navy px-4 py-5 text-brand-navy-foreground shadow-[0_0_40px_rgba(31,41,55,0.12)] md:flex md:sticky md:top-0 md:h-screen">
         {/* Horizontal logo art is light-bg; mount it on a brand-cream chip so
             it stays brand-correct against the dark navy sidebar (same pattern
             as the mobile top bar). */}
         <Link
           href="/"
           aria-label="מקובצקי — לדף הבית"
-          className="mb-4 flex shrink-0 items-center justify-center rounded-md border-2 border-primary bg-brand-cream px-3 py-2 shadow-sm transition-opacity hover:opacity-95"
+          className="mb-5 flex shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-brand-cream px-4 py-3 shadow-lg shadow-black/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
         >
           <Image
             src="/logo-horizontal.png"
@@ -50,7 +50,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             className="h-auto w-full object-contain"
           />
         </Link>
-        <CommandPaletteTrigger className="mb-3 shrink-0" />
+        <CommandPaletteTrigger className="mb-4 shrink-0" />
         {/* min-h-0 + overflow-y-auto = the nav scrolls inside the sidebar on
             short viewports (e.g. Bat-Or's small monitor) instead of pushing
             the user menu off-screen. Pinned items stay shrink-0 above/below. */}
@@ -67,7 +67,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         )}
       </aside>
-      <div className="flex flex-1 flex-col">
+      <div className="min-w-0 flex flex-1 flex-col">
         {/* Mobile-only top bar: brand logo on navy, links home. Desktop uses the sidebar logo. */}
         <header className="sticky top-0 z-40 flex h-14 items-center justify-center border-b border-white/10 bg-brand-navy px-4 md:hidden">
           <CommandPaletteIconButton className="absolute start-2 top-1/2 -translate-y-1/2" />
@@ -90,7 +90,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             />
           </Link>
         </header>
-        <main className="flex-1 overflow-auto px-4 py-4 pb-24 md:px-6 md:py-5 md:pb-5">
+        <main className="flex-1 overflow-auto px-4 py-5 pb-24 md:px-8 md:py-8 md:pb-8 xl:px-10">
           {impersonating && user && (
             <ImpersonationBanner
               impersonatedName={user.name ?? "—"}
@@ -98,7 +98,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               originalName={impersonating.originalName || "מקור"}
             />
           )}
-          {children}
+          <div className="mx-auto w-full max-w-[1500px]">{children}</div>
         </main>
       </div>
       <MobileBottomNav

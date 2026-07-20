@@ -21,9 +21,9 @@ export function MyTasksTable({
   users: AssigneeOption[];
 }) {
   return (
-    <div className="hidden md:block overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
-      <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-3 py-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="hidden overflow-hidden rounded-2xl border border-white/80 bg-white/90 shadow-[0_8px_28px_rgba(31,41,55,0.065)] md:block">
+      <div className="flex items-center justify-between border-b border-border/60 bg-[#fbfaf7] px-4 py-3.5">
+        <h2 className="text-sm font-bold text-brand-navy">
           המשימות שלי ({tasks.length})
         </h2>
       </div>
@@ -53,7 +53,7 @@ export function MyTasksTable({
               <tr
                 key={t.id}
                 className={cn(
-                  "group hover:bg-muted/50",
+                  "group hover:bg-primary/[0.035]",
                   isCompleted && "task-completed"
                 )}
               >

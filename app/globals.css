@@ -8,7 +8,7 @@
      - Charcoal #1F2937 for sidebar/header chrome and primary text
      - Signal Orange #E25822 for CTAs, focus ring, and active state
      - Cream #F5F1E8 as the warm secondary surface on dark chrome */
-  --background: oklch(1 0 0);
+  --background: oklch(0.982 0.008 85);
   --foreground: oklch(0.27 0.024 252);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.27 0.024 252);
@@ -28,7 +28,7 @@
   --border: oklch(0.91 0.005 252);
   --input: oklch(0.91 0.005 252);
   --ring: oklch(0.626 0.198 38);
-  --radius: 0.5rem;
+  --radius: 0.875rem;
   /* Brand chrome on dark surfaces (sidebar, mobile header, login).
      Name kept as `brand-navy` so existing utility classes keep working —
      value is now Charcoal #1F2937 per the final brand book.
@@ -109,6 +109,25 @@
     background-color: var(--background);
     color: var(--foreground);
     font-feature-settings: "rlig" 1, "calt" 1;
+    min-width: 320px;
+    background-image:
+      radial-gradient(circle at 8% 0%, rgba(226, 88, 34, 0.055), transparent 28rem),
+      radial-gradient(circle at 92% 16%, rgba(31, 41, 55, 0.035), transparent 26rem);
+    background-attachment: fixed;
+  }
+
+  :focus-visible {
+    outline: 3px solid color-mix(in oklch, var(--ring), white 20%);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
