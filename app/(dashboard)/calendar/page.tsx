@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { AlertCircle, CalendarDays, ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { PageHeader } from "@/components/global/page-header";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -272,11 +271,10 @@ export default async function CalendarPage({
   let overdueCount = 0;
   let soonCount = 0;
   let totalCount = 0;
-  for (const list of byDay.values()) {
+  const visibleMonthPrefix = monthKey(year, month);
+  for (const [key, list] of byDay.entries()) {
+    if (!key.startsWith(visibleMonthPrefix)) continue;
     for (const ev of list) {
-      if (!cells.find((c) => c.inMonth && dateKey(c.date) === dateKey(ev.kind === "permit" ? monthStart : monthStart))) {
-        // (placeholder; we just count below)
-      }
       totalCount++;
       if (ev.severity === "overdue") overdueCount++;
       if (ev.severity === "soon") soonCount++;
@@ -284,18 +282,32 @@ export default async function CalendarPage({
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <PageHeader
-        title="לוח שנה"
-        accent={`${HE_MONTHS[month]} ${year}`}
-        description="כל מועדי היעד במערכת במבט אחד — משימות, חיובי כספים, סגירות היתרים, ותוקפי הצעות."
-      />
+    <section className="flex flex-col gap-6">
+      <header className="relative overflow-hidden rounded-[1.75rem] bg-brand-navy px-5 py-6 text-brand-cream shadow-[0_18px_55px_rgba(31,41,55,0.16)] md:px-8 md:py-8">
+        <div aria-hidden className="absolute -start-20 -top-24 size-64 rounded-full bg-primary/20 blur-3xl" />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-brand-cream/80">
+              <CalendarDays className="size-3.5 text-primary" /> לוח העבודה
+            </div>
+            <h1 className="text-3xl font-black tracking-tight md:text-4xl">{HE_MONTHS[month]} {year}</h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-brand-cream/72 md:text-base">
+              כל מה שמתקרב, מחכה או כבר דורש תשומת לב — מסודר על ציר זמן אחד.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
+            <CalendarMetric icon={<CalendarDays className="size-4" />} value={totalCount} label="אירועים" />
+            <CalendarMetric icon={<AlertCircle className="size-4" />} value={overdueCount} label="באיחור" danger={overdueCount > 0} />
+            <CalendarMetric icon={<Clock3 className="size-4" />} value={soonCount} label="השבוע" />
+          </div>
+        </div>
+      </header>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/90 p-3 shadow-sm">
         <div className="flex items-center gap-1.5">
           <Link
             href={`/calendar?month=${monthKey(prevMonth.year, prevMonth.month)}`}
-            className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent"
             aria-label="חודש קודם"
           >
             <ChevronRight className="size-3" />
@@ -304,24 +316,22 @@ export default async function CalendarPage({
           {currentKey !== todayKey && (
             <Link
               href="/calendar"
-              className="inline-flex items-center rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
+              className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent"
             >
               היום
             </Link>
           )}
           <Link
             href={`/calendar?month=${monthKey(nextMonth.year, nextMonth.month)}`}
-            className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent"
             aria-label="חודש הבא"
           >
             {HE_MONTHS[nextMonth.month]}
             <ChevronLeft className="size-3" />
           </Link>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-          <span>
-            סה״כ אירועים: <span className="font-semibold text-foreground tabular-nums">{totalCount}</span>
-          </span>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span className="hidden sm:inline">גררו הצידה בנייד כדי לראות את כל השבוע</span>
           {overdueCount > 0 && (
             <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-300">
               <AlertCircle className="size-3" />
@@ -336,10 +346,11 @@ export default async function CalendarPage({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-md border bg-card">
-        <div className="grid grid-cols-7 border-b bg-muted/40 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="overflow-x-auto rounded-2xl border border-white/80 bg-white/95 shadow-[0_8px_28px_rgba(31,41,55,0.065)]">
+        <div className="min-w-[760px]">
+        <div className="grid grid-cols-7 border-b bg-[#fbfaf7] text-center text-xs font-bold text-muted-foreground">
           {HE_WEEKDAYS.map((wd) => (
-            <div key={wd} className="px-1 py-1.5">
+            <div key={wd} className="px-2 py-3">
               {wd}
             </div>
           ))}
@@ -352,20 +363,20 @@ export default async function CalendarPage({
               <div
                 key={idx}
                 className={cn(
-                  "min-h-[96px] border-b border-l p-1.5 text-[10.5px]",
+                  "min-h-[118px] border-b border-l p-2 text-[11px] transition-colors hover:bg-primary/[0.025]",
                   !cell.inMonth && "bg-muted/20 text-muted-foreground",
-                  isToday && "bg-amber-50/60 dark:bg-amber-500/5"
+                  isToday && "bg-primary/[0.055] ring-1 ring-inset ring-primary/25"
                 )}
               >
                 <div
                   className={cn(
-                    "mb-1 flex items-center justify-between text-[11px]",
+                    "mb-2 flex items-center justify-between text-xs",
                     isToday && "font-bold"
                   )}
                 >
                   <span className="tabular-nums">{cell.date.getDate()}</span>
                   {isToday && (
-                    <span className="rounded-full bg-amber-500/20 px-1 text-[9px] font-medium text-amber-800 dark:text-amber-200">
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold text-white">
                       היום
                     </span>
                   )}
@@ -376,7 +387,7 @@ export default async function CalendarPage({
                       key={i}
                       href={ev.href}
                       className={cn(
-                        "block truncate rounded px-1 py-0.5 text-[10px] leading-tight hover:opacity-80",
+                        "block min-h-6 cursor-pointer truncate rounded-md border border-transparent px-1.5 py-1 text-[10px] font-medium leading-tight transition-opacity hover:opacity-75",
                         ev.severity === "overdue" &&
                           "bg-red-500/15 text-red-800 dark:text-red-200",
                         ev.severity === "soon" &&
@@ -388,7 +399,7 @@ export default async function CalendarPage({
                       )}
                       title={`${ev.label}${ev.context ? ` · ${ev.context}` : ""}`}
                     >
-                      <span className="me-1 text-[9px]">{kindGlyph(ev.kind)}</span>
+                      <span aria-hidden className={cn("me-1 inline-block size-1.5 rounded-full", kindDot(ev.kind))} />
                       {ev.label}
                     </Link>
                   ))}
@@ -402,34 +413,49 @@ export default async function CalendarPage({
             );
           })}
         </div>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 text-[10.5px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white/60 px-3 py-2 text-[11px] text-muted-foreground">
         <Legend swatch="bg-red-500/15" label="באיחור" />
         <Legend swatch="bg-amber-500/15" label="עד שבוע" />
         <Legend swatch="bg-emerald-500/10" label="עתידי" />
         <Legend swatch="bg-muted" label="הושלם / שולם" />
-        <span className="ms-auto">
-          📋 משימה · 💰 חיוב · 🏆 אבן דרך · 📄 היתר · ✍️ הצעה
+        <span className="ms-auto hidden items-center gap-3 md:inline-flex">
+          <KindLegend dot="bg-sky-500" label="משימה" /><KindLegend dot="bg-emerald-500" label="חיוב" /><KindLegend dot="bg-violet-500" label="אבן דרך" /><KindLegend dot="bg-orange-500" label="היתר" /><KindLegend dot="bg-pink-500" label="הצעה" />
         </span>
       </div>
     </section>
   );
 }
 
-function kindGlyph(kind: EventKind): string {
+function kindDot(kind: EventKind): string {
   switch (kind) {
     case "task":
-      return "📋";
+      return "bg-sky-500";
     case "billing":
-      return "💰";
+      return "bg-emerald-500";
     case "deal":
-      return "🏆";
+      return "bg-violet-500";
     case "permit":
-      return "📄";
+      return "bg-orange-500";
     case "proposal":
-      return "✍️";
+      return "bg-pink-500";
   }
+}
+
+function CalendarMetric({ icon, value, label, danger = false }: { icon: React.ReactNode; value: number; label: string; danger?: boolean }) {
+  return (
+    <div className={danger ? "rounded-2xl border border-red-300/20 bg-red-500/20 p-3" : "rounded-2xl border border-white/10 bg-white/10 p-3"}>
+      <div className={danger ? "text-red-200" : "text-brand-cream/60"}>{icon}</div>
+      <div className="mt-2 text-2xl font-black tabular-nums">{value}</div>
+      <div className="text-xs text-brand-cream/65">{label}</div>
+    </div>
+  );
+}
+
+function KindLegend({ dot, label }: { dot: string; label: string }) {
+  return <span className="inline-flex items-center gap-1"><span className={cn("size-2 rounded-full", dot)} />{label}</span>;
 }
 
 function Legend({ swatch, label }: { swatch: string; label: string }) {
