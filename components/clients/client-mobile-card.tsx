@@ -19,14 +19,15 @@ export function ClientMobileCard({
   onDelete: (row: ClientRow) => void;
 }) {
   return (
-    <Card>
-      <CardHeader>
+    <Card className="group h-full overflow-hidden rounded-2xl border-white/80 bg-white/95 shadow-[0_8px_28px_rgba(31,41,55,0.07)] transition-all duration-200 md:hover:-translate-y-0.5 md:hover:shadow-[0_14px_36px_rgba(31,41,55,0.12)]">
+      <div aria-hidden className="h-1 bg-gradient-to-l from-primary via-brand-orange-light to-brand-cream" />
+      <CardHeader className="p-4 pb-3">
         <div className="min-w-0 flex-1">
           <Link
             href={`/clients/${row.id}`}
-            className="inline-flex items-center gap-1.5 text-sm font-medium leading-snug text-foreground underline-offset-2 hover:underline"
+            className="inline-flex cursor-pointer items-center gap-2 text-base font-extrabold leading-snug text-brand-navy underline-offset-2 hover:underline"
           >
-            <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
+            <Building2 className="size-4 shrink-0 text-primary" />
             <span className="line-clamp-2">{row.companyName}</span>
           </Link>
           {row.hp && (
@@ -37,12 +38,12 @@ export function ClientMobileCard({
         </div>
       </CardHeader>
 
-      <CardContent>
-        <div className="text-[12px] text-foreground">{row.contactName}</div>
+      <CardContent className="space-y-2 px-4 pb-4">
+        <div className="text-sm font-semibold text-foreground">{row.contactName}</div>
         {row.phone && (
           <a
             href={`tel:${row.phone}`}
-            className="inline-flex items-center gap-1 text-[12px] tabular-nums text-primary underline-offset-2 hover:underline"
+            className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-primary/10 px-2.5 text-sm font-semibold tabular-nums text-primary transition-colors hover:bg-primary/15"
           >
             <Phone className="size-3" />
             {row.phone}
@@ -71,7 +72,7 @@ export function ClientMobileCard({
         </div>
       </CardContent>
 
-      <CardFooter>
+      <CardFooter className="min-h-12 bg-[#fbfaf7] px-4 py-3">
         <button
           type="button"
           onClick={() =>
@@ -86,7 +87,7 @@ export function ClientMobileCard({
               clientType: row.clientType
             })
           }
-          className="inline-flex items-center gap-1 rounded border border-input px-2 py-1 text-[11px] hover:bg-accent"
+          className="inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-xl border border-input px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent"
         >
           <Pencil className="size-3" /> ערוך
         </button>
@@ -95,7 +96,7 @@ export function ClientMobileCard({
           onClick={() => onDelete(row)}
           disabled={isDeleting}
           className={cn(
-            "inline-flex items-center gap-1 rounded border border-red-500/50 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-800 hover:bg-red-500/20 dark:text-red-300",
+            "inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-xl border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-800 transition-colors hover:bg-red-500/20 dark:text-red-300",
             isDeleting && "cursor-not-allowed opacity-50"
           )}
         >

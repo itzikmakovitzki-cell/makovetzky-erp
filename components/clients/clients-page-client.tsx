@@ -72,7 +72,7 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
   };
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-6">
       <PageHeader
         title="לקוחות"
         accent={`(${rows.length})`}
@@ -99,20 +99,21 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
         }
       />
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <div className="relative rounded-2xl border border-white/80 bg-white/90 p-2 shadow-sm">
+        <Search className="pointer-events-none absolute right-5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="חיפוש לפי שם חברה / ח.פ. / איש קשר / טלפון / אימייל…"
-          className="w-full rounded border border-input bg-background px-2 py-1 pe-7 text-[12px] focus:outline-none focus:ring-1 focus:ring-ring"
+          className="min-h-12 w-full rounded-xl border-0 bg-transparent px-3 pe-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          aria-label="חיפוש לקוחות"
         />
       </div>
 
-      <div className="md:hidden flex flex-col gap-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {filtered.length === 0 ? (
-          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+          <div className="col-span-full rounded-2xl border border-dashed bg-white/70 px-5 py-14 text-center text-sm text-muted-foreground">
             {rows.length === 0
               ? "אין לקוחות עדיין. צור את הראשון."
               : "אין תוצאות לחיפוש."}
@@ -130,7 +131,7 @@ export function ClientsPageClient({ rows }: { rows: ClientRow[] }) {
         )}
       </div>
 
-      <div className="hidden md:block rounded-md border bg-card">
+      <div className="hidden">
         <table>
           <thead>
             <tr>

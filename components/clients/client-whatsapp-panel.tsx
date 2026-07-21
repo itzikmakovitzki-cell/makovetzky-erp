@@ -79,20 +79,20 @@ export function ClientWhatsAppPanel({
   };
 
   return (
-    <div className="rounded-md border bg-card">
-      <div className="border-b bg-muted/30 px-3 py-1.5">
-        <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="overflow-hidden rounded-2xl border border-emerald-200/70 bg-white/95 shadow-[0_8px_28px_rgba(31,41,55,0.055)]">
+      <div className="border-b border-emerald-100 bg-emerald-50/60 px-4 py-3">
+        <h2 className="inline-flex items-center gap-2 text-sm font-bold text-brand-navy">
           <MessageCircle className="size-3.5 text-emerald-600" />
           תקשורת — WhatsApp
         </h2>
       </div>
-      <div className="space-y-2 px-3 py-2">
+      <div className="space-y-3 px-4 py-4">
         {/* Preference pill */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] font-medium">העדפת התראות:</span>
           <div
             role="radiogroup"
-            className="inline-flex items-center rounded-md border border-input bg-background p-0.5"
+            className="inline-flex items-center rounded-xl border border-input bg-background p-1"
           >
             <PrefPill
               label="🔕 כבוי"
@@ -135,7 +135,7 @@ export function ClientWhatsAppPanel({
                 onClick={() => setComposeOpen(true)}
                 disabled={!clientPhone}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
+                  "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-colors",
                   clientPhone
                     ? "bg-emerald-600 text-white hover:bg-emerald-700"
                     : "bg-muted text-muted-foreground cursor-not-allowed"

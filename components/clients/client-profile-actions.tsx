@@ -20,10 +20,10 @@ export function ClientProfileActions({
   const [editing, setEditing] = useState(false);
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-2">
       <Link
         href="/permits/new"
-        className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
+        className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-primary/90"
       >
         <Plus className="size-3" />
         פרויקט ללקוח
@@ -31,7 +31,7 @@ export function ClientProfileActions({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
+        className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl border border-input bg-background px-4 py-2 text-xs font-semibold transition-colors hover:bg-accent"
       >
         <Pencil className="size-3" />
         ערוך

@@ -89,19 +89,21 @@ export default async function ClientProfilePage({
   );
 
   return (
-    <section className="flex flex-col gap-3">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <section className="flex flex-col gap-5">
+      <header className="relative overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/95 p-5 shadow-[0_14px_44px_rgba(31,41,55,0.09)] md:p-7">
+        <div aria-hidden className="absolute -start-24 -top-28 size-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+        <div className="flex min-w-0 items-start gap-3">
           <Link
             href="/clients"
-            className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] hover:bg-accent"
+            className="inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent"
           >
             <ArrowRight className="size-3" />
             חזרה
           </Link>
           <div>
-            <h1 className="flex items-center gap-2 text-base font-semibold">
-              <Building2 className="size-4" />
+            <h1 className="flex items-center gap-2 text-2xl font-black tracking-tight text-brand-navy md:text-3xl">
+              <Building2 className="size-6 text-primary" />
               {client.companyName}
             </h1>
             {client.hp && (
@@ -125,10 +127,11 @@ export default async function ClientProfilePage({
           }}
           dealCount={client.masterDeals.length}
         />
+        </div>
       </header>
 
       {/* Contact / metrics row */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <ProfileCard label="איש קשר" icon={<User className="size-3.5" />}>
           <div className="text-sm font-medium">{client.contactName}</div>
         </ProfileCard>
@@ -148,7 +151,7 @@ export default async function ClientProfilePage({
       </div>
 
       {/* Aggregate metrics */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard label="עסקאות" value={client.masterDeals.length} />
         <MetricCard label="היתרים — סה״כ" value={allPermits.length} />
         <MetricCard
@@ -163,7 +166,7 @@ export default async function ClientProfilePage({
       </div>
 
       {client.notes && (
-        <div className="rounded-md border bg-amber-50/40 px-3 py-2 text-[12px] dark:bg-amber-500/5">
+        <div className="rounded-2xl border border-amber-200/70 bg-amber-50/60 px-4 py-3 text-sm dark:bg-amber-500/5">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             הערות
           </div>
@@ -185,9 +188,9 @@ export default async function ClientProfilePage({
       />
 
       {/* Deals + Permits */}
-      <div className="rounded-md border bg-card">
-        <div className="border-b bg-muted/30 px-3 py-1.5">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-[0_8px_28px_rgba(31,41,55,0.065)]">
+        <div className="border-b bg-[#fbfaf7] px-4 py-3.5">
+          <h2 className="text-sm font-bold text-brand-navy">
             עסקאות והיתרים ({client.masterDeals.length})
           </h2>
         </div>
@@ -200,7 +203,7 @@ export default async function ClientProfilePage({
         ) : (
           <div className="divide-y">
             {client.masterDeals.map((deal) => (
-              <div key={deal.id} className="px-3 py-2">
+              <div key={deal.id} className="px-4 py-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -303,7 +306,7 @@ function ProfileCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-md border bg-card px-3 py-2">
+    <div className="min-w-0 rounded-2xl border border-white/80 bg-white/95 px-4 py-3 shadow-[0_6px_20px_rgba(31,41,55,0.05)]">
       <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         {icon}
         {label}
@@ -325,14 +328,14 @@ function MetricCard({
   return (
     <div
       className={cn(
-        "rounded-md border bg-card px-3 py-2",
+        "rounded-2xl border border-white/80 bg-white/95 px-4 py-3 shadow-[0_6px_20px_rgba(31,41,55,0.05)]",
         accent === "info" && "border-sky-500/40 bg-sky-500/5"
       )}
     >
       <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold tabular-nums">{value}</div>
+      <div className="mt-1 text-xl font-extrabold text-brand-navy tabular-nums">{value}</div>
     </div>
   );
 }
