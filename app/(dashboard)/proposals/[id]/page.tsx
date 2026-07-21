@@ -57,22 +57,24 @@ export default async function ProposalDetailPage({
   const converted = !!proposal.convertedAt;
 
   return (
-    <section className="flex flex-col gap-3">
-      <header>
+    <section className="flex flex-col gap-5">
+      <header className="relative overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/95 p-5 shadow-[0_14px_44px_rgba(31,41,55,0.09)] md:p-7">
+        <div aria-hidden className="absolute -start-24 -top-28 size-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative">
         <Link
           href="/proposals"
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+          className="inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-xl px-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ArrowRight className="size-3" />
           חזרה להצעות מחיר
         </Link>
-        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-5">
           <div>
-            <h1 className="flex items-center gap-2 text-base font-semibold">
-              <FileText className="size-4" />
+            <h1 className="flex items-center gap-2 text-2xl font-black tracking-tight text-brand-navy md:text-3xl">
+              <FileText className="size-6 text-primary" />
               {proposal.customerName}
             </h1>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
               <span>טלפון: <span className="text-foreground tabular-nums">{proposal.customerPhone}</span></span>
               {proposal.customerEmail && (
                 <span>· אימייל: <span className="text-foreground">{proposal.customerEmail}</span></span>
@@ -95,6 +97,10 @@ export default async function ProposalDetailPage({
             )}
           </div>
         </div>
+        <div className="mt-5 inline-flex rounded-2xl border border-border/60 bg-[#fbfaf7] px-4 py-3">
+          <div><div className="text-[11px] font-semibold text-muted-foreground">סכום ההצעה</div><div className="mt-1 text-2xl font-black text-brand-navy tabular-nums">{formatILS(proposal.totalAmount)}</div></div>
+        </div>
+        </div>
       </header>
 
       {converted && proposal.client && proposal.masterDeal && (
@@ -112,7 +118,7 @@ export default async function ProposalDetailPage({
 
       {/* Share + actions */}
       {!isRejected && !converted && (
-        <div className="rounded-md border bg-card p-3">
+        <div className="rounded-2xl border border-white/80 bg-white/95 p-4 shadow-[0_8px_28px_rgba(31,41,55,0.055)]">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {isSigned ? "פעולות" : "שיתוף ההצעה"}
@@ -120,7 +126,7 @@ export default async function ProposalDetailPage({
             {isDraft && (
               <Link
                 href={`/proposals/${proposal.id}/edit`}
-                className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-0.5 text-[11px] hover:bg-accent"
+                className="inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent"
               >
                 <Pencil className="size-2.5" />
                 ערוך
@@ -151,7 +157,7 @@ export default async function ProposalDetailPage({
                   href={`/quote/${proposal.id}`}
                   target="_blank"
                   rel="noopener"
-                  className="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-0.5 text-[11px] hover:bg-accent"
+                  className="inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent"
                 >
                   <FileText className="size-2.5" />
                   תצוגה מקדימה כפי שהלקוח יראה
@@ -200,8 +206,8 @@ export default async function ProposalDetailPage({
       )}
 
       {/* Total + milestones table */}
-      <div className="rounded-md border bg-card">
-        <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
+      <div className="overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-[0_8px_28px_rgba(31,41,55,0.065)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-[#fbfaf7] px-4 py-3.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             תנאים מסחריים
           </h2>

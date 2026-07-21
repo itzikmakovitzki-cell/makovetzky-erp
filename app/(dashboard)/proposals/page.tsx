@@ -70,7 +70,7 @@ export default async function ProposalsListPage({
   });
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-6">
       <PageHeader
         title="הצעות מחיר"
         description={'הצעות עצמאיות לליד — לא תופסות מקום ב"לקוחות" עד שנחתמות והומרו לפרויקט.'}
@@ -87,7 +87,7 @@ export default async function ProposalsListPage({
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/80 bg-white/90 p-3 shadow-sm">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           סטטוס
         </span>
@@ -106,12 +106,12 @@ export default async function ProposalsListPage({
         ))}
       </div>
 
-      <div className="md:hidden flex flex-col gap-2">
-        <div className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="col-span-full px-1 text-xs font-bold text-muted-foreground">
           תוצאות ({proposals.length})
         </div>
         {proposals.length === 0 ? (
-          <div className="rounded-md border bg-card py-6 text-center text-xs text-muted-foreground">
+          <div className="col-span-full rounded-2xl border border-dashed bg-white/70 px-5 py-14 text-center text-sm text-muted-foreground">
             אין הצעות תואמות לסינון
           </div>
         ) : (
@@ -119,7 +119,7 @@ export default async function ProposalsListPage({
         )}
       </div>
 
-      <div className="hidden md:block overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+      <div className="hidden">
         <div className="border-b border-border/60 bg-muted/40 px-3 py-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             תוצאות ({proposals.length})

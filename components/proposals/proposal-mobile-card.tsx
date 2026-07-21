@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft, MapPin, Phone } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -24,14 +25,15 @@ export function ProposalMobileCard({ proposal }: { proposal: ProposalMobileCardD
   return (
     <Link
       href={`/proposals/${proposal.id}`}
-      className="block transition-colors active:bg-muted/40"
+      className="group block cursor-pointer rounded-2xl transition-transform duration-200 md:hover:-translate-y-0.5"
       aria-label={proposal.customerName}
     >
-      <Card>
-        <CardHeader>
+      <Card className="h-full overflow-hidden rounded-2xl border-white/80 bg-white/95 shadow-[0_8px_28px_rgba(31,41,55,0.07)] transition-shadow duration-200 group-hover:shadow-[0_14px_36px_rgba(31,41,55,0.12)]">
+        <div aria-hidden className="h-1 bg-gradient-to-l from-primary via-brand-orange-light to-brand-cream" />
+        <CardHeader className="p-4 pb-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-1.5">
-              <h3 className="text-sm font-medium leading-snug text-foreground line-clamp-2">
+              <h3 className="line-clamp-2 text-base font-extrabold leading-snug text-brand-navy">
                 {proposal.customerName}
               </h3>
               {proposal.convertedAt && (
@@ -40,11 +42,11 @@ export function ProposalMobileCard({ proposal }: { proposal: ProposalMobileCardD
                 </Badge>
               )}
             </div>
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-              {proposal.projectLocation || "—"}
+            <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <MapPin className="size-3" /> {proposal.projectLocation || "ללא מיקום"}
             </p>
-            <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">
-              {proposal.customerPhone}
+            <p className="mt-1 flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
+              <Phone className="size-3" /> {proposal.customerPhone}
             </p>
           </div>
           <Badge variant={PROPOSAL_STATUS_VARIANT[proposal.status]}>
@@ -52,18 +54,19 @@ export function ProposalMobileCard({ proposal }: { proposal: ProposalMobileCardD
           </Badge>
         </CardHeader>
 
-        <CardContent>
-          <div className="text-base font-semibold tabular-nums text-foreground">
+        <CardContent className="px-4 pb-4">
+          <div className="text-2xl font-black tabular-nums text-brand-navy">
             {formatILS(proposal.totalAmount)}
           </div>
         </CardContent>
 
-        <CardFooter>
+        <CardFooter className="min-h-12 bg-[#fbfaf7] px-4 py-3">
           <span className="text-[11px] tabular-nums text-muted-foreground">
             נוצרה {formatDate(proposal.createdAt)}
           </span>
-          <span className="text-[11px] tabular-nums text-muted-foreground">
-            {proposal.signedAt ? `נחתמה ${formatDate(proposal.signedAt)}` : "—"}
+          <span className="inline-flex items-center gap-2 text-[11px] tabular-nums text-muted-foreground">
+            {proposal.signedAt ? `נחתמה ${formatDate(proposal.signedAt)}` : "ממתינה להתקדמות"}
+            <ArrowLeft className="size-3.5 text-primary transition-transform duration-200 group-hover:-translate-x-1" />
           </span>
         </CardFooter>
       </Card>

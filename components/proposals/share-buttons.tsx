@@ -88,7 +88,7 @@ export function ShareButtons({
         type="button"
         onClick={handleCopy}
         disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded border border-input bg-background px-3 py-1 text-[12px] hover:bg-accent disabled:opacity-50"
+        className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl border border-input bg-background px-4 py-2 text-sm font-semibold transition-colors hover:bg-accent disabled:opacity-50"
       >
         {copied ? (
           <Check className="size-3 text-emerald-600" />
@@ -101,7 +101,7 @@ export function ShareButtons({
         type="button"
         onClick={handleWhatsApp}
         disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded border border-emerald-600/50 bg-emerald-500/10 px-3 py-1 text-[12px] font-medium text-emerald-800 hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-200"
+        className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-600/50 bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
       >
         <MessageCircle className="size-3" />
         שלח ב-WhatsApp
@@ -111,7 +111,7 @@ export function ShareButtons({
         onClick={handleEmail}
         disabled={pending || !customerEmail}
         title={customerEmail ? "" : "לא הוזן אימייל ללקוח"}
-        className="inline-flex items-center gap-1.5 rounded border border-input bg-background px-3 py-1 text-[12px] hover:bg-accent disabled:opacity-50"
+        className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl border border-input bg-background px-4 py-2 text-sm font-semibold transition-colors hover:bg-accent disabled:opacity-50"
       >
         <Mail className="size-3" />
         שלח באימייל
