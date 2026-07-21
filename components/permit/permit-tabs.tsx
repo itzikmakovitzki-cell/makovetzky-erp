@@ -23,8 +23,8 @@ export function PermitTabs({
   const pathname = usePathname();
 
   return (
-    <nav className="border-b">
-      <ul className="flex gap-0.5 text-sm">
+    <nav className="overflow-x-auto rounded-2xl border border-white/80 bg-white/90 p-1.5 shadow-sm [scrollbar-width:none]">
+      <ul className="flex min-w-max gap-1 text-sm">
         {TABS.map((tab) => {
           const href = `/permits/${permitId}/${tab.segment}`;
           const isActive = pathname.startsWith(href);
@@ -34,15 +34,15 @@ export function PermitTabs({
               <Link
                 href={href}
                 className={cn(
-                  "inline-flex items-center gap-1.5 border-b-2 px-3 py-1.5 -mb-px transition-colors",
+                  "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 font-semibold transition-colors duration-200",
                   isActive
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                    ? "bg-brand-navy text-brand-cream shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 {tab.label}
                 {typeof count === "number" && (
-                  <span className="rounded bg-muted px-1 text-[10px] font-medium">{count}</span>
+                  <span className={cn("rounded-full px-1.5 text-[10px] font-bold", isActive ? "bg-white/15 text-white" : "bg-muted text-muted-foreground")}>{count}</span>
                 )}
               </Link>
             </li>

@@ -66,7 +66,7 @@ export default async function PermitLayout({
   const showBanner = isLocked || suggestCompletion;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       <PermitHeader
         permit={permit}
         progressPercent={progressPercent}
@@ -95,8 +95,8 @@ export default async function PermitLayout({
       {/* Block 23: financial data is fully hidden by default — it only renders
           inside the "ניהול פיננסי" side drawer, so the permit screen is safe to
           present to a client at any time. */}
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-white/80 bg-white/80 p-2.5 shadow-sm">
           {/* Block 41 — 1-click municipality binder. The headline action
               for the PM; sits left of the partner / finance / docs
               utilities so it's the first thing the eye lands on. */}
